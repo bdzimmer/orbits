@@ -1,0 +1,12 @@
+/bin/
+/project/project/
+/project/target/
+/target/
+.project
+.cache
+.cache-main
+.classpath
+.settings/
+.Rproj.user
+.RData
+.Rhistory
