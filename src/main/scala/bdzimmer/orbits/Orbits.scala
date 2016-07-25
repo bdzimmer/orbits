@@ -1,6 +1,7 @@
 // Copyright (c) 2016 Ben Zimmer. All rights reserved.
 
-// Experimentation with calculating positions of planets.
+// Experimentation with calculating and visualizing positions of planets and paths
+// between them.
 
 // mostly based on these:
 // http://www.braeunig.us/space/plntpos.htm
@@ -9,31 +10,88 @@
 
 package bdzimmer.orbits
 
-import java.io.File
 import scala.sys.process._
+import scala.collection.immutable.Seq
+
+import java.awt.{Color, Graphics}
+import java.awt.image.BufferedImage
+import java.io.File
+import javax.imageio.ImageIO
+
+
+case class CalendarDateTime(
+    year: Int, month: Int, day: Int,
+    hours: Int = 0, minutes: Int = 0, seconds: Double = 0.0) {
+
+  def dateTimeString(): String = {
+    val secondsInt = seconds.toInt
+    f"$year%04d-$month%02d-$day%02d $hours%02d:$minutes%02d:$secondsInt%02d"
+  }
+
+  def dateString(): String = {
+    val secondsInt = seconds.toInt
+    f"$year%04d-$month%02d-$day%02d"
+  }
+
+}
 
 
 object Orbits {
 
+  val MetersInAu = 1.49597870700e11
+  val SecInDay = 86400
+  val LightMetersPerSec = 299792458.0
+
   val JGREG = 15 + 31* ( 10 + 12 * 1582)
 
-  def julianDate(year: Int, month: Int, day: Double): Double = {
+  def julianDate(date: CalendarDateTime): Double = {
 
-    val (yearMod, monthMod) = if (month < 3) {
-      (year - 1, month + 12)
+    val day = date.day + (date.hours / 24.0) + (date.minutes / 1440.0) + date.seconds
+
+    val (yearMod, monthMod) = if (date.month < 3) {
+      (date.year - 1, date.month + 12)
     } else {
-      (year, month)
+      (date.year, date.month)
     }
 
     val b = if (day + 31 * (monthMod + 12 * yearMod) >= JGREG) {
       val a = math.floor(yearMod / 100)
-      2 - a + math.floor(a / 4 )
+      2 - a + math.floor(a / 4)
     } else {
       0.0
     }
 
     math.floor(365.25 * yearMod) + math.floor(30.6001 * (monthMod + 1)) + day + 1720994.5 + b
 
+  }
+
+
+  def calendarDate(date: Double): CalendarDateTime = {
+    // https://en.wikipedia.org/wiki/Julian_day#Converting_Julian_or_Gregorian_calendar_date_to_Julian_day_number
+    val y = 4716
+    val j = 1401
+    val m = 2
+    val n = 12
+    val r = 4
+    val p = 1461
+    val v = 3
+    val u = 5
+    val s = 153
+    val w = 2
+    val B = 274277
+    val C = -38
+
+    val J = math.floor(date + 0.5).toInt
+    val f = J + j + (((4 * J + B) / 146097) * 3)  / 4 + C
+    val e = r * f + v
+    val g = (e % p) / r
+    val h = u * g + w
+    val D = (h % s) / u + 1
+    val M = ((h / s + m) % n) + 1
+    val Y = (e / p) - y + (n + m - M) / n
+
+    // TODO: hours, minutes, and seconds
+    CalendarDateTime(Y, M, D)
   }
 
 
@@ -61,7 +119,6 @@ object Orbits {
 
   // these functions work, but I'm not currently using them
   /*
-
   def planetXYZ(oee: OrbitalElementsEstimator, t: Double): Vec3d = {
     val oe = oee(t)
     val v  = trueAnomaly(oe)
@@ -136,7 +193,6 @@ object Orbits {
         p.x * (cosw * sino + sinw * cosi * coso) + p.y * (cosw * cosi * coso - sinw *        sino),
         p.x * (sinw * sini)                      + p.y * (cosw * sini))
 
-
   }
 
 
@@ -159,6 +215,17 @@ object Orbits {
   }
 
 
+  def planetFullPeriod(oee: OrbitalElementsEstimator, startTime: Double, nPoints: Int = 365): Seq[OrbitalState] = {
+    // Apply Kepler's Third Law to find the period of the planet. Assumes the planet is orbiting the sun.
+    val oeStartTime = oee(startTime)
+    val r3 = oeStartTime.semimajorAxis * oeStartTime.semimajorAxis * oeStartTime.semimajorAxis
+    val period = math.sqrt(365.0 * 365.0 * r3)
+    val timeInterval = period / nPoints
+    val times = (0 to nPoints).map(t => startTime + t * timeInterval)
+    times.map(t => planetState(oee, t))
+  }
+
+
   def stateString(name: String, jd: Double, os: OrbitalState): String = {
     val pos = os.position.x + ", " + os.position.y + ", " + os.position.z
     val vel = os.velocity.x + ", " + os.velocity.y + ", " + os.velocity.z
@@ -166,46 +233,172 @@ object Orbits {
   }
 
 
-  def main(args: Array[String]): Unit = {
-    val startDate = julianDate(2016, 6, 1)
+  def roughFlightGivenTime(startPos: Vec3, endPos: Vec3, flightTime: Double, res: Double): Seq[Vec3] = {
 
-    val metersInAu = 1.49597870700e11
-    val secInDay = 86400
-    // val earthGm = 3.986005e14 / (metersInAu * metersInAu * metersInAu) * secInDay * secInDay
+    val path = endPos.sub(startPos)
+    val pathLength = path.length
+    val dir = Vec3(path.x / pathLength, path.y / pathLength, path.z / pathLength)
+
+    val accel = 4 * pathLength / (flightTime * flightTime)
+    roughFlight(dir, accel, flightTime, res).map(x => startPos.add(x))
+
+  }
+
+
+  def roughFlight(dir: Vec3, accel: Double, flightTime: Double, res: Double): Seq[Vec3] = {
+
+    val ticks = (0.0 to flightTime by res).toIndexedSeq
+    val halfFlightTime = flightTime / 2
+
+    val pos1d = ticks.map(t => {
+      if (t < halfFlightTime) {
+        0.5 * accel * t * t
+      } else {
+        -0.5 * accel * t * t + accel * flightTime * t - 0.25 * accel * flightTime * flightTime
+      }
+    })
+
+    pos1d.map(x => dir.mul(x))
+  }
+
+
+  def drawRoughFlight(
+      startLocName: String, endLocName: String,
+      startLoc: OrbitalElementsEstimator, endLoc: OrbitalElementsEstimator,
+      startDate: CalendarDateTime, endDate: CalendarDateTime): BufferedImage = {
+
+    val startDateJulian = julianDate(startDate)
+    val endDateJulian = julianDate(endDate)
+
+    val res = 1.0 / 24
+
+    val ticks = (startDateJulian to endDateJulian by res).toList.toIndexedSeq // don't ask - see below
+
+    /*
+    val date1 = ticks.takeRight(1)(0)
+    val date2 = ticks.last
+    println("diff: ", date1 - date2)
+    ticks.foreach(x => println(x.toDouble + "\t" + calendarDate(x.toDouble).dateString()))
+    */
+
+    val startLocStates = ticks.map(tick => planetState(startLoc, tick))
+    val endLocStates   = ticks.map(tick => planetState(endLoc,   tick))
+
+    ///
+
+    val imWidth = 800
+    val imHeight = 600
+
+    val im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
+    val gr = im.getGraphics();
+    gr.setColor(Color.BLACK)
+
+    val allStates = startLocStates ++ endLocStates
+    val planetMax = allStates.map(x => math.max(math.max(math.abs(x.position.x), math.abs(x.position.y)), math.abs(x.position.z))).max
+
+    val camOrient = Vec3(math.Pi * 0.25, 0, math.Pi)
+    val camPos = Vec3(0, -planetMax * 2.25, planetMax * 2.25)
+    val camTrans = View.cameraTransform(camOrient, camPos)
+    val viewPos = Vec3(0, 0, imWidth * 1.0)
+    val view = new View(camTrans, viewPos)
+    val gridLim = (planetMax * 4).toInt
+
+    val flightStates = roughFlightGivenTime(
+        startLocStates.head.position,
+        endLocStates.last.position,
+        endDateJulian - startDateJulian, res)
+
+    val distance = endLocStates.last.position.sub(startLocStates.head.position).length
+
+    val velAuPerDay = distance / (endDateJulian - startDateJulian)
+    val velMetersPerSec = velAuPerDay * MetersInAu / SecInDay
+    val velC = velMetersPerSec / LightMetersPerSec
+
+    println("start: " + startLocStates.last.position)
+    println("end: "   + endLocStates.last.position)
+
+    println("distance: " + distance)
+    println("average velocity: " + velAuPerDay + " AU/day")
+    println("average velocity: " + velMetersPerSec + " m/s")
+    println("average velocity: " + velC + " C")
+
+    gr.fillRect(0, 0, imWidth, imHeight)
+
+    view.drawGrid(im, gridLim, Color.BLUE)
+
+    val startLocFullPeriod = planetFullPeriod(startLoc, startDateJulian)
+    val endLocFullPeriod = planetFullPeriod(endLoc, startDateJulian)
+
+    view.drawMotion(im, Points3d(startLocFullPeriod.map(_.position)), Color.GRAY)
+    view.drawMotion(im, Points3d(endLocFullPeriod.map(_.position)),   Color.GRAY)
+
+    view.drawMotion(im, Points3d(startLocStates.map(_.position)), Color.GREEN)
+    view.drawMotion(im, Points3d(endLocStates.map(_.position)),   Color.GREEN)
+    view.drawMotion(im, Points3d(flightStates),                   Color.CYAN)
+
+    def drawArrow(os: OrbitalState, color: Color): Unit = {
+      val arrowPoints = view.arrowPoints(
+        View.perspective(os.position, camTrans, viewPos),
+        View.perspective(os.velocity, camTrans, viewPos).normalize)
+      view.drawPolygon(im, arrowPoints, color)
+    }
+
+    val arrowIndex1 = startLocFullPeriod.length / 4
+    val arrowIndex2 = arrowIndex1 * 3
+
+    drawArrow(startLocFullPeriod(arrowIndex1), Color.GRAY)
+    drawArrow(startLocFullPeriod(arrowIndex2), Color.GRAY)
+    drawArrow(endLocFullPeriod(arrowIndex1),   Color.GRAY)
+    drawArrow(endLocFullPeriod(arrowIndex2),   Color.GRAY)
+
+    println("starting position velocity:" + startLocStates.head.velocity.length + " AU/day")
+    println("ending position velocity:  " + endLocStates.last.velocity.length + " AU/day")
+
+    view.drawPosition(im, startLocStates.head.position, startLocName, startDate.dateString, Color.GREEN)
+    view.drawPosition(im, endLocStates.last.position,   endLocName,   endDate.dateString,   Color.GREEN)
+    view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
+
+    im
+
+  }
+
+
+  def main(args: Array[String]): Unit = {
+
+    val startDate = CalendarDateTime(2016, 7, 24, 0)
+    val endDate   = CalendarDateTime(2016, 7, 28, 0)
+
+    val startPlanet = MeeusPlanets.Earth
+    val startPlanetName = "Earth"
+    val endPlanet = MeeusPlanets.Mars
+    val endPlanetName = "Mars"
+
+    val im = drawRoughFlight(
+        startPlanetName, endPlanetName, startPlanet, endPlanet, startDate, endDate)
+
+    val outputImage = new java.io.File("output.png");
+    ImageIO.write(im, "png", outputImage)
+
+    // for visualization with other programs
 
     val outputFilename = "test.csv"
     val outputFile = new File(outputFilename)
     val pw = new java.io.PrintWriter(outputFile)
 
-    for (tick <- 0 until 365 * 84) {
+    val startDateJulian = julianDate(startDate)
+    val endDateJulian = julianDate(endDate)
 
-      val jd = startDate + tick
+    for (tick <- startDateJulian until endDateJulian by (1.0 / 24)) {
 
-      val earthState = planetState(MeeusPlanets.Earth, jd)
-      pw.println(stateString("Earth", jd, earthState))
+      val earthState = planetState(startPlanet, tick)
+      pw.println(stateString(startPlanetName, tick, earthState))
 
-      val marsState = planetState(MeeusPlanets.Mars, jd)
-      pw.println(stateString("Mars", jd, marsState))
-
-      val uranusState = planetState(MeeusPlanets.Uranus, jd)
-      pw.println(stateString("Uranus", jd, uranusState))
-
-      /*
-      val velAu = earthState.velocity.length
-      println("velocity in AU / D: " + velAu)
-      println("velocity in M / S : " + velAu * metersInAu / secInDay)
-      println("***")
-      */
+      val marsState = planetState(endPlanet, tick)
+      pw.println(stateString(endPlanetName, tick, marsState))
 
     }
 
     pw.close()
-
-    // println("Working directory: " + System.getProperty("user.dir"))
-
-    // this is just for testing - it won't work to run from the JAR
-    Seq("Rscript", "src/main/resources/orbits/orbits.R", s"${outputFile.getAbsolutePath}").run()
-
 
   }
 

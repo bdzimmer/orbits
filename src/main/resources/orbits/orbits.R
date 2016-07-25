@@ -2,7 +2,7 @@
 
 # Test visualizations of planetary orbits.
 
-SHOW_VELOCITY  <- TRUE
+SHOW_VELOCITY  <- FALSE
 SCALE_VELOCITY <- 10
 WINDOW_WIDTH   <- 640
 WINDOW_HEIGHT  <- 480
@@ -46,13 +46,21 @@ cameraTransform <- function(camOrient, camPosition) {
     0, 0, 1
   ), nrow = 3, ncol = 3, byrow = TRUE)
   
-  rotXYZ <- rotX %*% rotY %*% rotZ
+  rotXYZ <- rotZ %*% rotY %*% rotX
+  
   rotExpand <- identityMatrix()
   rotExpand[1:3, 1:3] <- rotXYZ
   
   # translationMatrix is an rgl function - easy to understand how it works though
   transMat <- t(translationMatrix(-camPosition[1], -camPosition[2], -camPosition[3]))
-  rotExpand %*% transMat
+  
+  print(transMat)
+  
+  camTransform <- rotExpand %*% transMat
+  
+  print(camTransform)
+  
+  camTransform
   
 }
 
@@ -71,20 +79,21 @@ perspective <- function (coords, camTrans, viewPos) {
 }
 
 
-if (TRUE) {
+if (True) {
 
   # find the maximum planet coordinate
   planetMax <- max(abs(states[, 3:5]))
   
-  camOrient <- c(pi * 0.75 , 0, 0)
-  camPos <- c(0, planetMax * 3, planetMax * 3)
+  camOrient <- c(pi * 0.25 , 0, pi)
+  camPos <- c(0, - planetMax * 2.5, planetMax * 2.5)
   camTrans <- cameraTransform(camOrient, camPos)
   
-  viewerPos <- c(0, 0, 25) # don't understand this too well - z seems to work like zoom
+  viewerPos <- c(0, 0, 800) # don't understand this too well - z seems to work like zoom
   
   cat("camera position: ", camPos, "\n")
   
-  plot(0, type="n", asp=1, xlim=c(-6, 6), ylim=c(-6, 6), xlab = "", ylab = "")
+  # plot(0, type="n", asp=1, xlim=c(-6, 6), ylim=c(-6, 6), xlab = "", ylab = "")
+  plot(0, type="n", asp=1, xlim=range(-400, 400), ylim=c(-300, 300), xlab = "", ylab = "")
   
   for (x in planets) {
     coords2d <- perspective(x$states[, 2:4], camTrans, viewerPos)
@@ -109,6 +118,8 @@ if (TRUE) {
     
     text3d(x$states[1, 2:4], texts=x$planet)
   }
+  
+  axes3d(c('x', 'y', 'z'))
   
   library(tcltk)
   mywait <- function() {
