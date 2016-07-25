@@ -53,15 +53,9 @@ cameraTransform <- function(camOrient, camPosition) {
   
   # translationMatrix is an rgl function - easy to understand how it works though
   transMat <- t(translationMatrix(-camPosition[1], -camPosition[2], -camPosition[3]))
-  
-  print(transMat)
-  
-  camTransform <- rotExpand %*% transMat
-  
-  print(camTransform)
-  
-  camTransform
-  
+
+  rotExpand %*% transMat
+
 }
 
 
@@ -79,7 +73,7 @@ perspective <- function (coords, camTrans, viewPos) {
 }
 
 
-if (True) {
+if (TRUE) {
 
   # find the maximum planet coordinate
   planetMax <- max(abs(states[, 3:5]))
@@ -90,7 +84,7 @@ if (True) {
   
   viewerPos <- c(0, 0, 800) # don't understand this too well - z seems to work like zoom
   
-  cat("camera position: ", camPos, "\n")
+  # cat("camera position: ", camPos, "\n")
   
   # plot(0, type="n", asp=1, xlim=c(-6, 6), ylim=c(-6, 6), xlab = "", ylab = "")
   plot(0, type="n", asp=1, xlim=range(-400, 400), ylim=c(-300, 300), xlab = "", ylab = "")
