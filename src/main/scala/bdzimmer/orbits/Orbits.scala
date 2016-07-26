@@ -235,12 +235,12 @@ object Orbits {
 
   def roughFlightGivenTime(startPos: Vec3, endPos: Vec3, flightTime: Double, res: Double): Seq[Vec3] = {
 
-    val path = endPos.sub(startPos)
-    val pathLength = path.length
+    val path = Vec3.sub(endPos, startPos)
+    val pathLength = Vec3.length(path)
     val dir = Vec3(path.x / pathLength, path.y / pathLength, path.z / pathLength)
 
     val accel = 4 * pathLength / (flightTime * flightTime)
-    roughFlight(dir, accel, flightTime, res).map(x => startPos.add(x))
+    roughFlight(dir, accel, flightTime, res).map(x => Vec3.add(startPos, x))
 
   }
 
@@ -258,7 +258,7 @@ object Orbits {
       }
     })
 
-    pos1d.map(x => dir.mul(x))
+    pos1d.map(x => Vec3.mul(dir, x))
   }
 
 
@@ -308,7 +308,7 @@ object Orbits {
         endLocStates.last.position,
         endDateJulian - startDateJulian, res)
 
-    val distance = endLocStates.last.position.sub(startLocStates.head.position).length
+    val distance = Vec3.length(Vec3.sub(endLocStates.last.position, startLocStates.head.position))
 
     val velAuPerDay = distance / (endDateJulian - startDateJulian)
     val velMetersPerSec = velAuPerDay * MetersInAu / SecInDay
@@ -339,7 +339,7 @@ object Orbits {
     def drawArrow(os: OrbitalState, color: Color): Unit = {
       val arrowPoints = view.arrowPoints(
         View.perspective(os.position, camTrans, viewPos),
-        View.perspective(os.velocity, camTrans, viewPos).normalize)
+        Vec2.normalize(View.perspective(os.velocity, camTrans, viewPos)))
       view.drawPolygon(im, arrowPoints, color)
     }
 
@@ -351,8 +351,8 @@ object Orbits {
     drawArrow(endLocFullPeriod(arrowIndex1),   Color.GRAY)
     drawArrow(endLocFullPeriod(arrowIndex2),   Color.GRAY)
 
-    println("starting position velocity:" + startLocStates.head.velocity.length + " AU/day")
-    println("ending position velocity:  " + endLocStates.last.velocity.length + " AU/day")
+    println("starting position velocity:" + Vec3.length(startLocStates.head.velocity) + " AU/day")
+    println("ending position velocity:  " + Vec3.length(endLocStates.last.velocity) + " AU/day")
 
     view.drawPosition(im, startLocStates.head.position, startLocName, startDate.dateString, Color.GREEN)
     view.drawPosition(im, endLocStates.last.position,   endLocName,   endDate.dateString,   Color.GREEN)
@@ -367,6 +367,8 @@ object Orbits {
 
     val startDate = CalendarDateTime(2016, 7, 24, 0)
     val endDate   = CalendarDateTime(2016, 7, 28, 0)
+
+    val junk = Vec2(1.0, 2.0)
 
     val startPlanet = MeeusPlanets.Earth
     val startPlanetName = "Earth"
