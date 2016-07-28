@@ -4,19 +4,25 @@
 # 2016-07
 
 flightTime <- 4.0 # days
-distance <- 7.0   # AU
+distance <- 3.0   # AU
 
 halfFlightTime <- flightTime / 2
 
 # for constant acceleration, starting and ending at 0
 accel <- (4 * distance) / (flightTime * flightTime)
+accelMS <- accel  *  1.49597870700e11 / (86400 * 86400)
+vel <- distance / flightTime
+velC <- vel *  1.49597870700e11 / 86400 / 299792458.0
 halfDistance <- distance / 2.0
 
-cat("acceleration:", accel, "AU / day^2")
+cat("acceleration:", accel, "AU/day^2\n")
+cat("acceleration:", accelMS, "m/s^2\n")
+cat("average velocity:", vel, "AU/day\n")
+cat("average velocity:", velC, "C\n")
 
-res = 0.01
+res <- 0.01
 
-times <- seq(0, flightTime, res)
+times <- seq(0, flightTime, length.out = 1000)
 
 velocities <- sapply(times, function(t) {
   if (t < halfFlightTime) {

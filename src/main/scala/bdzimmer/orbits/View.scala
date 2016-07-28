@@ -1,18 +1,21 @@
 // Copyright (c) 2016 Ben Zimmer. All rights reserved.
 
+// Render 3D positions and motions to 2D images.
+
 package bdzimmer.orbits
 
 import scala.collection.immutable.Seq
 
 import java.awt.image.BufferedImage
-import java.awt.Color
+import java.awt.{Color, Font}
 
-class View(camTrans: Mat44, viewPos: Vec3) {
+
+class Viewer(camTrans: Mat44, viewPos: Vec3) {
 
   def drawGrid(im: BufferedImage, gridLim: Int, color: Color): Unit = {
 
-    val xGrid = (-gridLim.toDouble to gridLim by 0.5).map(x => (Vec3(x, -gridLim, 0), Vec3(x, gridLim, 0)))
-    val yGrid = (-gridLim.toDouble to gridLim by 0.5).map(x => (Vec3(-gridLim, x, 0), Vec3(gridLim, x, 0)))
+    val xGrid = (-gridLim.toDouble to gridLim by 1.0).map(x => (Vec3(x, -gridLim, 0), Vec3(x, gridLim, 0)))
+    val yGrid = (-gridLim.toDouble to gridLim by 1.0).map(x => (Vec3(-gridLim, x, 0), Vec3(gridLim, x, 0)))
 
     val gr = im.getGraphics
     gr.setColor(color)
@@ -39,7 +42,6 @@ class View(camTrans: Mat44, viewPos: Vec3) {
     pos2d.foreach(p => {
       val x = p.x.toInt + im.getWidth / 2
       val y = im.getHeight - (p.y.toInt + im.getHeight / 2)
-      //println(x, y)
       if (x >= 0 && x < im.getWidth && y >= 0 && y < im.getHeight) {
         im.setRGB(x, y, colInt)
       }
@@ -48,9 +50,6 @@ class View(camTrans: Mat44, viewPos: Vec3) {
 
 
   def drawPosition(im: BufferedImage, pos: Vec3, name: String, date: String, color: Color): Unit = {
-
-    val circleRadius = 6
-
     val pos2d = View.perspective(pos, camTrans, viewPos)
     val gr = im.getGraphics
     gr.setColor(color)
@@ -58,27 +57,37 @@ class View(camTrans: Mat44, viewPos: Vec3) {
     val x = pos2d.x.toInt + im.getWidth / 2
     val y = im.getHeight - (pos2d.y.toInt + im.getHeight / 2)
 
-    gr.fillOval(x - circleRadius, y - circleRadius, circleRadius * 2, circleRadius * 2)
-    gr.drawString(name, x + circleRadius, y + 15)
-    gr.drawString(date, x + circleRadius, y + 30)
+    val rad = Viewer.CircleRadius
+    gr.fillOval(x - rad, y - rad, rad * 2, rad * 2)
+    gr.setFont(Viewer.DisplayFont)
+    gr.drawString(name, x + rad, y + Viewer.LineHeight)
+    gr.drawString(date, x + rad, y + Viewer.LineHeight * 2)
   }
 
 
   def drawPolygon(im: BufferedImage, polygon: Seq[Vec2], color: Color): Unit = {
     val gr = im.getGraphics
     gr.setColor(color)
-    println(polygon)
     gr.fillPolygon(
         polygon.map(v => v.x.toInt + im.getWidth / 2).toArray,
         polygon.map(v => im.getHeight - (v.y.toInt + im.getHeight / 2)).toArray,
         polygon.length)
   }
 
+}
+
+
+
+object Viewer {
+
+  val DisplayFont = new Font("Monospace", Font.BOLD, 12)
+  val LineHeight = 14
+  val CircleRadius = 6
 
   def arrowPoints(pos: Vec2, dir: Vec2): Seq[Vec2] = {
 
-    val length = 10
-    val width = length / 2
+    val length = 15
+    val width = length / 3
 
     // pos at at base of arrow
     /*
@@ -93,7 +102,6 @@ class View(camTrans: Mat44, viewPos: Vec3) {
     val left  = Vec2(pos.x - dir.y * width - tip.x, pos.y + dir.x * width - tip.y)
     val right = Vec2(pos.x + dir.y * width - tip.x, pos.y - dir.x * width - tip.y)
     Seq(left, pos, right)
-
 
   }
 
