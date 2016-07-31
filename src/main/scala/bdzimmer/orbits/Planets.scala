@@ -60,6 +60,7 @@ object MeeusPlanets {
 
   val DegToRad = math.Pi / 180
 
+
   val Mercury = new NonEarthPolynomialEstimator(
       Polynomial4(178.179078, 149474.07078, 0.0003011),
       0.3870986,
@@ -91,6 +92,11 @@ object MeeusPlanets {
       Polynomial4(98.071581,  0.9857650,  0.0010745, -0.00000061),
       Polynomial4(73.477111,  0.4986678,  0.0013117))
 
+  val Planets = Map(
+      "Mercury" -> Mercury,
+      "Earth"   -> Earth,
+      "Mars"    -> Mars,
+      "Uranus"  -> Uranus)
 
   class NonEarthPolynomialEstimator(
     longitudeMean: Polynomial4,
