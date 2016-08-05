@@ -90,17 +90,22 @@ object Flight {
         endDateJulian - startDateJulian, res)
 
     val distance = Vec3.length(Vec3.sub(endLocStates.last.position, startLocStates.head.position))
-    val distanceGm = distance * Conversions.MetersInAu / Conversions.SecInDay / 1e9
+    // val distanceGm = distance * Conversions.AuToMeters / Conversions.DayToSec / 1e9
 
-    // average velocity
-    val vel = distance / (endDateJulian - startDateJulian)
-    val velMetersPerSec = vel * Conversions.MetersInAu / Conversions.SecInDay
-    val velKmPerSec = velMetersPerSec / 1000
-    val velC = velMetersPerSec / Conversions.LightMetersPerSec
+
+    val vel = distance / (endDateJulian - startDateJulian) // average velocity
+    val velMetersPerSec = vel * Conversions.AuToMeters / Conversions.DayToSec
+    val velKmPerSec = velMetersPerSec / 1000.0
+    val velC = velMetersPerSec / Conversions.LightToMetersPerSec
+
+    val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
+
+    val accelG = accel * aud2ToMs2 / Conversions.GToMetersPerSecond
+    val shipAccelG = ship.accel * aud2ToMs2 / Conversions.GToMetersPerSecond
 
     val thrust = ship.mass * accel
-    val thrustKN = thrust / (Conversions.SecInDay * Conversions.SecInDay) * Conversions.MetersInAu
-    val shipThrustKN = ship.thrust / (Conversions.SecInDay * Conversions.SecInDay) * Conversions.MetersInAu
+    val thrustKN = thrust * aud2ToMs2
+    val shipThrustKN = ship.thrust * aud2ToMs2
 
     gr.fillRect(0, 0, imWidth, imHeight)
 
@@ -163,21 +168,20 @@ object Flight {
     }
 
     table("Spacecraft:", Seq(ship.name), 0)
-    table("Mass:",       Seq("%.2f".format(ship.mass)   + " tonnes"), 1)
-    table("a max:",      Seq("%.4f".format(ship.accel)  + " AU/day"), 2)
-    table("f max:",      Seq(/*"%.4f".format(ship.thrust) + " tonnes * AU/day²",*/
-                             "%.2f".format(shipThrustKN) + " kN"),   3)
+    table("Mass:",       Seq("%.2f".format(ship.mass)    + " tonnes"), 1)
+    table("a max:",      Seq("%.4f".format(ship.accel)   + " AU/day²",
+                             "%.4f".format(shipAccelG)   + " g" ), 2)
+    table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   4)
 
-    table("Departure:", Seq(startDate.dateString + " " + startLocName ), 5)
-    table("Arrival:",   Seq(endDate.dateString   + " " + endLocName),    6)
-    table("Distance:",  Seq(f"$distance%.4f AU",
-                            f"$distanceGm%.4f Gm"), 7)
+    table("Departure:", Seq(startDate.dateString + " " + startLocName ), 6)
+    table("Arrival:",   Seq(endDate.dateString   + " " + endLocName),    7)
+    table("Distance:",  Seq(f"$distance%.4f AU"), 8)
     table("v mean:",    Seq(f"$vel%.4f AU/day",
                             f"$velKmPerSec%.4f km/s",
                             f"$velC%.4f C"), 9)
-    table("a req:",     Seq(f"$accel%.4f AU/day²"), 12, reqColor)
-    table("f req:",     Seq(/*f"$thrust%.4f tonnes * AU/day²", */
-                            f"$thrustKN%.2f kN"), 13, reqColor)
+    table("a req:",     Seq(f"$accel%.4f AU/day²",
+                            f"$accelG%.4f g"), 12, reqColor)
+    table("f req:",     Seq(f"$thrustKN%.2f kN"), 14, reqColor)
 
     println("distance: " + distance)
     println("average velocity: " + vel + " AU/day")

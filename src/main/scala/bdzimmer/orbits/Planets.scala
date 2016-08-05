@@ -1,6 +1,8 @@
 // Copyright (c) 2016 Ben Zimmer. All rights reserved.
 
-// Experimentation with calculating positions of planets.
+// Calculate positions of planets.
+
+// http://www.braeunig.us/space/plntpos.htm
 
 package bdzimmer.orbits
 
@@ -84,6 +86,14 @@ object MeeusPlanets {
       Polynomial4(285.431761, 1.0697667,    0.0001313,  0.00000414),
       Polynomial4(48.786442,  0.7709917,    0.0000014, -0.000005330))
 
+  val Saturn = new NonEarthPolynomialEstimator(
+      Polynomial4(266.564377,  1223.509884,  0.0003245, -0.0000058),
+      9.554747,
+      Polynomial4(0.05589232, -0.00034550, -0.000000728, 0.00000000074),
+      Polynomial4(2.492519,   -0.0039189,  -0.00001549,  0.00000004),
+      Polynomial4(338.307800,  1.0852207,   0.00097854,  0.00000992),
+      Polynomial4(112.790414,  0.8731951,  -0.00015218, -0.00000531))
+
   val Uranus = new NonEarthPolynomialEstimator(
       Polynomial4(244.197470, 429.863546, 0.0003160, -0.00000060),
       19.21814,
@@ -96,6 +106,7 @@ object MeeusPlanets {
       "Mercury" -> Mercury,
       "Earth"   -> Earth,
       "Mars"    -> Mars,
+      "Saturn"  -> Saturn,
       "Uranus"  -> Uranus)
 
   class NonEarthPolynomialEstimator(

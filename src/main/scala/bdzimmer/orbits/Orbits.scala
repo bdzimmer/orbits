@@ -68,9 +68,10 @@ case class Spacecraft(name: String, mass: Double, accel: Double) {
 
 object Conversions {
 
-  val MetersInAu = 1.49597870700e11
-  val SecInDay = 86400.0
-  val LightMetersPerSec = 299792458.0
+  val AuToMeters = 1.49597870700e11
+  val DayToSec = 86400.0
+  val LightToMetersPerSec = 299792458.0
+  val GToMetersPerSecond = 9.80665
 
   def julianToCalendarDate(date: Double): CalendarDateTime = {
     // https://en.wikipedia.org/wiki/Julian_day#Converting_Julian_or_Gregorian_calendar_date_to_Julian_day_number
