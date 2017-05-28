@@ -10,7 +10,7 @@ import java.awt.image.BufferedImage
 import java.awt.{Color, Font}
 
 
-class Viewer(camTrans: Mat44, viewPos: Vec3) {
+class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
 
   def drawGrid(im: BufferedImage, gridLim: Int, color: Color): Unit = {
 
@@ -49,7 +49,7 @@ class Viewer(camTrans: Mat44, viewPos: Vec3) {
   }
 
 
-  def drawPosition(im: BufferedImage, pos: Vec3, name: String, date: String, color: Color): Unit = {
+  def drawPosition(im: BufferedImage, pos: Vec3, name: String, desc: String, color: Color): Unit = {
     val pos2d = View.perspective(pos, camTrans, viewPos)
     val gr = im.getGraphics
     gr.setColor(color)
@@ -61,7 +61,7 @@ class Viewer(camTrans: Mat44, viewPos: Vec3) {
     gr.fillOval(x - rad, y - rad, rad * 2, rad * 2)
     gr.setFont(Viewer.DisplayFont)
     gr.drawString(name, x + rad, y + Viewer.LineHeight)
-    gr.drawString(date, x + rad, y + Viewer.LineHeight * 2)
+    gr.drawString(desc, x + rad, y + Viewer.LineHeight * 2)
   }
 
 
@@ -72,6 +72,15 @@ class Viewer(camTrans: Mat44, viewPos: Vec3) {
         polygon.map(v => v.x.toInt + im.getWidth / 2).toArray,
         polygon.map(v => im.getHeight - (v.y.toInt + im.getHeight / 2)).toArray,
         polygon.length)
+  }
+
+  def drawArrow(im: BufferedImage, os: OrbitalState, color: Color): Unit = {
+    val position = View.perspective(os.position, camTrans, viewPos)
+    val direction = Vec2.normalize(Vec2.sub(
+        View.perspective(Vec3.add(os.position, os.velocity), camTrans, viewPos),
+        position))
+    val arrowPoints = Viewer.arrowPoints(position, direction)
+    drawPolygon(im, arrowPoints, color)
   }
 
 }
@@ -142,29 +151,36 @@ object View {
   // perspective transformation calculations
   // https://en.wikipedia.org/wiki/3D_projection#Perspective_projection
 
-  def cameraTransform(orient: Vec3, pos: Vec3): Mat44 = {
+  def cameraTransform(rot: Mat33, pos: Vec3): Mat44 = {
+
+    val translation = transformation(Identity3, Vec3(-pos.x, -pos.y, -pos.z))
+    val rotation = transformation(rot, Vec3Zero)
+    rotation.mul(translation)
+
+  }
+
+
+  def rotation(theta: Vec3): Mat33 = {
 
     val rotX = Mat33(
       UnitX,
-      Vec3(0.0, math.cos(orient.x), -math.sin(orient.x)),
-      Vec3(0.0, math.sin(orient.x),  math.cos(orient.x))
+      Vec3(0.0, math.cos(theta.x), -math.sin(theta.x)),
+      Vec3(0.0, math.sin(theta.x),  math.cos(theta.x))
     )
 
     val rotY = Mat33(
-      Vec3( math.cos(orient.y), 0.0, math.sin(orient.y)),
+      Vec3( math.cos(theta.y), 0.0, math.sin(theta.y)),
       UnitY,
-      Vec3(-math.sin(orient.y), 0.0, math.cos(orient.y))
+      Vec3(-math.sin(theta.y), 0.0, math.cos(theta.y))
     )
 
     val rotZ = Mat33(
-      Vec3(math.cos(orient.z), -math.sin(orient.z), 0.0),
-      Vec3(math.sin(orient.z),  math.cos(orient.z), 0.0),
+      Vec3(math.cos(theta.z), -math.sin(theta.z), 0.0),
+      Vec3(math.sin(theta.z),  math.cos(theta.z), 0.0),
       UnitZ
     )
 
-    val translation = transformation(Identity3, Vec3(-pos.x, -pos.y, -pos.z))
-    val rotation = transformation(rotZ.mul(rotY).mul(rotX), Vec3Zero)
-    rotation.mul(translation)
+    rotZ.mul(rotY).mul(rotX)
 
   }
 

@@ -12,16 +12,17 @@ import bdzimmer.util.Result
 
 class IntegrationSuite extends FunSuite {
 
-  test("integration") {
+  val compass = Spacecraft("EOE Compass", 30000.0, 0.2)
+  val startDate = CalendarDateTime(2016, 7, 27, 0)
+  val endDate   = CalendarDateTime(2016, 7, 31, 0)
 
-    val compass = Spacecraft("EOE Compass", 30000.0, 0.2)
-    val startDate = CalendarDateTime(2016, 7, 27, 0)
-    val endDate   = CalendarDateTime(2016, 7, 31, 0)
+  val startPlanet = MeeusPlanets.Mars
+  val startPlanetName = "Mars"
+  val endPlanet = MeeusPlanets.Earth
+  val endPlanetName = "Earth"
 
-    val startPlanet = MeeusPlanets.Mars
-    val startPlanetName = "Mars"
-    val endPlanet = MeeusPlanets.Earth
-    val endPlanetName = "Earth"
+
+  test("draw flight") {
 
     val im = Flight.drawRoughFlight(
         compass,
@@ -57,5 +58,27 @@ class IntegrationSuite extends FunSuite {
     assert(outputFile.exists)
 
   }
+
+
+  test("animate flight") {
+
+    val outputDir = new java.io.File("testflight")
+    outputDir.mkdirs()
+
+    Flight.animateRoughFlight(
+        compass,
+        startPlanetName, endPlanetName,
+        startPlanet, endPlanet, startDate, endDate,
+        outputDir.getAbsolutePath)
+
+    assert(outputDir.list.length > 0)
+
+    val outputFile = new java.io.File("testflight.mp4")
+    Flight.imagesToVideo(outputDir.getAbsolutePath, outputFile.getAbsolutePath, 800, 600)
+
+    assert(outputFile.exists)
+
+  }
+
 
 }
