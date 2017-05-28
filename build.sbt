@@ -32,6 +32,9 @@ lazy val root = (project in file("."))
    )
   .configs(IntegrationTest)
   .settings(Defaults.itSettings: _*)
+  .dependsOn(utilscala)
+  
+lazy val utilscala = RootProject(file("../util-scala"))
 
 EclipseKeys.projectFlavor := EclipseProjectFlavor.Scala
 

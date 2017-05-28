@@ -36,8 +36,8 @@ class Viewer(camTrans: Mat44, viewPos: Vec3) {
   }
 
 
-  def drawMotion(im: BufferedImage, pos: Points3d, color: Color): Unit = {
-    val pos2d = View.perspective(pos, camTrans, viewPos)
+  def drawMotion(im: BufferedImage, pos: Seq[Vec3], color: Color): Unit = {
+    val pos2d = pos.map(p => View.perspective(p, camTrans, viewPos))
     val colInt = color.getRGB
     pos2d.foreach(p => {
       val x = p.x.toInt + im.getWidth / 2
@@ -111,29 +111,30 @@ object Viewer {
 // Build and apply camera matrices and perspective transformations.
 
 // This code follows the convention that transformation matrices are applied in
-// sequence left to right, rather than right to left.
+// sequence right to left.
 
-// For example, if "points" is an Mx4 matrix representing the homogeneous coordinates
-// of M 3D points, then to apply the transformation T then U then V (which are 4x4 matrices)
-// you would write: points x T x U x V
+// For example, if P is a 4 by m matrix of m 3D points represented by
+// homogeneous coordinates, applying the transformations T then U then V
+// (which are 4x4 matrices) would be written VUTP.
 
 object View {
 
   val UnitX = Vec3(1.0, 0.0, 0.0)
   val UnitY = Vec3(0.0, 1.0, 0.0)
   val UnitZ = Vec3(0.0, 0.0, 1.0)
+
   val Vec3Zero = Vec3(0.0, 0.0, 0.0)
 
   val Identity3 = Mat33(UnitX, UnitY, UnitZ)
-  val IdentityTransformation = buildTransformation(Identity3, Vec3Zero)
+  val IdentityTransformation = transformation(Identity3, Vec3Zero)
 
 
-  def buildTransformation(rot: Mat33, trans: Vec3): Mat44 = {
-    Mat44(
-      Vec4(rot.c0.x, rot.c0.y, rot.c0.z, trans.x),
-      Vec4(rot.c1.x, rot.c1.y, rot.c1.z, trans.y),
-      Vec4(rot.c2.x, rot.c2.y, rot.c2.z, trans.z),
-      Vec4(0.0,      0.0,      0.0,      1.0)
+  def transformation(rot: Mat33, trans: Vec3): Mat44 = {
+     Mat44(
+      new Vec4(rot.c0, 0.0),
+      new Vec4(rot.c1, 0.0),
+      new Vec4(rot.c2, 0.0),
+      new Vec4(trans,  1.0)
     )
   }
 
@@ -145,42 +146,37 @@ object View {
 
     val rotX = Mat33(
       UnitX,
-      Vec3(0, math.cos(-orient.x), -math.sin(-orient.x)),
-      Vec3(0, math.sin(-orient.x),  math.cos(-orient.x))
+      Vec3(0.0, math.cos(orient.x), -math.sin(orient.x)),
+      Vec3(0.0, math.sin(orient.x),  math.cos(orient.x))
     )
 
     val rotY = Mat33(
-      Vec3( math.cos(-orient.y), 0, math.sin(-orient.y)),
+      Vec3( math.cos(orient.y), 0.0, math.sin(orient.y)),
       UnitY,
-      Vec3(-math.sin(-orient.y), 0, math.cos(-orient.y))
+      Vec3(-math.sin(orient.y), 0.0, math.cos(orient.y))
     )
 
     val rotZ = Mat33(
-      Vec3(math.cos(-orient.z), -math.sin(-orient.z), 0),
-      Vec3(math.sin(-orient.z),  math.cos(-orient.z), 0),
+      Vec3(math.cos(orient.z), -math.sin(orient.z), 0.0),
+      Vec3(math.sin(orient.z),  math.cos(orient.z), 0.0),
       UnitZ
     )
 
-    val translation = buildTransformation(Identity3, Vec3(-pos.x, -pos.y, -pos.z))
-    val rotation = buildTransformation(rotX.mul(rotY).mul(rotZ), Vec3Zero)
-    translation.mul(rotation)
+    val translation = transformation(Identity3, Vec3(-pos.x, -pos.y, -pos.z))
+    val rotation = transformation(rotZ.mul(rotY).mul(rotX), Vec3Zero)
+    rotation.mul(translation)
 
   }
 
 
-  def perspective(coords: Points3d, camTrans: Mat44, viewPos: Vec3): Seq[Vec2] = {
-    val coordsHomo = coords.toHomo
-    val coordsCam = coordsHomo.mul(camTrans).toEuclidean
-    coordsCam.points.map(p => Vec2(
-        viewPos.z * p.x / p.z - viewPos.x,
-        viewPos.z * p.y / p.z - viewPos.y
-    ))
-  }
-
-
-  // TODO: refactor
-  def perspective(coord: Vec3, camTrans: Mat44, viewPos: Vec3): Vec2 = {
-    perspective(Points3d(List(coord)), camTrans, viewPos)(0)
+  def perspective(point: Vec3, camTrans: Mat44, viewPos: Vec3): Vec2 = {
+    val ph = new Vec4(point, 1.0)
+    val pc = camTrans.mul(ph)
+    val p = Vec3(pc.x / pc.w, pc.y / pc.w, pc.z / pc.w)
+    Vec2(
+      viewPos.z * p.x / p.z - viewPos.x,
+      viewPos.z * p.y / p.z - viewPos.y
+    )
   }
 
 }

@@ -67,22 +67,8 @@ object Flight {
 
     ///
 
-    val imWidth = 800
-    val imHeight = 600
-
-    val im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
-    val gr = im.getGraphics();
-    gr.setColor(Color.BLACK)
-
     val allStates = startLocStates ++ endLocStates
     val planetMax = allStates.map(x => math.max(math.max(math.abs(x.position.x), math.abs(x.position.y)), math.abs(x.position.z))).max
-
-    val camOrient = Vec3(math.Pi * 0.25, 0, math.Pi)
-    val camPos = Vec3(0, -planetMax * 2.25, planetMax * 2.25)
-    val camTrans = View.cameraTransform(camOrient, camPos)
-    val viewPos = Vec3(-imWidth * 0.1, 0, imWidth * 1.0)
-    val view = new Viewer(camTrans, viewPos)
-    val gridLim = (planetMax * 4).toInt
 
     val (flightStates, accel) = roughFlightGivenTime(
         startLocStates.head.position,
@@ -91,7 +77,6 @@ object Flight {
 
     val distance = Vec3.length(Vec3.sub(endLocStates.last.position, startLocStates.head.position))
     // val distanceGm = distance * Conversions.AuToMeters / Conversions.DayToSec / 1e9
-
 
     val vel = distance / (endDateJulian - startDateJulian) // average velocity
     val velMetersPerSec = vel * Conversions.AuToMeters / Conversions.DayToSec
@@ -107,19 +92,41 @@ object Flight {
     val thrustKN = thrust * aud2ToMs2
     val shipThrustKN = ship.thrust * aud2ToMs2
 
+    ////
+
+    val imWidth = 800
+    val imHeight = 600
+
+    val im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
+
+    val gr = im.getGraphics();
+    gr.setColor(Color.BLACK)
     gr.fillRect(0, 0, imWidth, imHeight)
 
+    val camOrient = Vec3(math.Pi * 0.25, 0, math.Pi)
+    val camPos = Vec3(0, -planetMax * 2.25, planetMax * 2.25)
+    val camTrans = View.cameraTransform(camOrient, camPos)
+    val viewPos = Vec3(-imWidth * 0.1, 0, imWidth * 1.0)
+    val gridLim = (planetMax * 4).toInt
+
+    val view = new Viewer(camTrans, viewPos)
+
+    // draw the background grid
     view.drawGrid(im, gridLim, new Color(0, 0, 80))
 
+    // draw the full periods of the starting and ending locations
     val startLocFullPeriod = Orbits.planetMotionPeriod(startLoc, startDateJulian)
     val endLocFullPeriod = Orbits.planetMotionPeriod(endLoc, startDateJulian)
+    view.drawMotion(im, startLocFullPeriod.map(_.position), Color.GRAY)
+    view.drawMotion(im, endLocFullPeriod.map(_.position),   Color.GRAY)
 
-    view.drawMotion(im, Points3d(startLocFullPeriod.map(_.position)), Color.GRAY)
-    view.drawMotion(im, Points3d(endLocFullPeriod.map(_.position)),   Color.GRAY)
+    // draw the positions of the start and ending locations and the flight
+    view.drawMotion(im, startLocStates.map(_.position), Color.GREEN)
+    view.drawMotion(im, endLocStates.map(_.position),   Color.GREEN)
+    view.drawMotion(im, flightStates,                   Color.CYAN)
 
-    view.drawMotion(im, Points3d(startLocStates.map(_.position)), Color.GREEN)
-    view.drawMotion(im, Points3d(endLocStates.map(_.position)),   Color.GREEN)
-    view.drawMotion(im, Points3d(flightStates),                   Color.CYAN)
+    // draw arrows showing the directions of the orbits of the
+    // starting and ending locations
 
     def drawArrow(os: OrbitalState, color: Color): Unit = {
       val position = View.perspective(os.position, camTrans, viewPos)
@@ -138,14 +145,13 @@ object Flight {
     drawArrow(endLocFullPeriod(arrowIndex1),   Color.GRAY)
     drawArrow(endLocFullPeriod(arrowIndex2),   Color.GRAY)
 
-    println("starting position velocity:" + Vec3.length(startLocStates.head.velocity) + " AU/day")
-    println("ending position velocity:  " + Vec3.length(endLocStates.last.velocity) + " AU/day")
-
+    // draw the names and dates for start and end
     view.drawPosition(im, startLocStates.head.position, startLocName, startDate.dateString, Color.GREEN)
     view.drawPosition(im, endLocStates.last.position,   endLocName,   endDate.dateString,   Color.GREEN)
     view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
 
-    // draw a text description
+    // draw a table describing various flight info
+
     val columnWidth = 100
     val tableStartX = Viewer.LineHeight
     val tableStartY = Viewer.LineHeight * 2
@@ -183,8 +189,14 @@ object Flight {
                             f"$accelG%.4f g"), 12, reqColor)
     table("f req:",     Seq(f"$thrustKN%.2f kN"), 14, reqColor)
 
+    // print some things for debugging
+
+    println("starting position velocity:" + Vec3.length(startLocStates.head.velocity) + " AU/day")
+    println("ending position velocity:  " + Vec3.length(endLocStates.last.velocity) + " AU/day")
     println("distance: " + distance)
     println("average velocity: " + vel + " AU/day")
+
+    // finished!
 
     im
 

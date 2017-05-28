@@ -166,9 +166,13 @@ object MeeusPlanets {
 
 
   case class Polynomial4(
-    a0: Double = 0.0, a1: Double = 0.0,
-    a2: Double = 0.0, a3: Double = 0.0) {
+    a0: Double = 0.0,
+    a1: Double = 0.0,
+    a2: Double = 0.0,
+    a3: Double = 0.0) {
+
     def apply(t: Double): Double =  a0 + a1 * t + a2 * t * t + a3 * t * t * t;
+
   }
 
 }

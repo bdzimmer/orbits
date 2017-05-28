@@ -1,21 +1,16 @@
 // Copyright (c) 2016 Ben Zimmer. All rights reserved.
 
-// Experimentation with calculating and visualizing positions of planets and paths
-// between them.
+// Calculating and positions of planets and paths between them.
 
-// mostly based on these:
+// Mostly based on these:
 // http://www.braeunig.us/space/plntpos.htm
 // http://www.stargazing.net/kepler/ellipse.html#twig02a
 // https://downloads.rene-schwarz.com/download/M001-Keplerian_Orbit_Elements_to_Cartesian_State_Vectors.pdf
 
 package bdzimmer.orbits
 
-import scala.sys.process._
 import scala.collection.immutable.Seq
-
-
-import java.io.File
-import javax.imageio.ImageIO
+import scala.sys.process._
 
 
 case class CalendarDateTime(
@@ -61,8 +56,7 @@ case class CalendarDateTime(
 
 // mass in metric tons, thrust in metric tons * AU / day^2
 case class Spacecraft(name: String, mass: Double, accel: Double) {
-  // F = ma
-  val thrust = mass * accel
+  val thrust = mass * accel   // F = ma
 }
 
 
@@ -115,9 +109,9 @@ object Orbits {
     val e3 = e * e * e
 
     (oe.meanAnomaly
-       + ( (2 * e             - (1/4) * e3) * math.sin(    oe.meanAnomaly)
-         + (      (5/4) * e2              ) * math.sin(2 * oe.meanAnomaly)
-         + (                  (13/12) * e3) * math.sin(3 * oe.meanAnomaly)))
+      + ((2 * e             - (1/4) * e3) * math.sin(    oe.meanAnomaly)
+      +  (      (5/4) * e2              ) * math.sin(2 * oe.meanAnomaly)
+      +  (                  (13/12) * e3) * math.sin(3 * oe.meanAnomaly)))
   }
 
 
@@ -222,49 +216,5 @@ object Orbits {
     name + ", " + jd + ", " + pos + ", " + vel
   }
 
-
-
-
-  def main(args: Array[String]): Unit = {
-
-    val compass = Spacecraft("EOE Compass", 30000.0, 0.2)
-    val startDate = CalendarDateTime(2016, 7, 27, 0)
-    val endDate   = CalendarDateTime(2016, 7, 31, 0)
-
-    val startPlanet = MeeusPlanets.Mars
-    val startPlanetName = "Mars"
-    val endPlanet = MeeusPlanets.Earth
-    val endPlanetName = "Earth"
-
-    val im = Flight.drawRoughFlight(
-        compass,
-        startPlanetName, endPlanetName,
-        startPlanet, endPlanet, startDate, endDate)
-
-    val outputImage = new java.io.File("output.png");
-    ImageIO.write(im, "png", outputImage)
-
-    // for visualization with other programs
-
-    val outputFilename = "test.csv"
-    val outputFile = new File(outputFilename)
-    val pw = new java.io.PrintWriter(outputFile)
-
-    val startDateJulian = startDate.julian
-    val endDateJulian = endDate.julian
-
-    for (tick <- startDateJulian until endDateJulian by (1.0 / 24)) {
-
-      val earthState = planetState(startPlanet, tick)
-      pw.println(stateString(startPlanetName, tick, earthState))
-
-      val marsState = planetState(endPlanet, tick)
-      pw.println(stateString(endPlanetName, tick, marsState))
-
-    }
-
-    pw.close()
-
-  }
 
 }
