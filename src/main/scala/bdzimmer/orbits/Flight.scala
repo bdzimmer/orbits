@@ -1,6 +1,6 @@
 // Copyright (c) 2016 Ben Zimmer. All rights reserved.
 
-// Rough interplanetary flight planning.
+// Basic interplanetary flight planning.
 
 package bdzimmer.orbits
 
@@ -17,35 +17,50 @@ import javax.imageio.ImageIO
 import bdzimmer.util.StringUtils._
 
 
-object Flight {
-
-  def roughFlightGivenTime(
-      startPos: Vec3, endPos: Vec3, flightTime: Double, res: Double): (Seq[Vec3], Double) = {
-
-    val path = Vec3.sub(endPos, startPos)
-    val pathLength = Vec3.length(path)
-    val dir = Vec3(path.x / pathLength, path.y / pathLength, path.z / pathLength)
-
-    val accel = 4 * pathLength / (flightTime * flightTime)
-    (roughFlight(dir, accel, flightTime, res).map(x => Vec3.add(startPos, x)), accel)
-
-  }
+abstract class FlightFn {
+  def apply(t: Double): Vec3
+}
 
 
-  def roughFlight(dir: Vec3, accel: Double, flightTime: Double, res: Double): Seq[Vec3] = {
+class RoughFlightFn(
+    startPos: Vec3,
+    dir: Vec3,
+    val accel: Double,
+    startTime: Double,
+    flightTime: Double) {
 
-    val ticks = (0.0 to flightTime by res).toIndexedSeq
-    val halfFlightTime = flightTime / 2
+  val halfFlightTime = flightTime / 2
 
-    val pos1d = ticks.map(t => {
-      if (t < halfFlightTime) {
+  def apply(t_abs: Double): Vec3 = {
+
+    val t = t_abs - startTime
+
+    if (t < 0.0 || t > startTime + flightTime) {
+      Vec3(0.0, 0.0, 0.0)
+    } else {
+      val pos1d = if (t < halfFlightTime) {
         0.5 * accel * t * t
       } else {
         -0.5 * accel * t * t + accel * flightTime * t - 0.25 * accel * flightTime * flightTime
       }
-    })
+      Vec3.add(startPos, Vec3.mul(dir, pos1d))
+    }
+  }
 
-    pos1d.map(x => Vec3.mul(dir, x))
+}
+
+
+object Flight {
+
+  def roughFlightFnGivenTime(
+      startPos: Vec3, endPos: Vec3, startTime: Double, flightTime: Double): RoughFlightFn = {
+
+    val path = Vec3.sub(endPos, startPos)
+    val pathLength = Vec3.length(path)
+    val dir = Vec3(path.x / pathLength, path.y / pathLength, path.z / pathLength)
+    val accel = 4 * pathLength / (flightTime * flightTime)
+
+    new RoughFlightFn(startPos, dir, accel, startTime, flightTime)
   }
 
 
@@ -71,10 +86,10 @@ object Flight {
 
     ///
 
-    val (flightStates, accel) = roughFlightGivenTime(
-        origStates.head.position,
-        destStates.last.position,
-        endDateJulian - startDateJulian, res)
+    val roughFlightFn =  roughFlightFnGivenTime(
+      origStates.head.position, destStates.last.position,
+      startDateJulian, endDateJulian - startDateJulian)
+    val flightStates = ticks.map(tick => roughFlightFn(tick))
 
     val distance = Vec3.length(
         Vec3.sub(destStates.last.position, origStates.head.position))
@@ -117,7 +132,8 @@ object Flight {
     view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
 
     // draw flight summary
-    drawFlightSummary(im, ship, distance, vel, accel, origName, destName, startDate, endDate)
+    drawFlightSummary(
+        im, ship, distance, vel, roughFlightFn.accel, origName, destName, startDate, endDate)
 
     // print some things for debugging
     println("starting position velocity:" + Vec3.length(origStates.head.velocity) + " AU/day")
@@ -155,10 +171,10 @@ object Flight {
 
     ///
 
-    val (flightStates, accel) = roughFlightGivenTime(
-        origStates.head.position,
-        destStates.last.position,
-        endDateJulian - startDateJulian, res)
+    val roughFlightFn =  roughFlightFnGivenTime(
+      origStates.head.position, destStates.last.position,
+      startDateJulian, endDateJulian - startDateJulian)
+    val flightStates = ticks.map(tick => roughFlightFn(tick))
 
     val distance = Vec3.length(
         Vec3.sub(destStates.last.position, origStates.head.position))
@@ -173,26 +189,10 @@ object Flight {
     val allStates = origStates ++ destStates
     val planetMax = maxPosition(allStates)
 
-    /*
-    val ti = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
-
-    val gr = ti.getGraphics()
-    gr.setColor(Color.BLACK)
-    gr.fillRect(0, 0, imWidth, imHeight)
-
-    val view = defaultView(imWidth, imHeight, planetMax)
-
-    // draw the background grid
-    val gridLim = (planetMax * 4).toInt
-    view.drawGrid(ti, gridLim, new Color(0, 0, 80))
-
-    // draw the full periods of the starting and ending locations
     val origFullPeriod = Orbits.planetMotionPeriod(orig, startDateJulian)
     val destFullPeriod = Orbits.planetMotionPeriod(dest, startDateJulian)
-    drawOrbit(ti, origFullPeriod, view)
-    drawOrbit(ti, destFullPeriod, view)
-    *
-    */
+
+    val gridLim = (planetMax * 4).toInt
 
     for (idx <- 0 until flightStates.length) {
 
@@ -202,44 +202,46 @@ object Flight {
 
       val im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
       val gr = im.getGraphics
-      // gr.drawImage(ti, 0, 0, null)
       gr.setColor(Color.BLACK)
       gr.fillRect(0, 0, imWidth, imHeight)
 
-      val camPos = Vec3(curState.x, -planetMax * 1.50 + curState.y, planetMax * 2.25)
+      // camera placed at 2 AU directly above the sun
+      val camPos = Vec3(0, 0, 2)
 
-      val camOrient = Vec3(math.Pi * 0.25, 0.0, math.Pi)
-      val camRot = View.rotation(camOrient)
+      // find angles to point camera at ship
+      val camToShip = Vec2(curState.x - camPos.x, curState.y - camPos.y)
+      val camAngleX = math.atan2(curState.z - camPos.z, Vec2.length(camToShip))
+      val camAngleZ = math.atan2(camToShip.x, camToShip.y)
+
+      val camOrient = Vec3(-math.Pi * 0.5 - camAngleX, 0.0, math.Pi - camAngleZ)
+      val camRot = View.rotationZYX(camOrient)
+
       val camTrans = View.cameraTransform(camRot, camPos)
       val xshiftAmount =  -imWidth * 0.1
       val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
-      val view = new Viewer(camTrans, viewPos)
 
-      val gridLim = (planetMax * 4).toInt
-      view.drawGrid(im, gridLim, new Color(0, 0, 80))
-      val origFullPeriod = Orbits.planetMotionPeriod(orig, startDateJulian)
-      val destFullPeriod = Orbits.planetMotionPeriod(dest, startDateJulian)
-      drawOrbit(im, origFullPeriod, view)
-      drawOrbit(im, destFullPeriod, view)
+      val view = new Viewer(camTrans, viewPos)
 
       val curDateTime = Conversions.julianToCalendarDate(ticks(idx))
 
-      // draw the positions of the start and ending locations and the flight up to this point
-      view.drawMotion(im, origStates.take(idx + 1).map(_.position), Color.GREEN)
-      view.drawMotion(im, destStates.take(idx + 1).map(_.position), Color.GREEN)
-      view.drawMotion(im, flightStates.take(idx + 1),               Color.CYAN)
+      drawRoughFlightAtTime(
+        ship,
+        view,
+        im,
+        List((origName, origFullPeriod), (destName, destFullPeriod)),
+        origName, destName,
+        "", "",
+        origStates.take(idx + 1),
+        destStates.take(idx + 1),
+        flightStates.take(idx + 1),
+        gridLim)
 
-      // draw the names and dates for current positions of origin and destination
-      view.drawPosition(im, origStates(idx).position, origName, "", Color.GREEN)
-      view.drawPosition(im, destStates(idx).position, destName, "", Color.GREEN)
-      view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
-
-      // draw flight status
+      // draw flight status and ship velocity arrow
 
       val curDist = Vec3.length(
         Vec3.sub(curState, origStates.head.position)) // ship is traveling in a straight line
 
-      val curVel = if (idx > 0) {
+      val curVel = if (idx > 1) {
         val curVelVec = Vec3.sub(curState, flightStates(idx - 1))
         val res = Vec3.length(curVelVec)
         if (res > 1.0e-9) {
@@ -266,6 +268,39 @@ object Flight {
   }
 
 
+  def drawRoughFlightAtTime(
+      ship: Spacecraft,
+      view: Viewer,
+      im: BufferedImage,
+      planets: List[(String, Seq[OrbitalState])],
+      origName: String,
+      destName: String,
+      origDesc: String,
+      destDesc: String,
+      origStates: Seq[OrbitalState],
+      destStates: Seq[OrbitalState],
+      flightStates: Seq[Vec3],
+      gridLim: Int): Unit = {
+
+    // draw the grid
+    view.drawGrid(im, gridLim, new Color(0, 0, 80))
+
+    // draw the orbits of planets
+    planets.foreach(x => drawOrbit(im, x._2, view))
+
+    // draw the positions of the start and ending locations and the flight up to this point
+    view.drawMotion(im, origStates.map(_.position), Color.GREEN)
+    view.drawMotion(im, destStates.map(_.position), Color.GREEN)
+    view.drawMotion(im, flightStates,               Color.CYAN)
+
+    // draw the names and dates for the origin and destination
+    view.drawPosition(im, origStates.last.position, origName, origDesc, Color.GREEN)
+    view.drawPosition(im, destStates.last.position, destName, destDesc, Color.GREEN)
+    view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
+
+  }
+
+
   def imagesToVideo(inputDir: String, outputFile: String, width: Int, height: Int): Unit = {
     val command = s"ffmpeg -y -r 24 -f image2 -s ${width}x$height -i $inputDir/%05d.png -vcodec libx264 -crf 25 -pix_fmt yuv420p $outputFile"
     println(command)
@@ -276,26 +311,35 @@ object Flight {
   /// ///
 
 
-  private def maxPosition(states: Seq[OrbitalState]): Double = {
+  def maxPosition(states: Seq[OrbitalState]): Double = {
     states.map(x => math.max(math.max(math.abs(x.position.x), math.abs(x.position.y)), math.abs(x.position.z))).max
   }
 
 
-  private def defaultView(imWidth: Int, imHeight: Int, planetMax: Double, xshift: Boolean = true): Viewer = {
-    val camOrient = Vec3(math.Pi * 0.25, 0, math.Pi)
+  private def defaultViewParams(
+      imWidth: Int, imHeight: Int, planetMax: Double, xshift: Boolean = true): (Mat44, Vec3) = {
+
+    val camOrient = Vec3(-math.Pi * 0.25, 0, math.Pi)
     val camPos = Vec3(0, -planetMax * 2.25, planetMax * 2.25)
-    val camTrans = View.cameraTransform(View.rotation(camOrient), camPos)
+    val camTrans = View.cameraTransform(View.rotationZYX(camOrient), camPos)
     val xshiftAmount = if (xshift) {
       -imWidth * 0.1
     } else {
       0.0
     }
     val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
+
+    (camTrans, viewPos)
+  }
+
+
+  def defaultView(imWidth: Int, imHeight: Int, planetMax: Double, xshift: Boolean = true): Viewer = {
+    val (camTrans, viewPos) = defaultViewParams(imWidth, imHeight, planetMax, xshift)
     new Viewer(camTrans, viewPos)
   }
 
 
-  private def drawOrbit(
+  def drawOrbit(
       im: BufferedImage, fullPeriod: Seq[OrbitalState],
       view: Viewer, color: Color = Color.GRAY): Unit = {
 
@@ -310,7 +354,7 @@ object Flight {
   }
 
 
-  private def drawFlightSummary(
+  def drawFlightSummary(
       im: BufferedImage,
       ship: Spacecraft,
       distance: Double,
@@ -321,7 +365,7 @@ object Flight {
       startDate: CalendarDateTime,
       endDate: CalendarDateTime): Unit = {
 
-    // draw a table describing various flight info
+    // draw a table describing a summary of the flight
 
     val velMetersPerSec = vel * Conversions.AuToMeters / Conversions.DayToSec
     val velKmPerSec = velMetersPerSec / 1000.0
@@ -375,7 +419,6 @@ object Flight {
                             f"$accelG%.4f g"), 12, reqColor)
     table("f req:",     Seq(f"$thrustKN%.2f kN"), 14, reqColor)
 
-
   }
 
 
@@ -386,7 +429,7 @@ object Flight {
       distance: Double,
       vel: Double): Unit = {
 
-    // draw a table describing various flight info
+    // draw a table describing the current flight status
 
     val velMetersPerSec = vel * Conversions.AuToMeters / Conversions.DayToSec
     val velKmPerSec = velMetersPerSec / 1000.0
@@ -427,9 +470,5 @@ object Flight {
                             f"$velKmPerSec%.4f km/s",
                             f"$velC%.4f C"), 8)
   }
-
-
-
-
 
 }

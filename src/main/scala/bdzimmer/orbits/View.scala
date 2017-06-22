@@ -27,6 +27,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
       val y1 = im.getHeight - (start.y.toInt + im.getHeight / 2)
       val x2 = end.x.toInt + im.getWidth / 2
       val y2 = im.getHeight - (end.y.toInt + im.getHeight / 2)
+      // println(x1 + " " + y1 + " " + x2 + " " + y2)
       gr.drawLine(x1, y1, x2, y2)
     }
 
@@ -160,28 +161,36 @@ object View {
   }
 
 
-  def rotation(theta: Vec3): Mat33 = {
+  def rotationXYZ(theta: Vec3): Mat33 = {
+    rotZ(theta.z).mul(rotY(theta.y)).mul(rotX(theta.x))
+  }
 
-    val rotX = Mat33(
+  def rotationZYX(theta: Vec3): Mat33 = {
+    rotX(theta.x).mul(rotY(theta.y)).mul(rotZ(theta.z))
+  }
+
+
+  def rotX(theta: Double): Mat33 = {
+    Mat33(
       UnitX,
-      Vec3(0.0, math.cos(theta.x), -math.sin(theta.x)),
-      Vec3(0.0, math.sin(theta.x),  math.cos(theta.x))
-    )
+      Vec3(0.0, math.cos(theta), -math.sin(theta)),
+      Vec3(0.0, math.sin(theta),  math.cos(theta)))
+  }
 
-    val rotY = Mat33(
-      Vec3( math.cos(theta.y), 0.0, math.sin(theta.y)),
+
+  def rotY(theta: Double): Mat33 = {
+    Mat33(
+      Vec3( math.cos(theta), 0.0, math.sin(theta)),
       UnitY,
-      Vec3(-math.sin(theta.y), 0.0, math.cos(theta.y))
-    )
+      Vec3(-math.sin(theta), 0.0, math.cos(theta)))
+  }
 
-    val rotZ = Mat33(
-      Vec3(math.cos(theta.z), -math.sin(theta.z), 0.0),
-      Vec3(math.sin(theta.z),  math.cos(theta.z), 0.0),
-      UnitZ
-    )
 
-    rotZ.mul(rotY).mul(rotX)
-
+  def rotZ(theta: Double): Mat33 = {
+    Mat33(
+      Vec3(math.cos(theta), -math.sin(theta), 0.0),
+      Vec3(math.sin(theta),  math.cos(theta), 0.0),
+      UnitZ)
   }
 
 
