@@ -14,15 +14,16 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
 
   def drawGrid(im: BufferedImage, gridLim: Int, color: Color): Unit = {
 
-    val xGrid = (-gridLim.toDouble to gridLim by 1.0).map(x => (Vec3(x, -gridLim, 0), Vec3(x, gridLim, 0)))
-    val yGrid = (-gridLim.toDouble to gridLim by 1.0).map(x => (Vec3(-gridLim, x, 0), Vec3(gridLim, x, 0)))
+    val spacing = 1.0
+    val xRange = (-gridLim.toDouble to gridLim by spacing)
+    val yRange = xRange
 
     val gr = im.getGraphics
     gr.setColor(color)
 
-    def drawLine(pts: (Vec3, Vec3)): Unit = {
-      val start = View.perspective(pts._1, camTrans, viewPos)
-      val end   = View.perspective(pts._2, camTrans, viewPos)
+    def drawSegment(pt1: Vec3, pt2: Vec3): Unit = {
+      val start = View.perspective(pt1, camTrans, viewPos)
+      val end   = View.perspective(pt2, camTrans, viewPos)
       val x1 = start.x.toInt + im.getWidth / 2
       val y1 = im.getHeight - (start.y.toInt + im.getHeight / 2)
       val x2 = end.x.toInt + im.getWidth / 2
@@ -31,8 +32,19 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
       gr.drawLine(x1, y1, x2, y2)
     }
 
-    xGrid.foreach(x => drawLine(x))
-    yGrid.foreach(x => drawLine(x))
+    // draw segments going in the x direction
+    yRange.foreach(y => {
+      xRange.dropRight(1).foreach(x => {
+        drawSegment(Vec3(x, y, 0), Vec3(x + spacing, y, 0))
+      })
+    })
+
+    // draw segments going in the y direction
+    xRange.foreach(x => {
+      yRange.dropRight(1).foreach(y => {
+        drawSegment(Vec3(x, y, 0), Vec3(x, y + spacing, 0))
+      })
+    })
 
   }
 
