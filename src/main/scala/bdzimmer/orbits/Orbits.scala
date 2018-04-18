@@ -54,8 +54,12 @@ case class CalendarDateTime(
 
 }
 
-// mass in metric tons, thrust in metric tons * AU / day^2
-case class Spacecraft(name: String, mass: Double, accel: Double) {
+
+case class Spacecraft(
+    name: String,
+    mass: Double,        // metric tons
+    accel: Double        // metric tons * AU / day^2
+  ) {
   val thrust = mass * accel   // F = ma
 }
 

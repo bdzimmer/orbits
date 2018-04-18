@@ -102,12 +102,14 @@ object MeeusPlanets {
       Polynomial4(98.071581,  0.9857650,  0.0010745, -0.00000061),
       Polynomial4(73.477111,  0.4986678,  0.0013117))
 
-  val Planets = Map(
+
+  val Planets = scala.collection.immutable.ListMap(
       "Mercury" -> Mercury,
       "Earth"   -> Earth,
       "Mars"    -> Mars,
       "Saturn"  -> Saturn,
       "Uranus"  -> Uranus)
+
 
   class NonEarthPolynomialEstimator(
     longitudeMean: Polynomial4,

@@ -17,6 +17,7 @@ import javax.imageio.ImageIO
 import bdzimmer.util.StringUtils._
 
 
+// given a time, return position vector
 abstract class FlightFn {
   def apply(t: Double): Vec3
 }
@@ -50,9 +51,9 @@ class RoughFlightFn(
 }
 
 
-object Flight {
+object RoughFlightFn {
 
-  def roughFlightFnGivenTime(
+  def apply(
       startPos: Vec3, endPos: Vec3, startTime: Double, flightTime: Double): RoughFlightFn = {
 
     val path = Vec3.sub(endPos, startPos)
@@ -63,6 +64,10 @@ object Flight {
     new RoughFlightFn(startPos, dir, accel, startTime, flightTime)
   }
 
+}
+
+
+object RenderFlight {
 
   def drawRoughFlight(
       ship: Spacecraft,
@@ -86,7 +91,7 @@ object Flight {
 
     ///
 
-    val roughFlightFn =  roughFlightFnGivenTime(
+    val roughFlightFn =  RoughFlightFn(
       origStates.head.position, destStates.last.position,
       startDateJulian, endDateJulian - startDateJulian)
     val flightStates = ticks.map(tick => roughFlightFn(tick))
@@ -171,7 +176,7 @@ object Flight {
 
     ///
 
-    val roughFlightFn =  roughFlightFnGivenTime(
+    val roughFlightFn =  RoughFlightFn(
       origStates.head.position, destStates.last.position,
       startDateJulian, endDateJulian - startDateJulian)
     val flightStates = ticks.map(tick => roughFlightFn(tick))
@@ -282,11 +287,16 @@ object Flight {
       flightStates: Seq[Vec3],
       gridLim: Int): Unit = {
 
-    // draw the grid
+    // draw the grid and the sun
     view.drawGrid(im, gridLim, new Color(0, 0, 80))
+    view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
 
-    // draw the orbits of planets
+    // draw the orbits of planets and their positions
+    // the sequence of orbital states for each planet should start from same time
+    // as the final state of the flight - this is the time that we are drawing the
+    // flight at
     planets.foreach(x => drawOrbit(im, x._2, view))
+    planets.foreach(x => view.drawPosition(im, x._2.head.position, x._1, "", Color.RED))
 
     // draw the positions of the start and ending locations and the flight up to this point
     view.drawMotion(im, origStates.map(_.position), Color.GREEN)
@@ -296,7 +306,7 @@ object Flight {
     // draw the names and dates for the origin and destination
     view.drawPosition(im, origStates.last.position, origName, origDesc, Color.GREEN)
     view.drawPosition(im, destStates.last.position, destName, destDesc, Color.GREEN)
-    view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
+
 
   }
 

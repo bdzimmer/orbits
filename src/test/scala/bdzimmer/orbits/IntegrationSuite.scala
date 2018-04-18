@@ -24,7 +24,7 @@ class IntegrationSuite extends FunSuite {
 
   test("draw flight") {
 
-    val im = Flight.drawRoughFlight(
+    val im = RenderFlight.drawRoughFlight(
         compass,
         startPlanetName, endPlanetName,
         startPlanet, endPlanet, startDate, endDate)
@@ -65,7 +65,7 @@ class IntegrationSuite extends FunSuite {
     val outputDir = new java.io.File("testflight")
     outputDir.mkdirs()
 
-    Flight.animateRoughFlight(
+    RenderFlight.animateRoughFlight(
         compass,
         startPlanetName, endPlanetName,
         startPlanet, endPlanet, startDate, endDate,
@@ -74,7 +74,7 @@ class IntegrationSuite extends FunSuite {
     assert(outputDir.list.length > 0)
 
     val outputFile = new java.io.File("testflight.mp4")
-    Flight.imagesToVideo(outputDir.getAbsolutePath, outputFile.getAbsolutePath, 800, 600)
+    RenderFlight.imagesToVideo(outputDir.getAbsolutePath, outputFile.getAbsolutePath, 800, 600)
 
     assert(outputFile.exists)
 
