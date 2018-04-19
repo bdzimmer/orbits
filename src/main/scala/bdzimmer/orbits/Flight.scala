@@ -9,7 +9,7 @@ import scala.collection.immutable.Seq
 import scala.sys.process._
 import scala.util.Try
 
-import java.awt.{Color, Graphics}
+import java.awt.{Color, Graphics, Graphics2D}
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
@@ -108,7 +108,8 @@ object RenderFlight {
 
     val im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
 
-    val gr = im.getGraphics()
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(Color.BLACK)
     gr.fillRect(0, 0, imWidth, imHeight)
 
@@ -206,7 +207,8 @@ object RenderFlight {
       val curState = flightStates(idx)
 
       val im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
-      val gr = im.getGraphics
+      val gr = im.getGraphics.asInstanceOf[Graphics2D]
+      gr.setRenderingHints(Viewer.RenderHints)
       gr.setColor(Color.BLACK)
       gr.fillRect(0, 0, imWidth, imHeight)
 
@@ -307,7 +309,6 @@ object RenderFlight {
     view.drawPosition(im, origStates.last.position, origName, origDesc, Color.GREEN)
     view.drawPosition(im, destStates.last.position, destName, destDesc, Color.GREEN)
 
-
   }
 
 
@@ -394,18 +395,21 @@ object RenderFlight {
     val tableStartX = Viewer.LineHeight
     val tableStartY = Viewer.LineHeight * 2
 
-    val gr = im.getGraphics
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
 
-    def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN): Unit = {
+    def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
       gr.setColor(Color.GREEN)
+      gr.setFont(Viewer.DisplayFont)
       gr.drawString(desc, tableStartX, tableStartY + row * Viewer.LineHeight)
       gr.setColor(color)
+      if (italic) {
+        gr.setFont(Viewer.DisplayFontItalic)
+      }
       values.zipWithIndex.foreach(x => {
         gr.drawString(x._1, tableStartX + columnWidth, tableStartY + (row + x._2) * Viewer.LineHeight)
       })
     }
-
-    gr.setFont(Viewer.DisplayFont)
 
     val reqColor = if (ship.accel > accel) {
       Color.GREEN
@@ -413,7 +417,7 @@ object RenderFlight {
       Color.RED
     }
 
-    table("Spacecraft:", Seq(ship.name), 0)
+    table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, italic = true)
     table("Mass:",       Seq("%.2f".format(ship.mass)    + " tonnes"), 1)
     table("a max:",      Seq("%.4f".format(ship.accel)   + " AU/day²",
                              "%.4f".format(shipAccelG)   + " g" ), 2)
@@ -432,7 +436,7 @@ object RenderFlight {
   }
 
 
-  private def drawFlightStatus(
+  def drawFlightStatus(
       im: BufferedImage,
       ship: Spacecraft,
       dateTime: CalendarDateTime,
@@ -455,20 +459,23 @@ object RenderFlight {
     val tableStartX = Viewer.LineHeight
     val tableStartY = Viewer.LineHeight * 2
 
-    val gr = im.getGraphics
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
 
-    def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN): Unit = {
+    def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
       gr.setColor(Color.GREEN)
+      gr.setFont(Viewer.DisplayFont)
       gr.drawString(desc, tableStartX, tableStartY + row * Viewer.LineHeight)
       gr.setColor(color)
+      if (italic) {
+        gr.setFont(Viewer.DisplayFontItalic)
+      }
       values.zipWithIndex.foreach(x => {
         gr.drawString(x._1, tableStartX + columnWidth, tableStartY + (row + x._2) * Viewer.LineHeight)
       })
     }
 
-    gr.setFont(Viewer.DisplayFont)
-
-    table("Spacecraft:", Seq(ship.name), 0)
+    table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, italic = true)
     table("Mass:",       Seq("%.2f".format(ship.mass)    + " tonnes"), 1)
     table("a max:",      Seq("%.4f".format(ship.accel)   + " AU/day²",
                              "%.4f".format(shipAccelG)   + " g" ), 2)

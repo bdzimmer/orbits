@@ -7,7 +7,7 @@ package bdzimmer.orbits
 import scala.collection.immutable.Seq
 
 import java.awt.image.BufferedImage
-import java.awt.{Color, Font}
+import java.awt.{Color, Font, RenderingHints, Graphics2D}
 
 
 class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
@@ -18,7 +18,8 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
     val xRange = (-gridLim.toDouble to gridLim by spacing)
     val yRange = xRange
 
-    val gr = im.getGraphics
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(color)
 
     def drawSegment(pt1: Vec3, pt2: Vec3): Unit = {
@@ -64,7 +65,8 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
 
   def drawPosition(im: BufferedImage, pos: Vec3, name: String, desc: String, color: Color): Unit = {
     val pos2d = View.perspective(pos, camTrans, viewPos)
-    val gr = im.getGraphics
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(color)
 
     val x = pos2d.x.toInt + im.getWidth / 2
@@ -79,7 +81,8 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
 
 
   def drawPolygon(im: BufferedImage, polygon: Seq[Vec2], color: Color): Unit = {
-    val gr = im.getGraphics
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(color)
     gr.fillPolygon(
         polygon.map(v => v.x.toInt + im.getWidth / 2).toArray,
@@ -103,8 +106,16 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
 object Viewer {
 
   val DisplayFont = new Font("Monospace", Font.BOLD, 12)
+  val DisplayFontItalic = new Font("Monospace", Font.BOLD | Font.ITALIC, 12)
   val LineHeight = 14
   val CircleRadius = 6
+
+  val RenderHints = new RenderingHints(
+     RenderingHints.KEY_TEXT_ANTIALIASING,
+     RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+  RenderHints.put(
+      RenderingHints.KEY_ANTIALIASING,
+      RenderingHints.VALUE_ANTIALIAS_ON)
 
   def arrowPoints(pos: Vec2, dir: Vec2): Seq[Vec2] = {
 

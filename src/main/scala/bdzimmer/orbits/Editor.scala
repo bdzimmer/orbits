@@ -5,7 +5,7 @@
 package bdzimmer.orbits
 
 import java.awt.{BorderLayout, Color, Dimension, FlowLayout, Graphics, GridLayout, Image}
-import java.awt.event.{ActionListener, ActionEvent}
+import java.awt.event.{ActionListener, ActionEvent, ComponentAdapter, ComponentEvent, MouseWheelListener, MouseWheelEvent}
 import java.awt.image.BufferedImage
 import javax.swing.{BorderFactory, JCheckBox, JComboBox, JFrame, JPanel, JSlider, JSpinner, SpinnerNumberModel, SwingConstants}
 import javax.swing.event.{ChangeListener, ChangeEvent}
@@ -37,21 +37,35 @@ class Editor(
 
   setTitle("Orbits Editor")
 
-  val imWidth = 1280
-  val imHeight = 960
-  val im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
-
-  /// ///
-
-  val imagePanel = new ImagePanel(im)
-  add(imagePanel, BorderLayout.CENTER)
+  // TODO: add menu bar / toolbars
 
   ///
 
-  val controlsWidth = 400
+  var imWidth = Editor.ViewWidth
+  var imHeight = Editor.ViewHeight
+  var im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
+  var imagePanel = new ImagePanel(im)
+
+  /// ///
+
+  val viewPanel = new JPanel()
+  viewPanel.add(imagePanel)
+  viewPanel.addMouseWheelListener(new MouseWheelListener() {
+    def mouseWheelMoved(event: MouseWheelEvent): Unit = {
+      val notches = event.getWheelRotation()
+      zViewPosField.setValue(zViewPosField.getValue.asInstanceOf[Double] + notches * Editor.ZoomSpeed)
+      // don't need to redraw here, since it seems that the above triggers change listener
+    }
+  });
+
+  add(viewPanel, BorderLayout.CENTER)
+
+  ///
+
+
   val controls = new JPanel()
   // controls.setLayout(new GridLayout(6, 1))
-  controls.setPreferredSize(new Dimension(controlsWidth, imHeight))
+  controls.setPreferredSize(new Dimension(Editor.ControlsWidth, imHeight))
 
   val redrawChangeListener = new ChangeListener {
     def stateChanged(event: ChangeEvent): Unit = {
@@ -63,7 +77,7 @@ class Editor(
 
   val flightsPanel = new JPanel(new GridLayout(2, 1))
   flightsPanel.setBorder(BorderFactory.createTitledBorder("Flights"))
-  flightsPanel.setPreferredSize(new Dimension(controlsWidth, 64))
+  flightsPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 64))
 
   val flightsComboBox = new JComboBox(flights.map(_.toString).toArray)
   flightsComboBox.addActionListener(new ActionListener {
@@ -83,7 +97,7 @@ class Editor(
 
   val shipsPanel = new JPanel(new GridLayout(1, 1))
   shipsPanel.setBorder(BorderFactory.createTitledBorder("Ships"))
-  shipsPanel.setPreferredSize(new Dimension(controlsWidth, 64))
+  shipsPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 64))
 
   val shipsComboBox = new JComboBox(ships.map(_.name).toArray)
   shipsComboBox.addActionListener(new ActionListener {
@@ -98,7 +112,7 @@ class Editor(
   /// layer visibility (flight summary, planets, other flights)
   val layersPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
   layersPanel.setBorder(BorderFactory.createTitledBorder("Layers"))
-  layersPanel.setPreferredSize(new Dimension(controlsWidth, 256))
+  layersPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 256))
 
   val planetsPanel = new JPanel()
   planetsPanel.setBorder(BorderFactory.createTitledBorder("Planets"))
@@ -111,6 +125,7 @@ class Editor(
   })
 
   // TODO: more layer visibility options
+  // TODO: flight summary or status
   layersPanel.add(planetsPanel)
   controls.add(layersPanel)
 
@@ -118,7 +133,7 @@ class Editor(
 
   val cameraPanel = new JPanel(new GridLayout(1, 8))
   cameraPanel.setBorder(BorderFactory.createTitledBorder("Camera Angle and Position"))
-  cameraPanel.setPreferredSize(new Dimension(controlsWidth, 64))
+  cameraPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 64))
 
   val xAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
   val yAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
@@ -162,11 +177,32 @@ class Editor(
 
   pack()
   redraw()
+
+  addComponentListener(new ComponentAdapter {
+    override def componentResized(event: ComponentEvent): Unit = {
+      rebuildImagePanel()
+      redraw()
+    }
+  })
+
   setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)
-  setResizable(false)
+  setResizable(true)
   setVisible(true)
 
   /// ///
+
+  def rebuildImagePanel(): Unit = {
+    imWidth = viewPanel.getWidth
+    imHeight = viewPanel.getHeight
+    if (imHeight > 0 && imWidth > 0 ) {
+      viewPanel.remove(imagePanel)
+      im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
+      imagePanel = new ImagePanel(im)
+      viewPanel.add(imagePanel)
+      viewPanel.revalidate()
+    }
+  }
+
 
   def redraw(): Unit = {
 
@@ -230,8 +266,24 @@ class Editor(
         gridLim)
 
     // draw flight summary
-    RenderFlight.drawFlightSummary(
-        im, fp.ship, distance, vel, roughFlightFn.accel, fp.origName, fp.destName, fp.startDate, fp.endDate)
+    // RenderFlight.drawFlightSummary(
+    //    im, fp.ship, distance, vel, roughFlightFn.accel, fp.origName, fp.destName, fp.startDate, fp.endDate)
+
+    // draw flight status with current datetime, distance, and velocity
+    val curDateJulian = ticksSubset.last
+    val velEps = 0.01
+    val curVel = Vec3.length(
+        Vec3.mul(
+            Vec3.sub(
+                roughFlightFn(curDateJulian),
+                roughFlightFn(curDateJulian - velEps)),
+            1.0 / velEps))
+    RenderFlight.drawFlightStatus(
+        im,
+        fp.ship,
+        Conversions.julianToCalendarDate(curDateJulian),
+        Vec3.length(Vec3.sub(flightStates.last, flightStates.head)),
+        curVel)
 
     imagePanel.repaint()
     System.out.print(".")
@@ -267,6 +319,17 @@ class Editor(
     val zViewPos = zViewPosField.getValue.asInstanceOf[Double]
     Vec3(0, 0, zViewPos)
   }
+
+}
+
+
+
+object Editor {
+
+  val ViewWidth = 800
+  val ViewHeight = 600
+  val ZoomSpeed = 10
+  val ControlsWidth = 400
 
 }
 
