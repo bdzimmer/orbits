@@ -306,7 +306,7 @@ object RenderFlight {
     view.drawMotion(im, flightStates,               Color.CYAN)
 
     // draw the names and dates for the origin and destination
-    view.drawPosition(im, origStates.last.position, origName, origDesc, Color.GREEN)
+    view.drawPosition(im, origStates.head.position, origName, origDesc, Color.GREEN)
     view.drawPosition(im, destStates.last.position, destName, destDesc, Color.GREEN)
 
   }
