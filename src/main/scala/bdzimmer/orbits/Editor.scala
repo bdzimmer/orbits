@@ -10,11 +10,12 @@ import java.awt.image.BufferedImage
 import javax.swing.{
     BorderFactory, JCheckBox, JComboBox, JFrame,
     JLabel, JMenuBar, JMenu, JMenuItem, JPanel,
-    JSeparator, JSlider, JSpinner, JToolBar, JToggleButton, JTextField,
+    JSeparator, JSlider, JSpinner, JTextArea, JToolBar, JToggleButton, JTextField,
     SpinnerNumberModel, SwingConstants}
 import javax.swing.event.{ChangeListener, ChangeEvent, DocumentListener, DocumentEvent}
 
 import scala.util.Try
+
 
 // this is sort of a parallel version of how flights are represented in Secondary
 case class FlightParams(
@@ -35,6 +36,18 @@ case class FlightParams(
 }
 
 
+case class CameraControls(
+    xAngleField: JSpinner,
+    yAngleField: JSpinner,
+    zAngleField: JSpinner,
+    isIntrinsic: JCheckBox,
+    xPosField: JSpinner,
+    yPosField: JSpinner,
+    zPosField: JSpinner,
+    zViewPosField: JSpinner
+)
+
+
 class Editor(
     flights: List[FlightParams],
     ships: List[Spacecraft]
@@ -42,102 +55,41 @@ class Editor(
 
   setTitle("Orbits Editor")
 
-  /// /// build menu bar
-
-  val mainMenuBar = new JMenuBar()
-  val fileMenu = new JMenu("File")
-  val reloadItem = new JMenuItem("Reload")
-  val exportItem = new JMenuItem("Export")
-  val exitItem = new JMenuItem("Exit")
-
-  reloadItem.addActionListener(new ActionListener() {
-    override def actionPerformed(event: ActionEvent): Unit = {
-      // TODO: implement
-    }
-  })
-
-  fileMenu.add(reloadItem)
-  fileMenu.add(exportItem)
-  fileMenu.add(exitItem)
-  mainMenuBar.add(fileMenu)
-
-  setJMenuBar(mainMenuBar)
-
-  /// /// build control panel
-
-  val mainToolBar = new JToolBar()
-  mainToolBar.setLayout(new FlowLayout(FlowLayout.LEFT))
-
-  val auPerDaySqText = new JTextField("", 10)
-  val gText = new JTextField("", 10)
-  auPerDaySqText.setMaximumSize(auPerDaySqText.getPreferredSize)
-  gText.setMaximumSize(gText.getPreferredSize)
-
-  var converterEnabled = true
-
-  val auPerDaySqListener = new DocumentListener {
-    override def changedUpdate(event: DocumentEvent): Unit = {}
-    override def insertUpdate(event: DocumentEvent): Unit = update()
-    override def removeUpdate(event: DocumentEvent): Unit = update()
-    def update(): Unit = {
-      if (converterEnabled) {
-        println("editing au")
-        Try(auPerDaySqText.getText.toDouble).foreach(x => {
-          val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
-          val accelG = x * aud2ToMs2 / Conversions.GToMetersPerSecond
-          val accelGRound = math.rint(accelG * 1000.0) / 1000.0
-          converterEnabled = false
-          gText.setText(accelGRound.toString)
-          converterEnabled= true
-        })
-      }
-    }
-  }
-
-  val gListener = new DocumentListener {
-    override def changedUpdate(event: DocumentEvent): Unit = {}
-    override def insertUpdate(event: DocumentEvent): Unit = update()
-    override def removeUpdate(event: DocumentEvent): Unit = update()
-    def update(): Unit = {
-      if (converterEnabled) {
-        println("editing g")
-        Try(gText.getText.toDouble).foreach(x => {
-          val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
-          val accelAud2 = x / aud2ToMs2 * Conversions.GToMetersPerSecond
-          val accelAud2Round = math.rint(accelAud2 * 1000.0) / 1000.0
-          converterEnabled = false
-          auPerDaySqText.setText(accelAud2Round.toString)
-          converterEnabled = true
-        })
-      }
-    }
-  }
-
-  auPerDaySqText.getDocument.addDocumentListener(auPerDaySqListener)
-  gText.getDocument.addDocumentListener(gListener)
-
-  mainToolBar.add(auPerDaySqText)
-  mainToolBar.add(new JLabel("AU/day²  "))
-  mainToolBar.add(gText)
-  mainToolBar.add(new JLabel("g  "))
-
-  mainToolBar.add(new JSeparator(SwingConstants.VERTICAL))
-
-  add(mainToolBar, BorderLayout.NORTH)
-
-  /// /// build view panel
+  /// /// image for view
 
   var imWidth = Editor.ViewWidth
   var imHeight = Editor.ViewHeight
   var im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
   var imagePanel = new ImagePanel(im)
 
+  /// /// build menu bar
+
+  setJMenuBar(Editor.buildMenuBar())
+
+  /// /// build toolbars
+
+  val redrawChangeListener = new ChangeListener {
+    def stateChanged(event: ChangeEvent): Unit = {
+      redraw()
+    }
+  }
+
+  val toolbarsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
+  toolbarsPanel.add(Editor.buildUnitConverterToolbar())
+  val (cameraToolbar, cameraControls) = Editor.buildCameraToolbar(imWidth, redrawChangeListener)
+  toolbarsPanel.add(cameraToolbar)
+
+  add(toolbarsPanel, BorderLayout.NORTH)
+
+  /// /// build view panel
+
   val viewPanel = new JPanel()
   viewPanel.add(imagePanel)
   viewPanel.addMouseWheelListener(new MouseWheelListener() {
     def mouseWheelMoved(event: MouseWheelEvent): Unit = {
       val notches = event.getWheelRotation()
-      zViewPosField.setValue(zViewPosField.getValue.asInstanceOf[Double] + notches * Editor.ZoomSpeed)
+      cameraControls.zViewPosField.setValue(
+          cameraControls.zViewPosField.getValue.asInstanceOf[Double] + notches * Editor.ZoomSpeed)
       // don't need to redraw here, since it seems that the above triggers change listener
     }
   });
@@ -150,17 +102,11 @@ class Editor(
   // controls.setLayout(new GridLayout(6, 1))
   controls.setPreferredSize(new Dimension(Editor.ControlsWidth, imHeight))
 
-  val redrawChangeListener = new ChangeListener {
-    def stateChanged(event: ChangeEvent): Unit = {
-      redraw()
-    }
-  }
-
   ///
 
-  val flightsPanel = new JPanel(new GridLayout(2, 1))
+  val flightsPanel = new JPanel(new GridLayout(3, 1))
   flightsPanel.setBorder(BorderFactory.createTitledBorder("Flights"))
-  flightsPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 64))
+  flightsPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 128))
 
   val flightsComboBox = new JComboBox(flights.map(_.toString).toArray)
   flightsComboBox.addActionListener(new ActionListener {
@@ -193,6 +139,7 @@ class Editor(
   controls.add(shipsPanel)
 
   /// layer visibility (flight summary, planets, other flights)
+
   val layersPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
   layersPanel.setBorder(BorderFactory.createTitledBorder("Layers"))
   layersPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 256))
@@ -207,52 +154,19 @@ class Editor(
     planetsPanel.add(x._2._1)
   })
 
-  // TODO: more layer visibility options
-  // TODO: flight summary or status
   layersPanel.add(planetsPanel)
+
+  val flightStatusComboBox = new JComboBox(Array("Status", "Summary", "None"))
+  flightStatusComboBox.addActionListener(new ActionListener {
+    def actionPerformed(event: ActionEvent): Unit = {
+      redraw()
+    }
+  })
+  layersPanel.add(flightStatusComboBox)
+
+  // TODO: more layer visibility options
+
   controls.add(layersPanel)
-
-  /// camera controls
-
-  val cameraPanel = new JPanel(new GridLayout(1, 8))
-  cameraPanel.setBorder(BorderFactory.createTitledBorder("Camera Angle and Position"))
-  cameraPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 64))
-
-  val xAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
-  val yAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
-  val zAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
-  xAngleField.setValue(45.0)
-  yAngleField.setValue(0.0)
-  zAngleField.setValue(180.0)
-  xAngleField.addChangeListener(redrawChangeListener)
-  yAngleField.addChangeListener(redrawChangeListener)
-  zAngleField.addChangeListener(redrawChangeListener)
-  val isIntrinsic = new JCheckBox("Int")
-  isIntrinsic.addChangeListener(redrawChangeListener)
-
-  val xPosField = new JSpinner(new SpinnerNumberModel(0.0, -100.0, 100.0, 0.2))
-  val yPosField = new JSpinner(new SpinnerNumberModel(0.0, -100.0, 100.0, 0.2))
-  val zPosField = new JSpinner(new SpinnerNumberModel(0.0, -100.0, 100.0, 0.2))
-  val zViewPosField = new JSpinner(new SpinnerNumberModel(0.0, 0.0, 10000.0, 10.0))
-  xPosField.setValue(0.0)
-  yPosField.setValue(-5.0)
-  zPosField.setValue(5.0)
-  zViewPosField.setValue(imWidth * 1.0)
-  xPosField.addChangeListener(redrawChangeListener)
-  yPosField.addChangeListener(redrawChangeListener)
-  zPosField.addChangeListener(redrawChangeListener)
-  zViewPosField.addChangeListener(redrawChangeListener)
-
-  cameraPanel.add(xAngleField)
-  cameraPanel.add(yAngleField)
-  cameraPanel.add(zAngleField)
-  cameraPanel.add(isIntrinsic)
-  cameraPanel.add(xPosField)
-  cameraPanel.add(yPosField)
-  cameraPanel.add(zPosField)
-  cameraPanel.add(zViewPosField)
-
-  controls.add(cameraPanel)
 
   add(controls, BorderLayout.WEST)
 
@@ -348,25 +262,31 @@ class Editor(
         flightStates,
         gridLim)
 
-    // draw flight summary
-    // RenderFlight.drawFlightSummary(
-    //    im, fp.ship, distance, vel, roughFlightFn.accel, fp.origName, fp.destName, fp.startDate, fp.endDate)
 
-    // draw flight status with current datetime, distance, and velocity
-    val curDateJulian = ticksSubset.last
-    val velEps = 0.01
-    val curVel = Vec3.length(
-        Vec3.mul(
-            Vec3.sub(
-                roughFlightFn(curDateJulian),
-                roughFlightFn(curDateJulian - velEps)),
-            1.0 / velEps))
-    RenderFlight.drawFlightStatus(
-        im,
-        fp.ship,
-        Conversions.julianToCalendarDate(curDateJulian),
-        Vec3.length(Vec3.sub(flightStates.last, flightStates.head)),
-        curVel)
+    val statusOption = flightStatusComboBox.getSelectedIndex()
+
+    if (statusOption == 0) {
+      // draw flight status with current datetime, distance, and velocity
+      val curDateJulian = ticksSubset.last
+      val velEps = 0.01
+      val curVel = Vec3.length(
+          Vec3.mul(
+              Vec3.sub(
+                  roughFlightFn(curDateJulian),
+                  roughFlightFn(curDateJulian - velEps)),
+              1.0 / velEps))
+      RenderFlight.drawFlightStatus(
+          im,
+          fp.ship,
+          Conversions.julianToCalendarDate(curDateJulian),
+          Vec3.length(Vec3.sub(flightStates.last, flightStates.head)),
+          curVel)
+    } else if (statusOption == 1) {
+      // draw flight summary
+      RenderFlight.drawFlightSummary(
+          im, fp.ship, distance, vel, roughFlightFn.accel,
+          fp.origName, fp.destName, fp.startDate, fp.endDate)
+    }
 
     imagePanel.repaint()
     System.out.print(".")
@@ -377,31 +297,33 @@ class Editor(
   // get camera matrix from UI
   private def getCamera(): Mat44 = {
 
-    val xAngle = xAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
-    val yAngle = yAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
-    val zAngle = zAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
+    val xAngle = cameraControls.xAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
+    val yAngle = cameraControls.yAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
+    val zAngle = cameraControls.zAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
     val theta = Vec3(xAngle, yAngle, zAngle)
 
-    val camRotation = if (!isIntrinsic.isSelected()) {
+    val camRotation = if (!cameraControls.isIntrinsic.isSelected()) {
       View.rotationXYZ(theta)
     } else {
       View.rotationZYX(theta)
     }
 
-    val xPos = xPosField.getValue.asInstanceOf[Double]
-    val yPos = yPosField.getValue.asInstanceOf[Double]
-    val zPos = zPosField.getValue.asInstanceOf[Double]
+    val xPos = cameraControls.xPosField.getValue.asInstanceOf[Double]
+    val yPos = cameraControls.yPosField.getValue.asInstanceOf[Double]
+    val zPos = cameraControls.zPosField.getValue.asInstanceOf[Double]
     val camPos = Vec3(xPos, yPos, zPos)
 
     View.cameraTransform(camRotation, camPos)
 
   }
 
+
   // get viewer position from UI
   private def getViewPos(): Vec3 = {
-    val zViewPos = zViewPosField.getValue.asInstanceOf[Double]
+    val zViewPos = cameraControls.zViewPosField.getValue.asInstanceOf[Double]
     Vec3(0, 0, zViewPos)
   }
+
 
 }
 
@@ -413,6 +335,161 @@ object Editor {
   val ViewHeight = 600
   val ZoomSpeed = 10
   val ControlsWidth = 400
+
+
+  def buildMenuBar(): JMenuBar = {
+
+    val menuBar = new JMenuBar()
+    val fileMenu = new JMenu("File")
+    val reloadItem = new JMenuItem("Reload")
+    val exportItem = new JMenuItem("Export")
+    val exitItem = new JMenuItem("Exit")
+
+    reloadItem.addActionListener(new ActionListener() {
+      override def actionPerformed(event: ActionEvent): Unit = {
+        // TODO: implement
+      }
+    })
+
+    exportItem.addActionListener(new ActionListener() {
+      override def actionPerformed(event: ActionEvent): Unit = {
+        // TODO: implement
+      }
+    })
+
+    exitItem.addActionListener(new ActionListener() {
+      override def actionPerformed(event: ActionEvent): Unit = {
+        sys.exit()
+      }
+    })
+
+    fileMenu.add(reloadItem)
+    fileMenu.add(exportItem)
+    fileMenu.add(exitItem)
+    menuBar.add(fileMenu)
+
+    menuBar
+  }
+
+
+  def buildUnitConverterToolbar(): JToolBar = {
+
+    val toolbar = new JToolBar()
+    toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
+    toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Unit Converter"))
+
+    val auPerDaySqText = new JTextField("", 10)
+    val gText = new JTextField("", 10)
+    auPerDaySqText.setMaximumSize(auPerDaySqText.getPreferredSize)
+    gText.setMaximumSize(gText.getPreferredSize)
+
+    var converterEnabled = true
+
+    val auPerDaySqListener = new DocumentListener {
+      override def changedUpdate(event: DocumentEvent): Unit = {}
+      override def insertUpdate(event: DocumentEvent): Unit = update()
+      override def removeUpdate(event: DocumentEvent): Unit = update()
+      def update(): Unit = {
+        if (converterEnabled) {
+          println("editing au")
+          Try(auPerDaySqText.getText.toDouble).foreach(x => {
+            val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
+            val accelG = x * aud2ToMs2 / Conversions.GToMetersPerSecond
+            val accelGRound = math.rint(accelG * 1000.0) / 1000.0
+            converterEnabled = false
+            gText.setText(accelGRound.toString)
+            converterEnabled= true
+          })
+        }
+      }
+    }
+
+    val gListener = new DocumentListener {
+      override def changedUpdate(event: DocumentEvent): Unit = {}
+      override def insertUpdate(event: DocumentEvent): Unit = update()
+      override def removeUpdate(event: DocumentEvent): Unit = update()
+      def update(): Unit = {
+        if (converterEnabled) {
+          println("editing g")
+          Try(gText.getText.toDouble).foreach(x => {
+            val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
+            val accelAud2 = x / aud2ToMs2 * Conversions.GToMetersPerSecond
+            val accelAud2Round = math.rint(accelAud2 * 1000.0) / 1000.0
+            converterEnabled = false
+            auPerDaySqText.setText(accelAud2Round.toString)
+            converterEnabled = true
+          })
+        }
+      }
+    }
+
+    auPerDaySqText.getDocument.addDocumentListener(auPerDaySqListener)
+    gText.getDocument.addDocumentListener(gListener)
+
+    toolbar.add(auPerDaySqText)
+    toolbar.add(new JLabel("AU/day²  "))
+    toolbar.add(gText)
+    toolbar.add(new JLabel("g  "))
+
+    toolbar
+  }
+
+
+  def buildCameraToolbar(
+      zViewPos: Double, redrawChangeListener: ChangeListener): (JToolBar, CameraControls) = {
+
+    val spinnerWidth = 3
+
+    val toolbar = new JToolBar()
+    toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Camera"))
+
+    val xAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
+    val yAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
+    val zAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
+    xAngleField.setValue(45.0)
+    yAngleField.setValue(0.0)
+    zAngleField.setValue(180.0)
+    xAngleField.addChangeListener(redrawChangeListener)
+    yAngleField.addChangeListener(redrawChangeListener)
+    zAngleField.addChangeListener(redrawChangeListener)
+    xAngleField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
+    yAngleField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
+    zAngleField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
+    val isIntrinsic = new JCheckBox("Int")
+    isIntrinsic.addChangeListener(redrawChangeListener)
+
+    val xPosField = new JSpinner(new SpinnerNumberModel(0.0, -100.0, 100.0, 0.2))
+    val yPosField = new JSpinner(new SpinnerNumberModel(0.0, -100.0, 100.0, 0.2))
+    val zPosField = new JSpinner(new SpinnerNumberModel(0.0, -100.0, 100.0, 0.2))
+    val zViewPosField = new JSpinner(new SpinnerNumberModel(0.0, 0.0, 10000.0, 10.0))
+    xPosField.setValue(0.0)
+    yPosField.setValue(-5.0)
+    zPosField.setValue(5.0)
+    zViewPosField.setValue(zViewPos)
+    xPosField.addChangeListener(redrawChangeListener)
+    yPosField.addChangeListener(redrawChangeListener)
+    zPosField.addChangeListener(redrawChangeListener)
+    zViewPosField.addChangeListener(redrawChangeListener)
+    xPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
+    yPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
+    zPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
+    zViewPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
+
+    toolbar.add(xAngleField)
+    toolbar.add(yAngleField)
+    toolbar.add(zAngleField)
+    toolbar.add(isIntrinsic)
+    toolbar.add(new JSeparator(SwingConstants.VERTICAL))
+    toolbar.add(xPosField)
+    toolbar.add(yPosField)
+    toolbar.add(zPosField)
+    toolbar.add(zViewPosField)
+
+    (toolbar, CameraControls(
+        xAngleField, yAngleField, zAngleField, isIntrinsic,
+        xPosField, yPosField, zPosField, zViewPosField))
+
+  }
 
 }
 
