@@ -7,9 +7,14 @@ package bdzimmer.orbits
 import java.awt.{BorderLayout, Color, Dimension, FlowLayout, Graphics, GridLayout, Image}
 import java.awt.event.{ActionListener, ActionEvent, ComponentAdapter, ComponentEvent, MouseWheelListener, MouseWheelEvent}
 import java.awt.image.BufferedImage
-import javax.swing.{BorderFactory, JCheckBox, JComboBox, JFrame, JPanel, JSlider, JSpinner, SpinnerNumberModel, SwingConstants}
-import javax.swing.event.{ChangeListener, ChangeEvent}
+import javax.swing.{
+    BorderFactory, JCheckBox, JComboBox, JFrame,
+    JLabel, JMenuBar, JMenu, JMenuItem, JPanel,
+    JSeparator, JSlider, JSpinner, JToolBar, JToggleButton, JTextField,
+    SpinnerNumberModel, SwingConstants}
+import javax.swing.event.{ChangeListener, ChangeEvent, DocumentListener, DocumentEvent}
 
+import scala.util.Try
 
 // this is sort of a parallel version of how flights are represented in Secondary
 case class FlightParams(
@@ -37,16 +42,95 @@ class Editor(
 
   setTitle("Orbits Editor")
 
-  // TODO: add menu bar / toolbars
+  /// /// build menu bar
 
-  ///
+  val mainMenuBar = new JMenuBar()
+  val fileMenu = new JMenu("File")
+  val reloadItem = new JMenuItem("Reload")
+  val exportItem = new JMenuItem("Export")
+  val exitItem = new JMenuItem("Exit")
+
+  reloadItem.addActionListener(new ActionListener() {
+    override def actionPerformed(event: ActionEvent): Unit = {
+      // TODO: implement
+    }
+  })
+
+  fileMenu.add(reloadItem)
+  fileMenu.add(exportItem)
+  fileMenu.add(exitItem)
+  mainMenuBar.add(fileMenu)
+
+  setJMenuBar(mainMenuBar)
+
+  /// /// build control panel
+
+  val mainToolBar = new JToolBar()
+  mainToolBar.setLayout(new FlowLayout(FlowLayout.LEFT))
+
+  val auPerDaySqText = new JTextField("", 10)
+  val gText = new JTextField("", 10)
+  auPerDaySqText.setMaximumSize(auPerDaySqText.getPreferredSize)
+  gText.setMaximumSize(gText.getPreferredSize)
+
+  var converterEnabled = true
+
+  val auPerDaySqListener = new DocumentListener {
+    override def changedUpdate(event: DocumentEvent): Unit = {}
+    override def insertUpdate(event: DocumentEvent): Unit = update()
+    override def removeUpdate(event: DocumentEvent): Unit = update()
+    def update(): Unit = {
+      if (converterEnabled) {
+        println("editing au")
+        Try(auPerDaySqText.getText.toDouble).foreach(x => {
+          val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
+          val accelG = x * aud2ToMs2 / Conversions.GToMetersPerSecond
+          val accelGRound = math.rint(accelG * 1000.0) / 1000.0
+          converterEnabled = false
+          gText.setText(accelGRound.toString)
+          converterEnabled= true
+        })
+      }
+    }
+  }
+
+  val gListener = new DocumentListener {
+    override def changedUpdate(event: DocumentEvent): Unit = {}
+    override def insertUpdate(event: DocumentEvent): Unit = update()
+    override def removeUpdate(event: DocumentEvent): Unit = update()
+    def update(): Unit = {
+      if (converterEnabled) {
+        println("editing g")
+        Try(gText.getText.toDouble).foreach(x => {
+          val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
+          val accelAud2 = x / aud2ToMs2 * Conversions.GToMetersPerSecond
+          val accelAud2Round = math.rint(accelAud2 * 1000.0) / 1000.0
+          converterEnabled = false
+          auPerDaySqText.setText(accelAud2Round.toString)
+          converterEnabled = true
+        })
+      }
+    }
+  }
+
+  auPerDaySqText.getDocument.addDocumentListener(auPerDaySqListener)
+  gText.getDocument.addDocumentListener(gListener)
+
+  mainToolBar.add(auPerDaySqText)
+  mainToolBar.add(new JLabel("AU/day²  "))
+  mainToolBar.add(gText)
+  mainToolBar.add(new JLabel("g  "))
+
+  mainToolBar.add(new JSeparator(SwingConstants.VERTICAL))
+
+  add(mainToolBar, BorderLayout.NORTH)
+
+  /// /// build view panel
 
   var imWidth = Editor.ViewWidth
   var imHeight = Editor.ViewHeight
   var im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
   var imagePanel = new ImagePanel(im)
-
-  /// ///
 
   val viewPanel = new JPanel()
   viewPanel.add(imagePanel)
@@ -60,8 +144,7 @@ class Editor(
 
   add(viewPanel, BorderLayout.CENTER)
 
-  ///
-
+  /// /// build controls
 
   val controls = new JPanel()
   // controls.setLayout(new GridLayout(6, 1))
@@ -171,9 +254,9 @@ class Editor(
 
   controls.add(cameraPanel)
 
-  ///
-
   add(controls, BorderLayout.WEST)
+
+  /// ///
 
   pack()
   redraw()
