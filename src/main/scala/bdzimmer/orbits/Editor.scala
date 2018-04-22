@@ -5,14 +5,17 @@
 package bdzimmer.orbits
 
 import java.awt.{BorderLayout, Color, Dimension, FlowLayout, Graphics, GridLayout, Image}
-import java.awt.event.{ActionListener, ActionEvent, ComponentAdapter, ComponentEvent, MouseWheelListener, MouseWheelEvent}
+import java.awt.event.{
+  ActionListener, ActionEvent, ComponentAdapter, ComponentEvent,
+  InputEvent,
+  MouseEvent, MouseWheelListener, MouseWheelEvent}
 import java.awt.image.BufferedImage
 import javax.swing.{
     BorderFactory, JCheckBox, JComboBox, JFrame,
     JLabel, JMenuBar, JMenu, JMenuItem, JPanel,
     JSeparator, JSlider, JSpinner, JTextArea, JToolBar, JToggleButton, JTextField,
     SpinnerNumberModel, SwingConstants}
-import javax.swing.event.{ChangeListener, ChangeEvent, DocumentListener, DocumentEvent}
+import javax.swing.event.{ChangeListener, ChangeEvent, DocumentListener, DocumentEvent, MouseInputAdapter}
 
 import scala.util.Try
 
@@ -89,10 +92,48 @@ class Editor(
     def mouseWheelMoved(event: MouseWheelEvent): Unit = {
       val notches = event.getWheelRotation()
       cameraControls.zViewPosField.setValue(
-          cameraControls.zViewPosField.getValue.asInstanceOf[Double] + notches * Editor.ZoomSpeed)
+          cameraControls.zViewPosField.getValue.asInstanceOf[Double] - notches * Editor.ZoomSpeed)
       // don't need to redraw here, since it seems that the above triggers change listener
     }
-  });
+  })
+
+  val mousePanListener = new MouseInputAdapter() {
+    var x = 0.0
+    var y = 0.0
+    var cx = 0.0
+    var cy = 0.0
+
+    override def mousePressed(event: MouseEvent): Unit = {
+      x = event.getX()
+      y = event.getY()
+      if (event.getButton() == MouseEvent.BUTTON1) {
+        cx = cameraControls.xAngleField.getValue.asInstanceOf[Double]
+        cy = cameraControls.yAngleField.getValue.asInstanceOf[Double]
+      } else {
+        cx = cameraControls.xPosField.getValue.asInstanceOf[Double]
+        cy = cameraControls.yPosField.getValue.asInstanceOf[Double]
+      }
+    }
+
+    override def mouseDragged(event: MouseEvent): Unit = {
+      val dx = event.getX() - x
+      val dy = event.getY() - y
+      // println(dx + " " + dy)
+      // TODO: adjust and rotate direction based on camera angle
+      if ((event.getModifiersEx & InputEvent.BUTTON1_DOWN_MASK) != 0) {
+        // println("changing angles")
+        cameraControls.xAngleField.setValue(cx + dy * Editor.RotateSpeed)
+        cameraControls.yAngleField.setValue(cy + dx * Editor.RotateSpeed)
+      } else {
+        // println("changing pan")
+        cameraControls.xPosField.setValue(cx - dx * Editor.PanSpeed)
+        cameraControls.yPosField.setValue(cy + dy * Editor.PanSpeed)
+      }
+    }
+  }
+
+  viewPanel.addMouseListener(mousePanListener)
+  viewPanel.addMouseMotionListener(mousePanListener)
 
   add(viewPanel, BorderLayout.CENTER)
 
@@ -333,7 +374,9 @@ object Editor {
 
   val ViewWidth = 800
   val ViewHeight = 600
-  val ZoomSpeed = 10
+  val ZoomSpeed = 50
+  val PanSpeed = 0.01
+  val RotateSpeed = 0.05
   val ControlsWidth = 400
 
 
