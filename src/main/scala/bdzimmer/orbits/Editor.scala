@@ -247,40 +247,41 @@ class Editor(
     val idx = flightsComboBox.getSelectedIndex
     val fp = flights(idx)
 
-    val startDateJulian = fp.startDate.julian
-    val endDateJulian = fp.endDate.julian
+    val (roughFlightFn, ticks) = Editor.paramsToFun(fp)
 
-    // one tick per hour
-    val res = 1.0 / 24
-    val ticks = (startDateJulian to endDateJulian by res).toList.toIndexedSeq // don't ask
-
-    // find positions of origin and destination bodies
+    // to plot how the origin and desination change curing the flight
     val origStates = ticks.map(tick => Orbits.planetState(fp.orig, tick))
     val destStates = ticks.map(tick => Orbits.planetState(fp.dest, tick))
-
-    val roughFlightFn =  RoughFlightFn(
-      origStates.head.position, destStates.last.position,
-      startDateJulian, endDateJulian - startDateJulian)
 
     // take a fraction of the ticks based on the slider
     val flightPercent = flightsSlider.getValue() / 100.0
     val ticksSubset = ticks.take((flightPercent * ticks.size).toInt)
+    val curDateJulian = ticksSubset.last
 
     val distance = Vec3.length(
         Vec3.sub(destStates.last.position, origStates.head.position))
 
-    val vel = distance / (endDateJulian - startDateJulian) // average velocity
+    // average velocity
+    val vel = distance / (fp.endDate.julian - fp.startDate.julian)
 
-    val allStates = origStates ++ destStates
-    val planetMax = RenderFlight.maxPosition(allStates)
+    // val allStates = origStates ++ destStates
+    // val planetMax = RenderFlight.maxPosition(allStates)
+    // val gridLim = (planetMax * 4).toInt
 
-    val gridLim = (planetMax * 4).toInt
+    val gridLim = 50 // radius of solar system is about 50 AU
 
     // TODO: deal with empty ticksSubset
-
     val flightStates = ticksSubset.map(tick => roughFlightFn(tick))
     val planets = planetCheckboxes.toList.filter(_._2._1.isSelected).map(x => {
       (x._1, Orbits.planetMotionPeriod(x._2._2, ticksSubset.last))
+    })
+
+    // find other flights that are active at the same time as the current one
+    val activeFlights = flights.filter(x =>
+      !x.equals(fp) && x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
+    val otherFlights = activeFlights.map(af => {
+      val (afFn, afTicks) = Editor.paramsToFun(af)
+      afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
     })
 
     val camTrans = getCamera()
@@ -301,14 +302,13 @@ class Editor(
         origStates,
         destStates,
         flightStates,
+        otherFlights,
         gridLim)
-
 
     val statusOption = flightStatusComboBox.getSelectedIndex()
 
     if (statusOption == 0) {
       // draw flight status with current datetime, distance, and velocity
-      val curDateJulian = ticksSubset.last
       val velEps = 0.01
       val curVel = Vec3.length(
           Vec3.mul(
@@ -374,10 +374,32 @@ object Editor {
 
   val ViewWidth = 800
   val ViewHeight = 600
+
   val ZoomSpeed = 50
   val PanSpeed = 0.01
-  val RotateSpeed = 0.05
+  val RotateSpeed = 0.1
   val ControlsWidth = 400
+
+
+  def paramsToFun(fp: FlightParams): (RoughFlightFn, scala.collection.immutable.Seq[Double]) = {
+
+    val startDateJulian = fp.startDate.julian
+    val endDateJulian = fp.endDate.julian
+
+    // one tick per hour
+    val res = 1.0 / 24
+    val ticks = (startDateJulian to endDateJulian by res).toList.toIndexedSeq // don't ask
+
+    // find positions of origin and destination bodies
+    val origState = Orbits.planetState(fp.orig, startDateJulian)
+    val destState = Orbits.planetState(fp.dest, endDateJulian)
+
+    val roughFlightFn =  RoughFlightFn(
+      origState.position, destState.position,
+      startDateJulian, endDateJulian - startDateJulian)
+
+    (roughFlightFn, ticks)
+  }
 
 
   def buildMenuBar(): JMenuBar = {
