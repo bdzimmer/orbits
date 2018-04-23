@@ -106,8 +106,8 @@ class Editor(
   viewPanel.addMouseWheelListener(new MouseWheelListener() {
     def mouseWheelMoved(event: MouseWheelEvent): Unit = {
       val notches = event.getWheelRotation()
-      cameraControls.zViewPosField.setValue(
-          cameraControls.zViewPosField.getValue.asInstanceOf[Double] - notches * Editor.ZoomSpeed)
+      val zViewPos = cameraControls.zViewPosField.getValue.asInstanceOf[Double] - notches * Editor.ZoomSpeed
+      cameraControls.zViewPosField.setValue(math.max(zViewPos, 0.0))
       // don't need to redraw here, since it seems that the above triggers change listener
     }
   })
@@ -212,10 +212,9 @@ class Editor(
 
     val gridLim = 50 // radius of solar system is about 50 AU
 
-    // TODO: deal with empty ticksSubset
     val flightStates = ticksSubset.map(tick => roughFlightFn(tick))
     val planets = planetCheckboxes.toList.filter(_._2._1.isSelected).map(x => {
-      (x._1, Orbits.planetMotionPeriod(x._2._2, ticksSubset.last))
+      (x._1, Orbits.planetMotionPeriod(x._2._2, curDateJulian))
     })
 
     // find other flights that are active at the same time as the current one
@@ -417,7 +416,7 @@ object Editor {
     flightsComboBox.addActionListener(redrawActionListener)
     toolbar.add(flightsComboBox)
 
-    val flightsSlider = new JSlider(SwingConstants.HORIZONTAL, 0, 100, 100)
+    val flightsSlider = new JSlider(SwingConstants.HORIZONTAL, 1, 100, 100)
     flightsSlider.addChangeListener(redrawChangeListener)
     toolbar.add(flightsSlider)
 

@@ -30,7 +30,10 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
       val x2 = end.x.toInt + im.getWidth / 2
       val y2 = im.getHeight - (end.y.toInt + im.getHeight / 2)
       // println(x1 + " " + y1 + " " + x2 + " " + y2)
-      gr.drawLine(x1, y1, x2, y2)
+      // don't draw wildly inappropriate values
+      if (x1.abs < 32768 && y1.abs < 32768 && x2.abs < 32768 && y2.abs < 32768) {
+        gr.drawLine(x1, y1, x2, y2)
+      }
     }
 
     // draw segments going in the x direction
@@ -220,7 +223,9 @@ object View {
   def perspective(point: Vec3, camTrans: Mat44, viewPos: Vec3): Vec2 = {
     val ph = new Vec4(point, 1.0)
     val pc = camTrans.mul(ph)
-    val p = Vec3(pc.x / pc.w, pc.y / pc.w, pc.z / pc.w)
+    // val p = Vec3(pc.x / pc.w, pc.y / pc.w, pc.z / pc.w)
+    val p =  Vec3(pc.x / pc.w, pc.y / pc.w, math.min(pc.z / pc.w, 0.0))
+
     Vec2(
       viewPos.z * p.x / p.z - viewPos.x,
       viewPos.z * p.y / p.z - viewPos.y
