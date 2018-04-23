@@ -11,8 +11,8 @@ import java.awt.event.{
   MouseEvent, MouseWheelListener, MouseWheelEvent}
 import java.awt.image.BufferedImage
 import javax.swing.{
-    BorderFactory, JCheckBox, JComboBox, JFrame,
-    JLabel, JMenuBar, JMenu, JMenuItem, JPanel,
+    BorderFactory, ButtonGroup, JCheckBox, JCheckBoxMenuItem, JComboBox, JFrame,
+    JLabel, JMenuBar, JMenu, JMenuItem, JPanel, JRadioButtonMenuItem,
     JSeparator, JSlider, JSpinner, JTextArea, JToolBar, JToggleButton, JTextField,
     SpinnerNumberModel, SwingConstants}
 import javax.swing.event.{ChangeListener, ChangeEvent, DocumentListener, DocumentEvent, MouseInputAdapter}
@@ -65,22 +65,37 @@ class Editor(
   var im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
   var imagePanel = new ImagePanel(im)
 
-  /// /// build menu bar
-
-  setJMenuBar(Editor.buildMenuBar())
-
-  /// /// build toolbars
-
   val redrawChangeListener = new ChangeListener {
     def stateChanged(event: ChangeEvent): Unit = {
       redraw()
     }
   }
 
+  val redrawActionListener = new ActionListener {
+    def actionPerformed(event: ActionEvent): Unit = {
+      redraw()
+    }
+  }
+
+  /// /// build menu bar
+
+  val (mainMenuBar, planetCheckboxes, flightStatusRadioButtons) = Editor.buildMenuBar(
+      redrawChangeListener, redrawActionListener)
+
+  setJMenuBar(mainMenuBar)
+
+  /// /// build toolbars
+
   val toolbarsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
-  toolbarsPanel.add(Editor.buildUnitConverterToolbar())
+
+  val (flightsToolbar, flightsComboBox, flightsSlider) = Editor.buildFlightsToolbar(
+      flights, redrawChangeListener, redrawActionListener)
+  toolbarsPanel.add(flightsToolbar)
+
   val (cameraToolbar, cameraControls) = Editor.buildCameraToolbar(imWidth, redrawChangeListener)
   toolbarsPanel.add(cameraToolbar)
+
+  toolbarsPanel.add(Editor.buildUnitConverterToolbar())
 
   add(toolbarsPanel, BorderLayout.NORTH)
 
@@ -137,80 +152,6 @@ class Editor(
 
   add(viewPanel, BorderLayout.CENTER)
 
-  /// /// build controls
-
-  val controls = new JPanel()
-  // controls.setLayout(new GridLayout(6, 1))
-  controls.setPreferredSize(new Dimension(Editor.ControlsWidth, imHeight))
-
-  ///
-
-  val flightsPanel = new JPanel(new GridLayout(3, 1))
-  flightsPanel.setBorder(BorderFactory.createTitledBorder("Flights"))
-  flightsPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 128))
-
-  val flightsComboBox = new JComboBox(flights.map(_.toString).toArray)
-  flightsComboBox.addActionListener(new ActionListener {
-    def actionPerformed(event: ActionEvent): Unit = {
-      redraw()
-    }
-  })
-  flightsPanel.add(flightsComboBox)
-
-  val flightsSlider = new JSlider(SwingConstants.HORIZONTAL, 0, 100, 100)
-  flightsSlider.addChangeListener(redrawChangeListener)
-  flightsPanel.add(flightsSlider)
-
-  controls.add(flightsPanel)
-
-  ///
-
-  val shipsPanel = new JPanel(new GridLayout(1, 1))
-  shipsPanel.setBorder(BorderFactory.createTitledBorder("Ships"))
-  shipsPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 64))
-
-  val shipsComboBox = new JComboBox(ships.map(_.name).toArray)
-  shipsComboBox.addActionListener(new ActionListener {
-    def actionPerformed(event: ActionEvent): Unit = {
-      // TODO: do stuff
-    }
-  })
-  shipsPanel.add(shipsComboBox)
-
-  controls.add(shipsPanel)
-
-  /// layer visibility (flight summary, planets, other flights)
-
-  val layersPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
-  layersPanel.setBorder(BorderFactory.createTitledBorder("Layers"))
-  layersPanel.setPreferredSize(new Dimension(Editor.ControlsWidth, 256))
-
-  val planetsPanel = new JPanel()
-  planetsPanel.setBorder(BorderFactory.createTitledBorder("Planets"))
-  val planetCheckboxes = MeeusPlanets.Planets.map(x => (x._1, (new JCheckBox(x._1, false), x._2)))
-  planetsPanel.setLayout(new GridLayout(planetCheckboxes.size, 1))
-
-  planetCheckboxes.foreach(x => {
-    x._2._1.addChangeListener(redrawChangeListener)
-    planetsPanel.add(x._2._1)
-  })
-
-  layersPanel.add(planetsPanel)
-
-  val flightStatusComboBox = new JComboBox(Array("Status", "Summary", "None"))
-  flightStatusComboBox.addActionListener(new ActionListener {
-    def actionPerformed(event: ActionEvent): Unit = {
-      redraw()
-    }
-  })
-  layersPanel.add(flightStatusComboBox)
-
-  // TODO: more layer visibility options
-
-  controls.add(layersPanel)
-
-  add(controls, BorderLayout.WEST)
-
   /// ///
 
   pack()
@@ -228,6 +169,7 @@ class Editor(
   setVisible(true)
 
   /// ///
+
 
   def rebuildImagePanel(): Unit = {
     imWidth = viewPanel.getWidth
@@ -305,7 +247,7 @@ class Editor(
         otherFlights,
         gridLim)
 
-    val statusOption = flightStatusComboBox.getSelectedIndex()
+    val statusOption = flightStatusRadioButtons.indexWhere(_.isSelected)
 
     if (statusOption == 0) {
       // draw flight status with current datetime, distance, and velocity
@@ -402,9 +344,15 @@ object Editor {
   }
 
 
-  def buildMenuBar(): JMenuBar = {
+  def buildMenuBar(
+      redrawChangeListener: ChangeListener,
+      redrawActionListener: ActionListener): (
+    JMenuBar,
+    scala.collection.immutable.ListMap[String, (JCheckBoxMenuItem, OrbitalElementsEstimator)],
+    List[JRadioButtonMenuItem]) = {
 
     val menuBar = new JMenuBar()
+
     val fileMenu = new JMenu("File")
     val reloadItem = new JMenuItem("Reload")
     val exportItem = new JMenuItem("Export")
@@ -431,9 +379,50 @@ object Editor {
     fileMenu.add(reloadItem)
     fileMenu.add(exportItem)
     fileMenu.add(exitItem)
-    menuBar.add(fileMenu)
 
-    menuBar
+    val viewMenu = new JMenu("View")
+
+    val planetCheckBoxes = MeeusPlanets.Planets.map(x => (x._1, (new JCheckBoxMenuItem(x._1, false), x._2)))
+    planetCheckBoxes.foreach(x => {
+      x._2._1.addChangeListener(redrawChangeListener)
+    })
+    planetCheckBoxes.foreach(x => viewMenu.add(x._2._1))
+    // TODO: sections for toggling inner and outer planets
+    viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
+
+    val flightStatusButtonGroup = new ButtonGroup()
+    val flightStatusRadioButtons = List("Status", "Summary", "None").map(x => new JRadioButtonMenuItem(x))
+    flightStatusRadioButtons(0).setSelected(true)
+    flightStatusRadioButtons.foreach(x => x.addActionListener(redrawActionListener))
+    flightStatusRadioButtons.map(x => flightStatusButtonGroup.add(x))
+    flightStatusRadioButtons.foreach(x => viewMenu.add(x))
+
+    menuBar.add(fileMenu)
+    menuBar.add(viewMenu)
+
+    (menuBar, planetCheckBoxes, flightStatusRadioButtons)
+  }
+
+
+  def buildFlightsToolbar(
+      flights: List[FlightParams],
+      redrawChangeListener: ChangeListener,
+      redrawActionListener: ActionListener): (JToolBar, JComboBox[String], JSlider) = {
+
+    val toolbar = new JToolBar()
+    toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
+    toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Flights"))
+
+    val flightsComboBox = new JComboBox(flights.map(_.toString).toArray)
+    flightsComboBox.addActionListener(redrawActionListener)
+    toolbar.add(flightsComboBox)
+
+    val flightsSlider = new JSlider(SwingConstants.HORIZONTAL, 0, 100, 100)
+    flightsSlider.addChangeListener(redrawChangeListener)
+    toolbar.add(flightsSlider)
+
+    (toolbar, flightsComboBox, flightsSlider)
+
   }
 
 
