@@ -182,8 +182,9 @@ object View {
 
     val translation = transformation(Identity3, Vec3(-pos.x, -pos.y, -pos.z))
     val rotation = transformation(rot, Vec3Zero)
+    // interesting to experiment with this
+    // translation.mul(rotation)
     rotation.mul(translation)
-
   }
 
 

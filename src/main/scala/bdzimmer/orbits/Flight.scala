@@ -27,7 +27,7 @@ class RoughFlightFn(
     startPos: Vec3,
     dir: Vec3,
     val accel: Double,
-    startTime: Double,
+    val startTime: Double,
     flightTime: Double) extends FlightFn {
 
   val halfFlightTime = flightTime / 2

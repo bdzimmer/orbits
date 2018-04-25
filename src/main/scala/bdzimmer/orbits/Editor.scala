@@ -220,10 +220,10 @@ class Editor(
     // find other flights that are active at the same time as the current one
     val activeFlights = flights.filter(x =>
       !x.equals(fp) && x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
-    val otherFlights = activeFlights.map(af => {
-      val (afFn, afTicks) = Editor.paramsToFun(af)
+    val activeFlightFns = activeFlights.map(af => Editor.paramsToFun(af))
+    val otherFlights = activeFlightFns.map({case (afFn, afTicks) => {
       afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
-    })
+    }})
 
     val camTrans = getCamera()
     val viewPos = getViewPos()
@@ -246,17 +246,32 @@ class Editor(
         otherFlights,
         gridLim)
 
+    // draw velocity direction arrows
+
+    def drawVelocityArrow(flightFn: RoughFlightFn, color: Color): Double = {
+      val velEps = 0.01
+      if (curDateJulian - velEps > flightFn.startTime) {
+        val curState = flightFn(curDateJulian)
+        val curVelVec = Vec3.mul(
+          Vec3.sub(curState, flightFn(curDateJulian - velEps)),
+          1.0 / velEps)
+        val curVel = Vec3.length(curVelVec)
+        if (curVel > 1.0e-9) {
+          view.drawArrow(im, OrbitalState(curState, curVelVec), color)
+        }
+        curVel
+      } else {
+        0.0
+      }
+    }
+
+    activeFlightFns.foreach(x => drawVelocityArrow(x._1, Color.GRAY))
+    val curVel = drawVelocityArrow(roughFlightFn, Color.GREEN)
+
     val statusOption = flightStatusRadioButtons.indexWhere(_.isSelected)
 
     if (statusOption == 0) {
       // draw flight status with current datetime, distance, and velocity
-      val velEps = 0.01
-      val curVel = Vec3.length(
-          Vec3.mul(
-              Vec3.sub(
-                  roughFlightFn(curDateJulian),
-                  roughFlightFn(curDateJulian - velEps)),
-              1.0 / velEps))
       RenderFlight.drawFlightStatus(
           im,
           fp.ship,
