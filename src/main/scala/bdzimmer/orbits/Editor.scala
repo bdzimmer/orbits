@@ -228,8 +228,8 @@ class Editor(
     // find other flights that are active at the same time as the current one
     val activeFlights = flights.filter(x =>
       !x.equals(fp) && x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
-    val activeFlightFns = activeFlights.map(af => (af, Editor.paramsToFun(af)))
-    val otherFlights = activeFlightFns.map({case (af, (afFn, afTicks)) => {
+    val activeFlightFns = activeFlights.map(af => Editor.paramsToFun(af))
+    val otherFlights = activeFlightFns.map({case (afFn, afTicks) => {
       afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
     }})
 
@@ -241,17 +241,22 @@ class Editor(
     gr.setColor(Color.BLACK)
     gr.fillRect(0, 0, imWidth, imHeight)
 
+    val flightColor = factions.get(fp.faction).getOrElse(Color.GREEN)
+    val otherFlightsColors = activeFlights.map(x => factions.get(x.faction).getOrElse(Color.GRAY))
+
     RenderFlight.drawRoughFlightAtTime(
-        fp.ship,
         view,
         im,
         planets,
-        fp.origName, fp.destName,
-        fp.startDate.dateString, fp.endDate.dateString,
+        fp.origName,
+        fp.destName,
+        fp.startDate.dateString,
+        fp.endDate.dateString,
         origStates,
         destStates,
         flightStates,
-        otherFlights,
+        flightColor,
+        otherFlights.zip(otherFlightsColors),
         gridLim)
 
     // draw velocity direction arrows
@@ -273,11 +278,12 @@ class Editor(
       }
     }
 
-    activeFlightFns.foreach(x => drawVelocityArrow(
-        x._2._1, factions.get(x._1.faction).getOrElse(Color.GRAY)))
+
+    activeFlightFns.zip(otherFlightsColors).foreach({case (x, y) => drawVelocityArrow(
+        x._1, y)})
 
     val curVel = drawVelocityArrow(
-        roughFlightFn, factions.get(fp.faction).getOrElse(Color.GREEN))
+        roughFlightFn, flightColor)
 
     val statusOption = flightStatusRadioButtons.indexWhere(_.isSelected)
 

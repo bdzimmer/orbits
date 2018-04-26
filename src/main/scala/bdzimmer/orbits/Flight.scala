@@ -233,7 +233,6 @@ object RenderFlight {
       val curDateTime = Conversions.julianToCalendarDate(ticks(idx))
 
       drawRoughFlightAtTime(
-        ship,
         view,
         im,
         List((origName, origFullPeriod), (destName, destFullPeriod)),
@@ -242,6 +241,7 @@ object RenderFlight {
         origStates.take(idx + 1),
         destStates.take(idx + 1),
         flightStates.take(idx + 1),
+        Color.CYAN, // TODO: faction color
         List(),
         gridLim)
 
@@ -278,7 +278,6 @@ object RenderFlight {
 
 
   def drawRoughFlightAtTime(
-      ship: Spacecraft,
       view: Viewer,
       im: BufferedImage,
       planets: List[(String, Seq[OrbitalState])],
@@ -289,7 +288,8 @@ object RenderFlight {
       origStates: Seq[OrbitalState],
       destStates: Seq[OrbitalState],
       flightStates: Seq[Vec3],
-      otherFlights: List[Seq[Vec3]],
+      flightColor: Color,
+      otherFlights: List[(Seq[Vec3], Color)],
       gridLim: Int): Unit = {
 
     // draw the grid and the sun
@@ -301,16 +301,16 @@ object RenderFlight {
     // as the final state of the flight - this is the time that we are drawing the
     // flight at
     planets.foreach(x => drawOrbit(im, x._2, view))
-    planets.foreach(x => view.drawPosition(im, x._2.head.position, x._1, "", Color.RED))
+    planets.foreach(x => view.drawPosition(im, x._2.head.position, x._1, "", Color.GRAY))
 
     // draw other flights in the background
     // TODO: optional ship arrows and names
-    otherFlights.foreach(x => view.drawMotion(im, x, Color.GRAY))
+    otherFlights.foreach(x => view.drawMotion(im, x._1, x._2))
 
     // draw the positions of the start and ending locations and the flight up to this point
     view.drawMotion(im, origStates.map(_.position), Color.GREEN)
     view.drawMotion(im, destStates.map(_.position), Color.GREEN)
-    view.drawMotion(im, flightStates,               Color.CYAN)
+    view.drawMotion(im, flightStates,               flightColor)
 
     // draw the names and dates for the origin and destination
     view.drawPosition(im, origStates.head.position, origName, origDesc, Color.GREEN)

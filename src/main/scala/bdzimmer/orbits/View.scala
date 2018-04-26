@@ -54,6 +54,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
 
 
   def drawMotion(im: BufferedImage, pos: Seq[Vec3], color: Color): Unit = {
+
     val pos2d = pos.map(p => View.perspective(p, camTrans, viewPos))
     val colInt = color.getRGB
     pos2d.foreach(p => {
@@ -63,6 +64,39 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
         im.setRGB(x, y, colInt)
       }
     })
+
+    /*
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setColor(color)
+    if (pos2d.length > 1) {
+      pos2d.zipWithIndex.dropRight(1).foreach({case (p, idx) => {
+        val x = p.x.toInt + im.getWidth / 2
+        val y = im.getHeight - (p.y.toInt + im.getHeight / 2)
+        val p2 = pos2d(idx + 1)
+        val x2 = p2.x.toInt + im.getWidth / 2
+        val y2 = im.getHeight - (p2.y.toInt + im.getHeight / 2)
+        gr.drawLine(x, y, x2, y2)
+      }})
+    }
+    *
+    */
+
+    /*
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setColor(color)
+    pos.foreach(pr => {
+      val p = View.perspective(pr, camTrans, viewPos)
+      val pr0 = Vec3(pr.x, pr.y, 0.0)
+      val p2 = View.perspective(pr0, camTrans, viewPos)
+      val x = p.x.toInt + im.getWidth / 2
+      val y = im.getHeight - (p.y.toInt + im.getHeight / 2)
+      val x2 = p2.x.toInt + im.getWidth / 2
+      val y2 = im.getHeight - (p2.y.toInt + im.getHeight / 2)
+      gr.drawLine(x, y, x2, y2)
+    })
+    *
+    */
+
   }
 
 
