@@ -25,7 +25,7 @@ class IntegrationSuite extends FunSuite {
   test("draw flight") {
 
     val im = RenderFlight.drawRoughFlight(
-        compass,
+        compass, "test faction",
         startPlanetName, endPlanetName,
         startPlanet, endPlanet, startDate, endDate)
 

@@ -71,6 +71,7 @@ object RenderFlight {
 
   def drawRoughFlight(
       ship: Spacecraft,
+      faction: String,
       origName: String,
       destName: String,
       orig: OrbitalElementsEstimator,
@@ -139,7 +140,7 @@ object RenderFlight {
 
     // draw flight summary
     drawFlightSummary(
-        im, ship, "", distance, vel, roughFlightFn.accel, origName, destName, startDate, endDate)
+        im, ship, faction, distance, vel, roughFlightFn.accel, origName, destName, startDate, endDate)
 
     // print some things for debugging
     println("starting position velocity:" + Vec3.length(origStates.head.velocity) + " AU/day")
