@@ -139,7 +139,7 @@ object RenderFlight {
 
     // draw flight summary
     drawFlightSummary(
-        im, ship, distance, vel, roughFlightFn.accel, origName, destName, startDate, endDate)
+        im, ship, "", distance, vel, roughFlightFn.accel, origName, destName, startDate, endDate)
 
     // print some things for debugging
     println("starting position velocity:" + Vec3.length(origStates.head.velocity) + " AU/day")
@@ -260,7 +260,7 @@ object RenderFlight {
         0.0
       }
 
-      drawFlightStatus(im, ship, curDateTime, curDist, curVel)
+      drawFlightStatus(im, ship, "", curDateTime, curDist, curVel)
 
       val outputImage = new java.io.File(outputDir / f"$idx%05d.png");
       ImageIO.write(im, "png", outputImage)
@@ -374,6 +374,7 @@ object RenderFlight {
   def drawFlightSummary(
       im: BufferedImage,
       ship: Spacecraft,
+      faction: String,
       distance: Double,
       vel: Double,
       accel: Double,
@@ -424,20 +425,21 @@ object RenderFlight {
     }
 
     table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, italic = true)
-    table("Mass:",       Seq("%.2f".format(ship.mass)    + " tonnes"), 1)
+    table("Faction:",    Seq(faction), 1)
+    table("Mass:",       Seq("%.2f".format(ship.mass)    + " tonnes"), 2)
     table("a max:",      Seq("%.4f".format(ship.accel)   + " AU/day²",
-                             "%.4f".format(shipAccelG)   + " g" ), 2)
-    table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   4)
+                             "%.4f".format(shipAccelG)   + " g" ), 3)
+    table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   5)
 
-    table("Departure:", Seq(startDate.dateString + " " + origName), 6)
-    table("Arrival:",   Seq(endDate.dateString   + " " + destName), 7)
-    table("Distance:",  Seq(f"$distance%.4f AU"), 8)
+    table("Departure:", Seq(startDate.dateString + " " + origName), 7)
+    table("Arrival:",   Seq(endDate.dateString   + " " + destName), 8)
+    table("Distance:",  Seq(f"$distance%.4f AU"), 9)
     table("v mean:",    Seq(f"$vel%.4f AU/day",
                             f"$velKmPerSec%.4f km/s",
-                            f"$velC%.4f C"), 9)
+                            f"$velC%.4f C"), 10)
     table("a req:",     Seq(f"$accel%.4f AU/day²",
-                            f"$accelG%.4f g"), 12, reqColor)
-    table("f req:",     Seq(f"$thrustKN%.2f kN"), 14, reqColor)
+                            f"$accelG%.4f g"), 13, reqColor)
+    table("f req:",     Seq(f"$thrustKN%.2f kN"), 15, reqColor)
 
   }
 
@@ -445,6 +447,7 @@ object RenderFlight {
   def drawFlightStatus(
       im: BufferedImage,
       ship: Spacecraft,
+      faction: String,
       dateTime: CalendarDateTime,
       distance: Double,
       vel: Double): Unit = {
@@ -482,16 +485,17 @@ object RenderFlight {
     }
 
     table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, italic = true)
-    table("Mass:",       Seq("%.2f".format(ship.mass)    + " tonnes"), 1)
+    table("Faction:",    Seq(faction), 1)
+    table("Mass:",       Seq("%.2f".format(ship.mass)    + " tonnes"), 2)
     table("a max:",      Seq("%.4f".format(ship.accel)   + " AU/day²",
-                             "%.4f".format(shipAccelG)   + " g" ), 2)
-    table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   4)
+                             "%.4f".format(shipAccelG)   + " g" ), 3)
+    table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   5)
 
-    table("DateTime:",  Seq(dateTime.dateString), 6)
-    table("Distance:",  Seq(f"$distance%.4f AU"), 7)
+    table("DateTime:",  Seq(dateTime.dateString), 7)
+    table("Distance:",  Seq(f"$distance%.4f AU"), 8)
     table("v:",         Seq(f"$vel%.4f AU/day",
                             f"$velKmPerSec%.4f km/s",
-                            f"$velC%.4f C"), 8)
+                            f"$velC%.4f C"), 9)
   }
 
 }

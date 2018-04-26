@@ -18,6 +18,11 @@ import javax.swing.{
 import javax.swing.event.{ChangeListener, ChangeEvent, DocumentListener, DocumentEvent, MouseInputAdapter}
 
 import scala.util.Try
+import scala.collection.JavaConverters._
+
+import org.apache.commons.io.FileUtils
+
+import bdzimmer.util.StringUtils._
 
 
 // this is sort of a parallel version of how flights are represented in Secondary
@@ -30,6 +35,7 @@ case class FlightParams(
     startDate: CalendarDateTime,
     endDate: CalendarDateTime,
     passengers: List[String],
+    faction: String,
     description: String) {
 
   override def toString(): String = {
@@ -57,6 +63,8 @@ class Editor(
   ) extends JFrame {
 
   setTitle("Orbits Editor")
+
+  val factions = Editor.loadFactions(Editor.FactionsFilename)
 
   /// /// image for view
 
@@ -220,8 +228,8 @@ class Editor(
     // find other flights that are active at the same time as the current one
     val activeFlights = flights.filter(x =>
       !x.equals(fp) && x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
-    val activeFlightFns = activeFlights.map(af => Editor.paramsToFun(af))
-    val otherFlights = activeFlightFns.map({case (afFn, afTicks) => {
+    val activeFlightFns = activeFlights.map(af => (af, Editor.paramsToFun(af)))
+    val otherFlights = activeFlightFns.map({case (af, (afFn, afTicks)) => {
       afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
     }})
 
@@ -265,8 +273,11 @@ class Editor(
       }
     }
 
-    activeFlightFns.foreach(x => drawVelocityArrow(x._1, Color.GRAY))
-    val curVel = drawVelocityArrow(roughFlightFn, Color.GREEN)
+    activeFlightFns.foreach(x => drawVelocityArrow(
+        x._2._1, factions.get(x._1.faction).getOrElse(Color.GRAY)))
+
+    val curVel = drawVelocityArrow(
+        roughFlightFn, factions.get(fp.faction).getOrElse(Color.GREEN))
 
     val statusOption = flightStatusRadioButtons.indexWhere(_.isSelected)
 
@@ -275,13 +286,14 @@ class Editor(
       RenderFlight.drawFlightStatus(
           im,
           fp.ship,
+          fp.faction,
           Conversions.julianToCalendarDate(curDateJulian),
           Vec3.length(Vec3.sub(flightStates.last, flightStates.head)),
           curVel)
     } else if (statusOption == 1) {
       // draw flight summary
       RenderFlight.drawFlightSummary(
-          im, fp.ship, distance, vel, roughFlightFn.accel,
+          im, fp.ship, fp.faction, distance, vel, roughFlightFn.accel,
           fp.origName, fp.destName, fp.startDate, fp.endDate)
     }
 
@@ -330,11 +342,14 @@ object Editor {
 
   val ViewWidth = 800
   val ViewHeight = 600
+  val InitialVisiblePlanets = List("Earth", "Mars", "Saturn", "Uranus")
 
   val ZoomSpeed = 50
   val PanSpeed = 0.01
   val RotateSpeed = 0.1
   val ControlsWidth = 400
+
+  val FactionsFilename = "factions.txt"
 
 
   def paramsToFun(fp: FlightParams): (RoughFlightFn, scala.collection.immutable.Seq[Double]) = {
@@ -397,6 +412,7 @@ object Editor {
     val viewMenu = new JMenu("View")
 
     val planetCheckBoxes = MeeusPlanets.Planets.map(x => (x._1, (new JCheckBoxMenuItem(x._1, false), x._2)))
+    InitialVisiblePlanets.foreach(x => planetCheckBoxes.get(x).foreach(_._1.setSelected(true)))
     planetCheckBoxes.foreach(x => {
       x._2._1.addChangeListener(redrawChangeListener)
     })
@@ -557,6 +573,24 @@ object Editor {
         xAngleField, yAngleField, zAngleField, isIntrinsic,
         xPosField, yPosField, zPosField, zViewPosField))
 
+  }
+
+
+  def loadFactions(inputFilename: String): Map[String, Color] = {
+    val inputFile = new java.io.File(inputFilename)
+    Try({
+      val lines = FileUtils.readLines(inputFile)
+      lines.asScala.map(line => {
+        val splitted = line.split(",\\s+")
+        val name = splitted(0)
+        val color = new Color(
+          splitted(1).toIntSafe(0),
+          splitted(2).toIntSafe(0),
+          splitted(3).toIntSafe(0)
+        )
+        (name, color)
+      }).toMap
+    }).getOrElse(Map())
   }
 
 }
