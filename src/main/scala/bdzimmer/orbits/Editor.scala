@@ -87,7 +87,7 @@ class Editor(
 
   /// /// build menu bar
 
-  val (mainMenuBar, planetCheckboxes, flightStatusRadioButtons) = Editor.buildMenuBar(
+  val (mainMenuBar, planetCheckboxes, lagrangePointCheckBox, flightStatusRadioButtons) = Editor.buildMenuBar(
       redrawChangeListener, redrawActionListener)
 
   setJMenuBar(mainMenuBar)
@@ -222,7 +222,10 @@ class Editor(
 
     val flightStates = ticksSubset.map(tick => roughFlightFn(tick))
     val planets = planetCheckboxes.toList.filter(_._2._1.isSelected).map(x => {
-      (x._1, Orbits.planetMotionPeriod(x._2._2, curDateJulian))
+      (x._1, x._2._2)
+    })
+    val planetMotions = planets.map(x => {
+      (x._1, Orbits.planetMotionPeriod(x._2, curDateJulian))
     })
 
     // find other flights that are active at the same time as the current one
@@ -247,7 +250,7 @@ class Editor(
     RenderFlight.drawRoughFlightAtTime(
         view,
         im,
-        planets,
+        planetMotions,
         fp.origName,
         fp.destName,
         fp.startDate.dateString,
@@ -258,6 +261,21 @@ class Editor(
         flightColor,
         otherFlights.zip(otherFlightsColors),
         gridLim)
+
+    // draw L3, L4 and L5 points of visible planets
+    if (lagrangePointCheckBox.isSelected) {
+      planets.foreach(p => {
+        view.drawPosition(
+          im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2), curDateJulian).position,
+          "L3", "", Color.GRAY, false)
+        view.drawPosition(
+          im, Orbits.planetState(new MeeusPlanets.L4Estimator(p._2), curDateJulian).position,
+          "L4", "", Color.GRAY, false)
+        view.drawPosition(
+          im, Orbits.planetState(new MeeusPlanets.L5Estimator(p._2), curDateJulian).position,
+          "L5", "", Color.GRAY, false)
+      })
+    }
 
     // draw velocity direction arrows
 
@@ -277,7 +295,6 @@ class Editor(
         0.0
       }
     }
-
 
     activeFlightFns.zip(otherFlightsColors).foreach({case (x, y) => drawVelocityArrow(
         x._1, y)})
@@ -384,6 +401,7 @@ object Editor {
       redrawActionListener: ActionListener): (
     JMenuBar,
     scala.collection.immutable.ListMap[String, (JCheckBoxMenuItem, OrbitalElementsEstimator)],
+    JCheckBoxMenuItem,
     List[JRadioButtonMenuItem]) = {
 
     val menuBar = new JMenuBar()
@@ -426,6 +444,11 @@ object Editor {
     // TODO: sections for toggling inner and outer planets
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
+    val lagrangePointCheckBox = new JCheckBoxMenuItem("Lagrange Points", true)
+    lagrangePointCheckBox.addChangeListener(redrawChangeListener)
+    viewMenu.add(lagrangePointCheckBox)
+    viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
+
     val flightStatusButtonGroup = new ButtonGroup()
     val flightStatusRadioButtons = List("Status", "Summary", "None").map(x => new JRadioButtonMenuItem(x))
     flightStatusRadioButtons(0).setSelected(true)
@@ -436,7 +459,7 @@ object Editor {
     menuBar.add(fileMenu)
     menuBar.add(viewMenu)
 
-    (menuBar, planetCheckBoxes, flightStatusRadioButtons)
+    (menuBar, planetCheckBoxes, lagrangePointCheckBox, flightStatusRadioButtons)
   }
 
 

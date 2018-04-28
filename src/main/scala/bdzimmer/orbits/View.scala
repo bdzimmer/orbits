@@ -100,7 +100,10 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
   }
 
 
-  def drawPosition(im: BufferedImage, pos: Vec3, name: String, desc: String, color: Color): Unit = {
+  def drawPosition(
+      im: BufferedImage, pos: Vec3, name: String, desc: String,
+      color: Color, fill: Boolean = true): Unit = {
+
     val pos2d = View.perspective(pos, camTrans, viewPos)
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
@@ -110,7 +113,11 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
     val y = im.getHeight - (pos2d.y.toInt + im.getHeight / 2)
 
     val rad = Viewer.CircleRadius
-    gr.fillOval(x - rad, y - rad, rad * 2, rad * 2)
+    if (fill) {
+      gr.fillOval(x - rad, y - rad, rad * 2, rad * 2)
+    } else {
+      gr.drawOval(x - rad, y - rad, rad * 2, rad * 2)
+    }
     gr.setFont(Viewer.DisplayFont)
     gr.drawString(name, x + rad, y + Viewer.LineHeight)
     gr.drawString(desc, x + rad, y + Viewer.LineHeight * 2)

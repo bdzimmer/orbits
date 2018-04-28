@@ -166,7 +166,6 @@ object MeeusPlanets {
     }
   }
 
-
   case class Polynomial4(
     a0: Double = 0.0,
     a1: Double = 0.0,
@@ -175,6 +174,33 @@ object MeeusPlanets {
 
     def apply(t: Double): Double =  a0 + a1 * t + a2 * t * t + a3 * t * t * t;
 
+  }
+
+
+  class L3Estimator(oee: OrbitalElementsEstimator) extends OrbitalElementsEstimator {
+    def apply(t: Double): OrbitalElements = {
+      val oeeT = oee(t)
+      val period = Orbits.planetPeriod(oeeT.semimajorAxis)
+      oee(t + period / 2.0)
+    }
+  }
+
+
+  class L4Estimator(oee: OrbitalElementsEstimator) extends OrbitalElementsEstimator {
+    def apply(t: Double): OrbitalElements = {
+      val oeeT = oee(t)
+      val period = Orbits.planetPeriod(oeeT.semimajorAxis)
+      oee(t + period / 6.0)
+    }
+  }
+
+
+  class L5Estimator(oee: OrbitalElementsEstimator) extends OrbitalElementsEstimator {
+    def apply(t: Double): OrbitalElements = {
+      val oeeT = oee(t)
+      val period = Orbits.planetPeriod(oeeT.semimajorAxis)
+      oee(t - period / 6.0)
+    }
   }
 
 }
