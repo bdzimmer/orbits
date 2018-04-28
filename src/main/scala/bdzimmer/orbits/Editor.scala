@@ -87,8 +87,12 @@ class Editor(
 
   /// /// build menu bar
 
-  val (mainMenuBar, planetCheckboxes, lagrangePointCheckBox, flightStatusRadioButtons) = Editor.buildMenuBar(
-      redrawChangeListener, redrawActionListener)
+  val (
+    mainMenuBar,
+    planetCheckboxes,
+    lagrangePointCheckBox,
+    asteroidBeltCheckBox,
+    flightStatusRadioButtons) = Editor.buildMenuBar(redrawChangeListener, redrawActionListener)
 
   setJMenuBar(mainMenuBar)
 
@@ -262,6 +266,11 @@ class Editor(
         otherFlights.zip(otherFlightsColors),
         gridLim)
 
+    // draw asteroid belt - main belt lies between 2.06 and 3.27 AU
+    if (asteroidBeltCheckBox.isSelected) {
+      view.drawRing(im, 2.06, 3.27, new Color(64, 64, 64, 64))
+    }
+
     // draw L3, L4 and L5 points of visible planets
     if (lagrangePointCheckBox.isSelected) {
       planets.foreach(p => {
@@ -402,6 +411,7 @@ object Editor {
     JMenuBar,
     scala.collection.immutable.ListMap[String, (JCheckBoxMenuItem, OrbitalElementsEstimator)],
     JCheckBoxMenuItem,
+    JCheckBoxMenuItem,
     List[JRadioButtonMenuItem]) = {
 
     val menuBar = new JMenuBar()
@@ -449,6 +459,11 @@ object Editor {
     viewMenu.add(lagrangePointCheckBox)
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
+    val asteroidBeltCheckBox = new JCheckBoxMenuItem("Asteroid Belt", true)
+    asteroidBeltCheckBox.addChangeListener(redrawChangeListener)
+    viewMenu.add(asteroidBeltCheckBox)
+    viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
+
     val flightStatusButtonGroup = new ButtonGroup()
     val flightStatusRadioButtons = List("Status", "Summary", "None").map(x => new JRadioButtonMenuItem(x))
     flightStatusRadioButtons(0).setSelected(true)
@@ -459,7 +474,7 @@ object Editor {
     menuBar.add(fileMenu)
     menuBar.add(viewMenu)
 
-    (menuBar, planetCheckBoxes, lagrangePointCheckBox, flightStatusRadioButtons)
+    (menuBar, planetCheckBoxes, lagrangePointCheckBox, asteroidBeltCheckBox, flightStatusRadioButtons)
   }
 
 

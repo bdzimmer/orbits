@@ -134,6 +134,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
         polygon.length)
   }
 
+
   def drawArrow(im: BufferedImage, os: OrbitalState, color: Color): Unit = {
     val position = View.perspective(os.position, camTrans, viewPos)
     val direction = Vec2.normalize(Vec2.sub(
@@ -141,6 +142,23 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
         position))
     val arrowPoints = Viewer.arrowPoints(position, direction)
     drawPolygon(im, arrowPoints, color)
+  }
+
+
+  def drawRing(im: BufferedImage, r0: Double, r1: Double, color: Color): Unit = {
+    val res = (math.Pi * 2.0) / 90.0
+
+    val r0pts = (0.0 to math.Pi * 2.0 by res).map(x =>
+      Vec3(r0 * math.cos(x), r0 * math.sin(x), 0.0))
+    val r1pts = (0.0 to math.Pi * 2.0 by res).map(x =>
+      Vec3(r1 * math.cos(x), r1 * math.sin(x), 0.0))
+
+    for (idx <- (1 until r0pts.length)) {
+      val tri0 = Seq(r0pts(idx), r1pts(idx), r1pts(idx - 1))
+      drawPolygon(im, tri0.map(View.perspective(_, camTrans, viewPos)), color)
+      val tri1 = Seq(r0pts(idx), r1pts(idx - 1), r0pts(idx - 1))
+      drawPolygon(im, tri1.map(View.perspective(_, camTrans, viewPos)), color)
+    }
   }
 
 }
