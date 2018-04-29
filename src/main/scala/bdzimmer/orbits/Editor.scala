@@ -11,7 +11,7 @@ import java.awt.event.{
   MouseEvent, MouseWheelListener, MouseWheelEvent}
 import java.awt.image.BufferedImage
 import javax.swing.{
-    BorderFactory, ButtonGroup, JCheckBox, JCheckBoxMenuItem, JComboBox, JFrame,
+    BorderFactory, ButtonGroup, JButton, JCheckBox, JCheckBoxMenuItem, JComboBox, JFrame,
     JLabel, JMenuBar, JMenu, JMenuItem, JPanel, JRadioButtonMenuItem,
     JSeparator, JSlider, JSpinner, JTextArea, JToolBar, JToggleButton, JTextField,
     SpinnerNumberModel, SwingConstants}
@@ -98,16 +98,24 @@ class Editor(
 
   /// /// build toolbars
 
-  val toolbarsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
+  val toolbarsPanel = new JPanel(new BorderLayout())
+
+  val toolbarRow0 = new JPanel(new FlowLayout(FlowLayout.LEFT))
 
   val (flightsToolbar, flightsComboBox, flightsSlider) = Editor.buildFlightsToolbar(
-      flights, redrawChangeListener, redrawActionListener)
-  toolbarsPanel.add(flightsToolbar)
+      flights, ships, redrawChangeListener, redrawActionListener)
+  toolbarRow0.add(flightsToolbar)
+
+  toolbarsPanel.add(toolbarRow0, BorderLayout.NORTH)
+
+
+  val toolbarRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT))
 
   val (cameraToolbar, cameraControls) = Editor.buildCameraToolbar(imWidth, redrawChangeListener)
-  toolbarsPanel.add(cameraToolbar)
+  toolbarRow1.add(cameraToolbar)
+  toolbarRow1.add(Editor.buildUnitConverterToolbar())
 
-  toolbarsPanel.add(Editor.buildUnitConverterToolbar())
+  // toolbarsPanel.add(toolbarRow1, BorderLayout.SOUTH)
 
   add(toolbarsPanel, BorderLayout.NORTH)
 
@@ -480,6 +488,7 @@ object Editor {
 
   def buildFlightsToolbar(
       flights: List[FlightParams],
+      ships: List[Spacecraft],
       redrawChangeListener: ChangeListener,
       redrawActionListener: ActionListener): (JToolBar, JComboBox[String], JSlider) = {
 
@@ -488,16 +497,106 @@ object Editor {
     toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Flights"))
 
     val flightsComboBox = new JComboBox(flights.map(_.toString).toArray)
-    flightsComboBox.addActionListener(redrawActionListener)
     toolbar.add(flightsComboBox)
 
     val flightsSlider = new JSlider(SwingConstants.HORIZONTAL, 1, 100, 100)
     flightsSlider.addChangeListener(redrawChangeListener)
     toolbar.add(flightsSlider)
 
+    /// ///
+
+    val shipsComboBox = new JComboBox(ships.map(_.name.replace("*", "")).toArray)
+
+    val planetsList = MeeusPlanets.Planets.keys.toList
+    val planetsArray = planetsList.toArray
+
+    val startLocComboBox = new JComboBox(planetsArray)
+
+    val startDateText = new JTextField("", 12)
+    startDateText.setMaximumSize(startDateText.getPreferredSize)
+
+    val endLocComboBox = new JComboBox(planetsArray)
+
+    val endDateText = new JTextField("", 12)
+    endDateText.setMaximumSize(endDateText.getPreferredSize)
+
+    def update(): Unit = {
+      // for now
+      // build a new flightparams from the UI and print it out
+
+      val origName = startLocComboBox.getSelectedItem.asInstanceOf[String]
+      val destName = endLocComboBox.getSelectedItem.asInstanceOf[String]
+
+      val fp = FlightParams(
+        ship=ships(shipsComboBox.getSelectedIndex),
+        origName=origName,
+        destName=destName,
+        orig=MeeusPlanets.Planets.getOrElse(origName, MeeusPlanets.Earth),
+        dest=MeeusPlanets.Planets.getOrElse(destName, MeeusPlanets.Earth),
+        startDate=DateTime.parse(startDateText.getText),
+        endDate=DateTime.parse(endDateText.getText),
+        passengers=List(),
+        faction="none",
+        description=""
+      )
+      println(fp)
+    }
+
+    def updateFlightEditFields(): Unit = {
+      val fp = flights(flightsComboBox.getSelectedIndex)
+      shipsComboBox.setSelectedIndex(ships.indexOf(fp.ship))
+      startLocComboBox.setSelectedIndex(planetsList.indexOf(fp.origName)) // TODO: this isn't quite right
+      endLocComboBox.setSelectedIndex(planetsList.indexOf(fp.destName))
+      startDateText.setText(fp.startDate.dateTimeString)
+      endDateText.setText(fp.endDate.dateTimeString)
+    }
+
+    val updateActionListener = new ActionListener {
+      override def actionPerformed(event: ActionEvent): Unit = {
+        update()
+      }
+    }
+
+    val updateDocumentListener = new DocumentListener {
+      override def changedUpdate(event: DocumentEvent): Unit = {}
+      override def insertUpdate(event: DocumentEvent): Unit = update()
+      override def removeUpdate(event: DocumentEvent): Unit = update()
+    }
+
+    flightsComboBox.addActionListener(new ActionListener{
+      override def actionPerformed(event: ActionEvent): Unit = {
+        // update the flight editing fields
+        updateFlightEditFields()
+        redrawActionListener.actionPerformed(event)
+      }
+    })
+    updateFlightEditFields()
+
+    shipsComboBox.addActionListener(updateActionListener)
+    startLocComboBox.addActionListener(updateActionListener)
+    endLocComboBox.addActionListener(updateActionListener)
+    startDateText.getDocument.addDocumentListener(updateDocumentListener)
+    endDateText.getDocument.addDocumentListener(updateDocumentListener)
+
+    val solveButton = new JButton("Solve")
+    val newButton = new JButton("New")
+    val deleteButton = new JButton("Delete")
+
+    toolbar.add(shipsComboBox)
+    toolbar.add(startLocComboBox)
+    toolbar.add(startDateText)
+    toolbar.add(endLocComboBox)
+    toolbar.add(endDateText)
+    toolbar.add(solveButton)
+    toolbar.add(newButton)
+    toolbar.add(deleteButton)
+
+    /// ///
+
     (toolbar, flightsComboBox, flightsSlider)
 
   }
+
 
 
   def buildUnitConverterToolbar(): JToolBar = {

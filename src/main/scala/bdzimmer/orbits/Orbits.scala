@@ -11,48 +11,7 @@ package bdzimmer.orbits
 
 import scala.collection.immutable.Seq
 import scala.sys.process._
-
-
-case class CalendarDateTime(
-    year: Int, month: Int, day: Int,
-    hours: Int = 0, minutes: Int = 0, seconds: Double = 0.0) {
-
-  def dateTimeString(): String = {
-    val secondsInt = seconds.toInt
-    f"$year%04d-$month%02d-$day%02d $hours%02d:$minutes%02d:$secondsInt%02d"
-  }
-
-
-  def dateString(): String = {
-    val secondsInt = seconds.toInt
-    f"$year%04d-$month%02d-$day%02d"
-  }
-
-
-  def julian: Double = {
-
-    val JGREG = 15 + 31* ( 10 + 12 * 1582)
-
-    val dayFrac = day + (hours / 24.0) + (minutes / 1440.0) + seconds
-
-    val (yearMod, monthMod) = if (month < 3) {
-      (year - 1, month + 12)
-    } else {
-      (year, month)
-    }
-
-    val b = if (day + 31 * (monthMod + 12 * yearMod) >= JGREG) {
-      val a = math.floor(yearMod / 100)
-      2 - a + math.floor(a / 4)
-    } else {
-      0.0
-    }
-
-    math.floor(365.25 * yearMod) + math.floor(30.6001 * (monthMod + 1)) + day + 1720994.5 + b
-
-  }
-
-}
+import scala.util.Try
 
 
 case class Spacecraft(
