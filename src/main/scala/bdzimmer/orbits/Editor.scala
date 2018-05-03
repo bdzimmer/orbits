@@ -4,7 +4,7 @@
 
 package bdzimmer.orbits
 
-import java.awt.{BorderLayout, Color, Dimension, FlowLayout, Graphics, GridLayout, Image}
+import java.awt.{BorderLayout, Color, Dimension, FlowLayout, Graphics, Image}
 import java.awt.event.{
   ActionListener, ActionEvent, ComponentAdapter, ComponentEvent,
   InputEvent,
@@ -13,17 +13,12 @@ import java.awt.image.BufferedImage
 import javax.swing.{
     BorderFactory, ButtonGroup, DefaultComboBoxModel, JButton, JCheckBox, JCheckBoxMenuItem, JComboBox, JFrame,
     JLabel, JMenuBar, JMenu, JMenuItem, JPanel, JRadioButtonMenuItem,
-    JSeparator, JSlider, JSpinner, JTextArea, JToolBar, JToggleButton, JTextField,
+    JSeparator, JSlider, JSpinner, JToolBar, JTextField,
     SpinnerNumberModel, SwingConstants}
 import javax.swing.event.{ChangeListener, ChangeEvent, DocumentListener, DocumentEvent, MouseInputAdapter}
 
 import scala.util.Try
-import scala.collection.JavaConverters._
 import scala.collection.Seq
-
-import org.apache.commons.io.FileUtils
-
-import bdzimmer.util.StringUtils._
 
 
 // this is sort of a parallel version of how flights are represented in Secondary
@@ -39,7 +34,7 @@ case class FlightParams(
     faction: String,
     description: String) {
 
-  override def toString(): String = {
+  override def toString: String = {
     startDate.dateString + " - " + ship.name.replace("*", "") + " - " + origName + " - " + destName
   }
 
@@ -68,7 +63,7 @@ class Editor(
 
   setTitle("Orbits Editor")
 
-  val factions = Editor.loadFactions(Editor.FactionsFilename)
+  val factions = IO.loadFactions(Editor.FactionsFilename)
 
   /// /// image for view
 
@@ -89,29 +84,17 @@ class Editor(
     }
   }
 
-  /// /// build menu bar
-
-  val (
-    mainMenuBar,
-    planetCheckboxes,
-    lagrangePointCheckBox,
-    asteroidBeltCheckBox,
-    flightStatusRadioButtons) = Editor.buildMenuBar(redrawChangeListener, redrawActionListener)
-
-  setJMenuBar(mainMenuBar)
-
   /// /// build toolbars
 
   val toolbarsPanel = new JPanel(new BorderLayout())
 
   val toolbarRow0 = new JPanel(new FlowLayout(FlowLayout.LEFT))
 
-  val (flightsToolbar, flightsComboBox, flightsSlider) = Editor.buildFlightsToolbar(
+  val (flightsToolbar, flightsComboBox, flightsSlider, rebuildFlights) = Editor.buildFlightsToolbar(
       flights, ships, redraw)
   toolbarRow0.add(flightsToolbar)
 
   toolbarsPanel.add(toolbarRow0, BorderLayout.NORTH)
-
 
   val toolbarRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT))
 
@@ -123,13 +106,25 @@ class Editor(
 
   add(toolbarsPanel, BorderLayout.NORTH)
 
+  /// /// build menu bar
+
+  val (
+    mainMenuBar,
+    planetCheckboxes,
+    lagrangePointCheckBox,
+    asteroidBeltCheckBox,
+    flightStatusRadioButtons) = Editor.buildMenuBar(
+    redrawChangeListener, redrawActionListener, flights, ships.map(x => (x.name, x)).toMap, rebuildFlights)
+
+  setJMenuBar(mainMenuBar)
+
   /// /// build view panel
 
   val viewPanel = new JPanel()
   viewPanel.add(imagePanel)
   viewPanel.addMouseWheelListener(new MouseWheelListener() {
     def mouseWheelMoved(event: MouseWheelEvent): Unit = {
-      val notches = event.getWheelRotation()
+      val notches = event.getWheelRotation
       val zViewPos = cameraControls.zViewPosField.getValue.asInstanceOf[Double] - notches * Editor.ZoomSpeed
       cameraControls.zViewPosField.setValue(math.max(zViewPos, 0.0))
       // don't need to redraw here, since it seems that the above triggers change listener
@@ -143,9 +138,9 @@ class Editor(
     var cy = 0.0
 
     override def mousePressed(event: MouseEvent): Unit = {
-      x = event.getX()
-      y = event.getY()
-      if (event.getButton() == MouseEvent.BUTTON1) {
+      x = event.getX
+      y = event.getY
+      if (event.getButton == MouseEvent.BUTTON1) {
         cx = cameraControls.xAngleField.getValue.asInstanceOf[Double]
         cy = cameraControls.yAngleField.getValue.asInstanceOf[Double]
       } else {
@@ -155,8 +150,8 @@ class Editor(
     }
 
     override def mouseDragged(event: MouseEvent): Unit = {
-      val dx = event.getX() - x
-      val dy = event.getY() - y
+      val dx = event.getX - x
+      val dy = event.getY - y
       // println(dx + " " + dy)
       // TODO: adjust and rotate direction based on camera angle
       if ((event.getModifiersEx & InputEvent.BUTTON1_DOWN_MASK) != 0) {
@@ -398,6 +393,7 @@ object Editor {
   val ControlsWidth = 400
 
   val FactionsFilename = "factions.txt"
+  val ExportFilename = "flights_export"
 
 
   def paramsToFun(fp: FlightParams): (RoughFlightFn, scala.collection.immutable.Seq[Double]) = {
@@ -421,9 +417,14 @@ object Editor {
   }
 
 
+  // TODO: starting to wonder if it was worthwhile to move these functions to the companion object
+
   def buildMenuBar(
       redrawChangeListener: ChangeListener,
-      redrawActionListener: ActionListener): (
+      redrawActionListener: ActionListener,
+      flights: scala.collection.mutable.Buffer[FlightParams],
+      ships: Map[String, Spacecraft],
+      rebuildFlights: () => Unit): (
     JMenuBar,
     scala.collection.immutable.ListMap[String, (JCheckBoxMenuItem, OrbitalElementsEstimator)],
     JCheckBoxMenuItem,
@@ -435,6 +436,7 @@ object Editor {
     val fileMenu = new JMenu("File")
     val reloadItem = new JMenuItem("Reload")
     val exportItem = new JMenuItem("Export")
+    val importItem = new JMenuItem("Import")
     val exitItem = new JMenuItem("Exit")
 
     reloadItem.addActionListener(new ActionListener() {
@@ -445,7 +447,25 @@ object Editor {
 
     exportItem.addActionListener(new ActionListener() {
       override def actionPerformed(event: ActionEvent): Unit = {
-        // TODO: implement
+        // TODO: add date
+        val outputPrefix = ExportFilename
+
+        IO.saveFlightsSec(flights, outputPrefix + ".sec")
+        IO.saveFlightsTsv(flights, outputPrefix + ".tsv")
+      }
+    })
+
+    importItem.addActionListener(new ActionListener() {
+      override def actionPerformed(event: ActionEvent): Unit = {
+        // TODO: get filename from dialog box
+        val inputFilename = ExportFilename + ".tsv"
+        val flightsLoaded = IO.loadFlightsTsv(inputFilename, ships)
+        flights.clear()
+        flightsLoaded.foreach(x => flights.append(x))
+
+        // refresh flights toolbar...FFFFFFFFF
+        rebuildFlights()
+
       }
     })
 
@@ -456,8 +476,13 @@ object Editor {
     })
 
     fileMenu.add(reloadItem)
+    fileMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
     fileMenu.add(exportItem)
+    fileMenu.add(importItem)
+    fileMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
     fileMenu.add(exitItem)
+
+    /// /// ///
 
     val viewMenu = new JMenu("View")
 
@@ -497,7 +522,7 @@ object Editor {
   def buildFlightsToolbar(
       flights: scala.collection.mutable.Buffer[FlightParams],
       ships: List[Spacecraft],
-      redraw: () => Unit): (JToolBar, JComboBox[String], JSlider) = {
+      redraw: () => Unit): (JToolBar, JComboBox[String], JSlider, () => Unit) = {
 
     val toolbar = new JToolBar()
     toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
@@ -556,23 +581,24 @@ object Editor {
       val idx = flightsComboBox.getSelectedIndex
       flights(idx) = fp
       println(fp)
-      val listeners = flightsComboBox.getActionListeners
-      listeners.foreach(x => flightsComboBox.removeActionListener(x)) // TODO: fix
-      flightsComboBox.removeItemAt(idx)
-      flightsComboBox.insertItemAt((idx + 1) + ". " + fp.toString, idx)
-      flightsComboBox.setSelectedIndex(idx)
-      toolbar.revalidate()
-      toolbar.repaint()
-      listeners.foreach(x => flightsComboBox.addActionListener(x))
+      Disable(flightsComboBox, {
+        flightsComboBox.removeItemAt(idx)
+        flightsComboBox.insertItemAt((idx + 1) + ". " + fp.toString, idx)
+        flightsComboBox.setSelectedIndex(idx)
+        toolbar.revalidate()
+        toolbar.repaint()
+      })
     }
 
     def rebuildFlights(): Unit = {
-      // println("rebuilding flights combobox")
-      flightsComboBoxModel.removeAllElements()
-      flights.zipWithIndex.foreach(
-        x => flightsComboBoxModel.addElement((x._2 + 1) + ". " + x._1.toString))
-      toolbar.revalidate()
-      toolbar.repaint()
+      Disable(flightsComboBox, {
+        // println("rebuilding flights combobox")
+        flightsComboBoxModel.removeAllElements()
+        flights.zipWithIndex.foreach(
+          x => flightsComboBoxModel.addElement((x._2 + 1) + ". " + x._1.toString))
+        toolbar.revalidate()
+        toolbar.repaint()
+      })
     }
 
     val updateActionListener = new ActionListener {
@@ -617,17 +643,10 @@ object Editor {
       updateDocumentListener.enabled = true
     }
 
-    val flightsActionListener = new ActionListener {
-      var enabled = true
-      override def actionPerformed(event: ActionEvent): Unit = {
-        if (enabled) {
-          // update the flight editing fields
-          // println("flights action listener: " + event.getSource.asInstanceOf[JComboBox[String]].getSelectedIndex())
-          updateFlightEditFields()
-          redraw()
-        }
-      }
-    }
+    val flightsActionListener = new DisableableActionListener(_ => {
+      updateFlightEditFields()
+      redraw()
+    })
 
     flightsComboBox.addActionListener(flightsActionListener)
     updateFlightEditFields()
@@ -649,15 +668,15 @@ object Editor {
     val newButton = new JButton("New")
     newButton.addActionListener(new ActionListener {
       override def actionPerformed(event: ActionEvent): Unit = {
-        flightsActionListener.enabled = false
-        val idx = flightsComboBox.getSelectedIndex
-        val fp = flights(idx)
-        flights.insert(idx + 1, fp)
+        Disable(flightsComboBox, {
+          val idx = flightsComboBox.getSelectedIndex
+          val fp = flights(idx)
+          flights.insert(idx + 1, fp)
+          // println("new flight; set selected index: " + (idx + 1))
+          flightsComboBox.setSelectedIndex(idx + 1)
+          // println("new flight; get selected index: " + flightsComboBox.getSelectedIndex)
+        })
         rebuildFlights()
-        // println("new flight; set selected index: " + (idx + 1))
-        flightsComboBox.setSelectedIndex(idx + 1)
-        // println("new flight; get selected index: " + flightsComboBox.getSelectedIndex)
-        flightsActionListener.enabled = true
         updateFlightEditFields()
         toolbar.repaint()
       }
@@ -666,12 +685,12 @@ object Editor {
     val deleteButton = new JButton("Delete")
     deleteButton.addActionListener(new ActionListener {
       def actionPerformed(event: ActionEvent): Unit = {
-        flightsActionListener.enabled = false
         val idx = flightsComboBox.getSelectedIndex
-        flights.remove(idx)
+        Disable(flightsComboBox, {
+          flights.remove(idx)
+        })
         rebuildFlights()
-        flightsActionListener.enabled = true
-        if (idx < flights.length && flights.length > 0) {
+        if (idx < flights.length && flights.nonEmpty) {
           flightsComboBox.setSelectedIndex(idx)
         } else {
           flightsComboBox.setSelectedIndex(idx - 1)
@@ -691,7 +710,7 @@ object Editor {
 
     /// ///
 
-    (toolbar, flightsComboBox, flightsSlider)
+    (toolbar, flightsComboBox, flightsSlider, rebuildFlights)
 
   }
 
@@ -814,24 +833,6 @@ object Editor {
         xAngleField, yAngleField, zAngleField, isIntrinsic,
         xPosField, yPosField, zPosField, zViewPosField))
 
-  }
-
-
-  def loadFactions(inputFilename: String): Map[String, Color] = {
-    val inputFile = new java.io.File(inputFilename)
-    Try({
-      val lines = FileUtils.readLines(inputFile)
-      lines.asScala.map(line => {
-        val splitted = line.split(",\\s+")
-        val name = splitted(0)
-        val color = new Color(
-          splitted(1).toIntSafe(0),
-          splitted(2).toIntSafe(0),
-          splitted(3).toIntSafe(0)
-        )
-        (name, color)
-      }).toMap
-    }).getOrElse(Map())
   }
 
 }
