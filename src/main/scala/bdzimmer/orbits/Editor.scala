@@ -219,7 +219,7 @@ class Editor(
     val destStates = ticks.map(tick => Orbits.planetState(fp.dest, tick))
 
     // take a fraction of the ticks based on the slider
-    val flightPercent = flightsSlider.getValue() / 100.0
+    val flightPercent = flightsSlider.getValue / 100.0
     val ticksSubset = ticks.take((flightPercent * ticks.size).toInt)
     val curDateJulian = ticksSubset.last
 
@@ -259,8 +259,8 @@ class Editor(
     gr.setColor(Color.BLACK)
     gr.fillRect(0, 0, imWidth, imHeight)
 
-    val flightColor = factions.get(fp.faction).getOrElse(Color.GREEN)
-    val otherFlightsColors = activeFlights.map(x => factions.get(x.faction).getOrElse(Color.GRAY))
+    val flightColor = factions.getOrElse(fp.faction, Color.GREEN)
+    val otherFlightsColors = activeFlights.map(x => factions.getOrElse(x.faction, Color.GRAY))
 
     RenderFlight.drawRoughFlightAtTime(
         view,
@@ -462,9 +462,8 @@ object Editor {
         val flightsLoaded = IO.loadFlightsTsv(inputFilename, ships)
         flights.clear()
         flightsLoaded.foreach(x => flights.append(x))
-
-        // refresh flights toolbar...FFFFFFFFF
         rebuildFlights()
+        redrawActionListener.actionPerformed(event) // TODO: awkward
 
       }
     })
@@ -565,7 +564,8 @@ object Editor {
       val origName = startLocComboBox.getSelectedItem.asInstanceOf[String]
       val destName = endLocComboBox.getSelectedItem.asInstanceOf[String]
 
-      val fp = FlightParams(
+      val idx = flightsComboBox.getSelectedIndex
+      val fp = flights(idx).copy(
         ship=ships(shipsComboBox.getSelectedIndex),
         origName=origName,
         destName=destName,
@@ -573,14 +573,12 @@ object Editor {
         dest=MeeusPlanets.Planets.getOrElse(destName, MeeusPlanets.Earth),
         startDate=DateTime.parse(startDateText.getText),
         endDate=DateTime.parse(endDateText.getText),
-        passengers=List(),
-        faction="none",
-        description=""
+        passengers=List()
       )
 
-      val idx = flightsComboBox.getSelectedIndex
       flights(idx) = fp
-      println(fp)
+      // println(fp, DateTime.parse(startDateText.getText).julian, DateTime.parse(endDateText.getText).julian)
+
       Disable(flightsComboBox, {
         flightsComboBox.removeItemAt(idx)
         flightsComboBox.insertItemAt((idx + 1) + ". " + fp.toString, idx)
@@ -690,10 +688,12 @@ object Editor {
           flights.remove(idx)
         })
         rebuildFlights()
-        if (idx < flights.length && flights.nonEmpty) {
-          flightsComboBox.setSelectedIndex(idx)
-        } else {
-          flightsComboBox.setSelectedIndex(idx - 1)
+        if (flights.nonEmpty) {
+          if (idx < flights.length) {
+            flightsComboBox.setSelectedIndex(idx)
+          } else {
+            flightsComboBox.setSelectedIndex(idx - 1)
+          }
         }
         toolbar.repaint()
       }

@@ -7,7 +7,6 @@ import java.io.File
 
 import scala.collection.Seq
 import scala.collection.JavaConverters._
-import scala.collection.mutable.Buffer
 import scala.util.Try
 
 import org.apache.commons.io.FileUtils
@@ -49,7 +48,7 @@ object IO {
         MeeusPlanets.Planets.getOrElse(lineSplit(2), MeeusPlanets.Earth),
         DateTime.parse(lineSplit(3)),
         DateTime.parse(lineSplit(4)),
-        lineSplit(5).split(",\\s+").toList,
+        lineSplit(5).split(";\\s+").toList,
         lineSplit(6),
         if (lineSplit.length > 7) lineSplit(7) else "" // TODO: not sure if this is robust enough
       )
@@ -65,7 +64,7 @@ object IO {
       flight.destName + "\t" +
       flight.startDate.dateTimeString + "\t" +
       flight.endDate.dateTimeString + "\t" +
-      flight.passengers.mkString(", ") + "\t" +
+      flight.passengers.mkString("; ") + "\t" +
       flight.faction + "\t" +
       flight.description
     })
@@ -80,7 +79,7 @@ object IO {
       "endLoc=" + fp.destName,
       "startDate=" + fp.startDate.dateTimeString,
       "endDate=" + fp.endDate.dateTimeString) ++ List(
-      if (fp.passengers.nonEmpty) Some("passengers=" + fp.passengers.mkString(", ")) else None,
+      if (fp.passengers.nonEmpty) Some("passengers=" + fp.passengers.mkString("; ")) else None,
       if (!fp.faction.isEmpty) Some("faction=" + fp.faction) else None).flatten
     ).mkString(" | ") +
     "}}"

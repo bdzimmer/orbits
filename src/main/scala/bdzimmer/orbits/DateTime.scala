@@ -23,6 +23,7 @@ case class CalendarDateTime(
   }
 
 
+  // TODO: include hours, minutes, and seconds correctly
   def julian: Double = {
     val JGREG = 15 + 31* ( 10 + 12 * 1582)
 
