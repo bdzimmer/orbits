@@ -9,9 +9,8 @@ import scala.collection.immutable.Seq
 import scala.sys.process._
 import scala.util.Try
 
-import java.awt.{Color, Graphics, Graphics2D}
+import java.awt.{Color, Graphics2D}
 import java.awt.image.BufferedImage
-import java.io.File
 import javax.imageio.ImageIO
 
 import bdzimmer.util.StringUtils._
@@ -62,6 +61,76 @@ object RoughFlightFn {
     val accel = 4 * pathLength / (flightTime * flightTime)
 
     new RoughFlightFn(startPos, dir, accel, startTime, flightTime)
+  }
+
+}
+
+
+object SolveFlight {
+  // WIP solve departure time given arrival time or vice versa
+
+  val Eps = 1.0e-8
+  val GuessDelta = 14.0 // two weeks
+  val IterMax = 100
+
+  // find end date of a flight, keeping accel less than ship's maximum accel
+  def endDate(
+    ship: Spacecraft,
+    orig: Vec3,
+    destFunc: Double => Vec3,
+    startDate: Double,
+    guessDelta: Double = GuessDelta): Option[Double] = {
+
+    // TODO: if no result, search the next GuessDelta increment?
+    search(
+      startDate, startDate + guessDelta,
+      x => math.abs(RoughFlightFn(orig, destFunc(x), startDate, x - startDate).accel - ship.accel))
+  }
+
+  // find start date of of the flight, keeping accel less than ship's maximum accel
+  def startDate(
+    ship: Spacecraft,
+    origFunc: Double => Vec3,
+    dest: Vec3,
+    endDate: Double,
+    guessDelta: Double = GuessDelta): Option[Double] = {
+
+    search(
+      endDate - guessDelta, endDate,
+      x => math.abs(RoughFlightFn(origFunc(x), dest, x, endDate - x).accel - ship.accel))
+
+  }
+
+
+  // find a zero of a convex function on a bounded interval via a method like
+  // binary search but where the decision to update the lower or upper bound
+  // is made based on the sign of the slope
+
+  // TODO: find minimum rather than zero
+  // deal with possibility that minimum is not zero elsewhere
+
+  def search(
+    lowerBound: Double, upperBound: Double, func: Double => Double,
+    eps: Double = Eps, iterMax: Int = IterMax): Option[Double] = {
+    var lb = lowerBound
+    var ub = upperBound
+    // println(lb + "\t" + ub)
+    for (iter <- 0 until iterMax) {
+      val x = (lb + ub) * 0.5
+      val y = func(x)
+      val dy = func(x + eps) - y
+      if (math.abs(y) > eps) {
+        if (dy > 0.0) {
+          ub = x
+        } else {
+          lb = x
+        }
+      } else {
+        return Some(x)
+      }
+      // println(iter + "\t" + y + "\t" + x + "\t" + lb + "\t" + ub)
+    }
+    None
   }
 
 }
