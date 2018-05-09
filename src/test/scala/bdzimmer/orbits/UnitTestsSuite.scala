@@ -54,4 +54,16 @@ class UnitTestsSuite extends FunSuite {
 
   }
 
+  test("convert between calendar date time and julian date") {
+    val startDate = CalendarDateTime(2690, 9, 1, 12, 30, 30.0).julian
+    for (date <- startDate until startDate + 10.0 by 0.11) {
+      // convert julian date to CalendarDateTime and back to julian date
+      val cdt = Conversions.julianToCalendarDate(date)
+      val julian = cdt.julian
+      val diff = julian - date
+      println(date + "\t" + cdt.dateTimeString + "\t" + julian + "\t" + diff)
+      assert(math.abs(diff) < 1.0e-8)
+    }
+  }
+
 }

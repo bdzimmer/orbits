@@ -18,16 +18,14 @@ case class CalendarDateTime(
 
 
   def dateString(): String = {
-    val secondsInt = seconds.toInt
     f"$year%04d-$month%02d-$day%02d"
   }
 
 
-  // TODO: include hours, minutes, and seconds correctly
   def julian: Double = {
-    val JGREG = 15 + 31* ( 10 + 12 * 1582)
+    val JGREG = 15 + 31 * (10 + 12 * 1582)
 
-    val dayFrac = day + (hours / 24.0) + (minutes / 1440.0) + seconds
+    val dayFrac = day + (hours / 24.0) + (minutes / 1440.0) + (seconds / 86400.0)
 
     val (yearMod, monthMod) = if (month < 3) {
       (year - 1, month + 12)
@@ -42,7 +40,7 @@ case class CalendarDateTime(
       0.0
     }
 
-    math.floor(365.25 * yearMod) + math.floor(30.6001 * (monthMod + 1)) + day + 1720994.5 + b
+    math.floor(365.25 * yearMod) + math.floor(30.6001 * (monthMod + 1)) + dayFrac + 1720994.5 + b
   }
 
 }

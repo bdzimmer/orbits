@@ -54,8 +54,16 @@ object Conversions {
     val M = ((h / s + m) % n) + 1
     val Y = (e / p) - y + (n + m - M) / n
 
-    // TODO: hours, minutes, and seconds
-    CalendarDateTime(Y, M, D)
+    val calendarDate = CalendarDateTime(Y, M, D)
+
+    // TODO: calculate this without a conversion
+    val time = (date - calendarDate.julian) * 86400.0
+    val hours = (time / 3600.0).toInt
+    val minutes = ((time - hours * 3600.0) / 60.0).toInt
+    val seconds = time - hours * 3600.0 - minutes * 60.0
+
+    // println(time + " " + hours + " " + minutes + " " + seconds)
+    CalendarDateTime(Y, M, D, hours, minutes, seconds)
   }
 
 }

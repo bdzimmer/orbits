@@ -4,18 +4,12 @@
 
 package bdzimmer.orbits
 
-import java.awt.{BorderLayout, Color, Dimension, FlowLayout, Graphics, Image}
-import java.awt.event.{
-  ActionListener, ActionEvent, ComponentAdapter, ComponentEvent,
-  InputEvent,
-  MouseEvent, MouseWheelListener, MouseWheelEvent}
+import java.awt.{BorderLayout, Color, Dimension, FlowLayout, GridLayout, Graphics, Image}
+import java.awt.event._
 import java.awt.image.BufferedImage
-import javax.swing.{
-    BorderFactory, ButtonGroup, DefaultComboBoxModel, JButton, JCheckBox, JCheckBoxMenuItem, JComboBox, JFrame,
-    JLabel, JMenuBar, JMenu, JMenuItem, JPanel, JRadioButtonMenuItem,
-    JSeparator, JSlider, JSpinner, JToolBar, JTextField,
-    SpinnerNumberModel, SwingConstants}
-import javax.swing.event.{ChangeListener, ChangeEvent, DocumentListener, DocumentEvent, MouseInputAdapter}
+
+import javax.swing._
+import javax.swing.event._
 
 import scala.util.Try
 import scala.collection.Seq
@@ -402,8 +396,8 @@ object Editor {
     val endDateJulian = fp.endDate.julian
 
     // one tick per hour
-    val res = 1.0 / 24
-    val ticks = (startDateJulian to endDateJulian by res).toList.toIndexedSeq // don't ask
+    val res = 1.0 / 24.0
+    val ticks = (startDateJulian until endDateJulian by res).toList.toIndexedSeq // don't ask
 
     // find positions of origin and destination bodies
     val origState = Orbits.planetState(fp.orig, startDateJulian)
@@ -541,6 +535,9 @@ object Editor {
     })
     toolbar.add(flightsSlider)
 
+
+    /// edit flights JFrame
+
     /// ///
 
     val shipsComboBox = new JComboBox(ships.map(_.name.replace("*", "")).toArray)
@@ -565,27 +562,37 @@ object Editor {
       val destName = endLocComboBox.getSelectedItem.asInstanceOf[String]
 
       val idx = flightsComboBox.getSelectedIndex
-      val fp = flights(idx).copy(
-        ship=ships(shipsComboBox.getSelectedIndex),
-        origName=origName,
-        destName=destName,
-        orig=MeeusPlanets.Planets.getOrElse(origName, MeeusPlanets.Earth),
-        dest=MeeusPlanets.Planets.getOrElse(destName, MeeusPlanets.Earth),
-        startDate=DateTime.parse(startDateText.getText),
-        endDate=DateTime.parse(endDateText.getText),
-        passengers=List()
-      )
 
-      flights(idx) = fp
-      // println(fp, DateTime.parse(startDateText.getText).julian, DateTime.parse(endDateText.getText).julian)
+      val startDate = DateTime.parse(startDateText.getText)
+      val endDate = DateTime.parse(endDateText.getText)
 
-      Disable(flightsComboBox, {
-        flightsComboBox.removeItemAt(idx)
-        flightsComboBox.insertItemAt((idx + 1) + ". " + fp.toString, idx)
-        flightsComboBox.setSelectedIndex(idx)
-        toolbar.revalidate()
-        toolbar.repaint()
-      })
+      // TODO: come up with a more robust way of telling if CalendarDateTime parsing failed
+
+      if (startDate.year > 0 && endDate.year > 0) {
+
+        val fp = flights(idx).copy(
+          ship = ships(shipsComboBox.getSelectedIndex),
+          origName = origName,
+          destName = destName,
+          orig = MeeusPlanets.Planets.getOrElse(origName, MeeusPlanets.Earth),
+          dest = MeeusPlanets.Planets.getOrElse(destName, MeeusPlanets.Earth),
+          startDate = startDate,
+          endDate = endDate,
+          passengers = List()
+        )
+
+        flights(idx) = fp
+        // println(fp, DateTime.parse(startDateText.getText).julian, DateTime.parse(endDateText.getText).julian)
+
+        Disable(flightsComboBox, {
+          flightsComboBox.removeItemAt(idx)
+          flightsComboBox.insertItemAt((idx + 1) + ". " + fp.toString, idx)
+          flightsComboBox.setSelectedIndex(idx)
+          toolbar.revalidate()
+          toolbar.repaint()
+        })
+
+      }
     }
 
     def rebuildFlights(): Unit = {
@@ -655,13 +662,6 @@ object Editor {
     startDateText.getDocument.addDocumentListener(updateDocumentListener)
     endDateText.getDocument.addDocumentListener(updateDocumentListener)
 
-    val solveButton = new JButton("Solve")
-    solveButton.addActionListener(new ActionListener {
-      override def actionPerformed(event: ActionEvent): Unit = {
-        // TODO: implement solve
-      }
-    })
-
 
     val newButton = new JButton("New")
     newButton.addActionListener(new ActionListener {
@@ -699,14 +699,74 @@ object Editor {
       }
     })
 
-    toolbar.add(shipsComboBox)
-    toolbar.add(startLocComboBox)
-    toolbar.add(startDateText)
-    toolbar.add(endLocComboBox)
-    toolbar.add(endDateText)
-    toolbar.add(solveButton)
-    toolbar.add(newButton)
-    toolbar.add(deleteButton)
+    val solveStartButton = new JButton("Solve Start")
+    solveStartButton.addActionListener(new ActionListener {
+      override def actionPerformed(event: ActionEvent): Unit = {
+        val fp = flights(flightsComboBox.getSelectedIndex)
+        val endDate = fp.endDate.julian
+        val startDate = SolveFlight.startDate(
+          fp.ship,
+          t => Orbits.planetState(fp.orig, t).position,
+          Orbits.planetState(fp.dest, endDate).position,
+          endDate)
+        // startDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))
+        startDate.foreach(t => startDateText.setText(Conversions.julianToCalendarDate(t).dateTimeString))
+
+      }
+    })
+
+    val solveEndButton = new JButton("Solve End")
+    solveEndButton.addActionListener(new ActionListener {
+      override def actionPerformed(e: ActionEvent): Unit = {
+        val fp = flights(flightsComboBox.getSelectedIndex)
+        val startDate = fp.startDate.julian
+        val endDate = SolveFlight.endDate(
+          fp.ship,
+          Orbits.planetState(fp.orig, startDate).position,
+          t => Orbits.planetState(fp.dest, t).position,
+          startDate)
+        // endDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))
+        endDate.foreach(t => endDateText.setText(Conversions.julianToCalendarDate(t).dateTimeString))
+      }
+    })
+
+    /// /// flight edit window
+
+    val flightEditWindow = new JFrame()
+
+    val emptyBorder = BorderFactory.createEmptyBorder(10, 10, 10, 10)
+
+    val labelsPanel = new JPanel(new GridLayout(6, 1))
+    List("Ship:", "Start location:", "Start date:", "End location:", "End date:", "").foreach(x =>
+      labelsPanel.add(new JLabel(x))
+    )
+    labelsPanel.setBorder(emptyBorder)
+    flightEditWindow.add(labelsPanel, BorderLayout.WEST)
+
+    val buttonsPanel = new JPanel(new GridLayout(1, 4))
+    List(newButton, deleteButton, solveStartButton, solveEndButton).foreach(x => buttonsPanel.add(x))
+
+    val controlsPanel = new JPanel(new GridLayout(6, 1))
+    List(shipsComboBox, startLocComboBox, startDateText, endLocComboBox, endDateText, buttonsPanel).foreach(x =>
+      controlsPanel.add(x)
+    )
+    controlsPanel.setBorder(emptyBorder)
+    flightEditWindow.add(controlsPanel, BorderLayout.EAST)
+
+    flightEditWindow.setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE)
+    flightEditWindow.setAlwaysOnTop(true)
+    flightEditWindow.setTitle("Edit Flight")
+    flightEditWindow.pack()
+
+    /// ///
+
+    val editButton = new JToggleButton("Edit")
+    editButton.addActionListener(new ActionListener {
+      override def actionPerformed(event: ActionEvent): Unit = {
+        flightEditWindow.setVisible(editButton.isSelected)
+      }
+    })
+    toolbar.add(editButton)
 
     /// ///
 

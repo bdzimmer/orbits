@@ -128,7 +128,7 @@ object SolveFlight {
       } else {
         return Some(x)
       }
-      // println(iter + "\t" + y + "\t" + x + "\t" + lb + "\t" + ub)
+      println(iter + "\t" + y + "\t" + x + "\t" + lb + "\t" + ub)
     }
     None
   }
@@ -501,8 +501,8 @@ object RenderFlight {
                              "%.4f".format(shipAccelG)   + " g" ), 3)
     table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   5)
 
-    table("Departure:", Seq(startDate.dateString + " " + origName), 7)
-    table("Arrival:",   Seq(endDate.dateString   + " " + destName), 8)
+    table("Departure:", Seq(startDate.dateTimeString + " " + origName), 7)
+    table("Arrival:",   Seq(endDate.dateTimeString   + " " + destName), 8)
     table("Distance:",  Seq(f"$distance%.4f AU"), 9)
     table("v mean:",    Seq(f"$vel%.4f AU/day",
                             f"$velKmPerSec%.4f km/s",
@@ -561,7 +561,7 @@ object RenderFlight {
                              "%.4f".format(shipAccelG)   + " g" ), 3)
     table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   5)
 
-    table("DateTime:",  Seq(dateTime.dateString), 7)
+    table("DateTime:",  Seq(dateTime.dateTimeString), 7)
     table("Distance:",  Seq(f"$distance%.4f AU"), 8)
     table("v:",         Seq(f"$vel%.4f AU/day",
                             f"$velKmPerSec%.4f km/s",
