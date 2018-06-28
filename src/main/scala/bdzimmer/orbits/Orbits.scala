@@ -14,13 +14,24 @@ import scala.sys.process._
 import scala.util.Try
 
 
-case class Spacecraft(
-    name: String,
-    mass: Double,        // metric tons
-    accel: Double        // metric tons * AU / day^2
-  ) {
+sealed abstract class Spacecraft {
+  val name: String
+}
+
+
+case class ConstAccelCraft (
+    name:  String,
+    mass:  Double,       // metric tons
+    accel: Double        // AU / day^2
+  ) extends Spacecraft {
   val thrust = mass * accel   // F = ma
 }
+
+
+case class ConstVelCraft (
+  name: String,
+  vel:  Double          // AU / day
+) extends Spacecraft
 
 
 object Conversions {

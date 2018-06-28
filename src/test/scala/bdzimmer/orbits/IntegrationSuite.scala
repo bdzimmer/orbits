@@ -12,7 +12,7 @@ import bdzimmer.util.Result
 
 class IntegrationSuite extends FunSuite {
 
-  val compass = Spacecraft("EOE Compass", 30000.0, 0.2)
+  val compass = ConstAccelCraft("Test", 30000.0, 0.2)
   val startDate = CalendarDateTime(2016, 7, 27, 0)
   val endDate   = CalendarDateTime(2016, 7, 31, 0)
 
@@ -24,7 +24,7 @@ class IntegrationSuite extends FunSuite {
 
   test("draw flight") {
 
-    val im = RenderFlight.drawRoughFlight(
+    val im = RenderFlight.drawFlight(
         compass, "test faction",
         startPlanetName, endPlanetName,
         startPlanet, endPlanet, startDate, endDate)
@@ -65,7 +65,7 @@ class IntegrationSuite extends FunSuite {
     val outputDir = new java.io.File("testflight")
     outputDir.mkdirs()
 
-    RenderFlight.animateRoughFlight(
+    RenderFlight.animateFlight(
         compass,
         startPlanetName, endPlanetName,
         startPlanet, endPlanet, startDate, endDate,

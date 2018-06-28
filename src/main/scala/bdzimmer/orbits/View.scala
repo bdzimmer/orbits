@@ -138,7 +138,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
   def drawArrow(im: BufferedImage, os: OrbitalState, color: Color): Unit = {
     val position = View.perspective(os.position, camTrans, viewPos)
     val direction = Vec2.normalize(Vec2.sub(
-        View.perspective(Vec3.add(os.position, os.velocity), camTrans, viewPos),
+        View.perspective(Vec3.add(os.position, Vec3.normalize(os.velocity)), camTrans, viewPos),
         position))
     val arrowPoints = Viewer.arrowPoints(position, direction)
     drawPolygon(im, arrowPoints, color)

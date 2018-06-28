@@ -202,7 +202,7 @@ class Editor(
     val idx = flightsComboBox.getSelectedIndex
     val fp = flights(idx)
 
-    val (roughFlightFn, ticks) = Editor.paramsToFun(fp)
+    val (flightFn, ticks) = Editor.paramsToFun(fp)
 
     if (ticks.length < 1) {
       return
@@ -229,7 +229,7 @@ class Editor(
 
     val gridLim = 50 // radius of solar system is about 50 AU
 
-    val flightStates = ticksSubset.map(tick => roughFlightFn(tick))
+    val flightStates = ticksSubset.map(tick => flightFn(tick))
     val planets = planetCheckboxes.toList.filter(_._2._1.isSelected).map(x => {
       (x._1, x._2._2)
     })
@@ -249,14 +249,14 @@ class Editor(
     val viewPos = getViewPos()
     val view = new Viewer(camTrans, viewPos)
 
-    val gr = im.getGraphics()
+    val gr = im.getGraphics
     gr.setColor(Color.BLACK)
     gr.fillRect(0, 0, imWidth, imHeight)
 
     val flightColor = factions.getOrElse(fp.faction, Color.GREEN)
     val otherFlightsColors = activeFlights.map(x => factions.getOrElse(x.faction, Color.GRAY))
 
-    RenderFlight.drawRoughFlightAtTime(
+    RenderFlight.drawFlightAtTime(
         view,
         im,
         planetMotions,
@@ -293,15 +293,14 @@ class Editor(
 
     // draw velocity direction arrows
 
-    def drawVelocityArrow(flightFn: RoughFlightFn, color: Color): Double = {
-      val velEps = 0.01
-      if (curDateJulian - velEps > flightFn.startTime) {
+    def drawVelocityArrow(flightFn: FlightFn, color: Color): Double = {
+      if (curDateJulian - Editor.EpsVel > flightFn.startTime) {
         val curState = flightFn(curDateJulian)
         val curVelVec = Vec3.mul(
-          Vec3.sub(curState, flightFn(curDateJulian - velEps)),
-          1.0 / velEps)
+          Vec3.sub(curState, flightFn(curDateJulian - Editor.EpsVel)),
+          1.0 / Editor.EpsVel)
         val curVel = Vec3.length(curVelVec)
-        if (curVel > 1.0e-9) {
+        if (curVel > ConstVelFlightFn.VelMin) {
           view.drawArrow(im, OrbitalState(curState, curVelVec), color)
         }
         curVel
@@ -314,7 +313,7 @@ class Editor(
         x._1, y)})
 
     val curVel = drawVelocityArrow(
-        roughFlightFn, flightColor)
+        flightFn, flightColor)
 
     val statusOption = flightStatusRadioButtons.indexWhere(_.isSelected)
 
@@ -329,9 +328,21 @@ class Editor(
           curVel)
     } else if (statusOption == 1) {
       // draw flight summary
-      RenderFlight.drawFlightSummary(
-          im, fp.ship, fp.faction, distance, vel, roughFlightFn.accel,
+      fp.ship match {
+        case x: ConstAccelCraft => {
+          val accel = flightFn match {
+            case y: ConstAccelFlightFn => y.accel
+            case _ => 0.0
+          }
+          RenderFlight.drawFlightSummary(
+            im, x, fp.faction, distance, vel, accel,
+            fp.origName, fp.destName, fp.startDate, fp.endDate)
+        }
+        case x: ConstVelCraft => RenderFlight.drawFlightSummary(
+          im, x, fp.faction, distance, vel,
           fp.origName, fp.destName, fp.startDate, fp.endDate)
+      }
+
     }
 
     imagePanel.repaint()
@@ -389,25 +400,39 @@ object Editor {
   val FactionsFilename = "factions.txt"
   val ExportFilename = "flights_export"
 
+  val EpsVel = 1.0e-4
 
-  def paramsToFun(fp: FlightParams): (RoughFlightFn, scala.collection.immutable.Seq[Double]) = {
+
+  def paramsToFun(fp: FlightParams): (FlightFn, scala.collection.immutable.Seq[Double]) = {
 
     val startDateJulian = fp.startDate.julian
     val endDateJulian = fp.endDate.julian
 
-    // one tick per hour
-    val res = 1.0 / 24.0
+
+    val res = if ((endDateJulian - startDateJulian) > 1.0) {
+      // one tick per hour
+      1.0 / 24.0
+    } else {
+      // one tick per minute
+      1.0 / 24.0 / 60.0
+    }
     val ticks = (startDateJulian until endDateJulian by res).toList.toIndexedSeq // don't ask
 
     // find positions of origin and destination bodies
     val origState = Orbits.planetState(fp.orig, startDateJulian)
     val destState = Orbits.planetState(fp.dest, endDateJulian)
 
-    val roughFlightFn =  RoughFlightFn(
-      origState.position, destState.position,
-      startDateJulian, endDateJulian - startDateJulian)
+    val flightFn = fp.ship match {
+      case _: ConstAccelCraft => ConstAccelFlightFn(
+        origState.position, destState.position,
+        startDateJulian, endDateJulian - startDateJulian)
+      case _: ConstVelCraft => ConstVelFlightFn(
+        origState.position, destState.position,
+        startDateJulian, endDateJulian - startDateJulian
+      )
+    }
 
-    (roughFlightFn, ticks)
+    (flightFn, ticks)
   }
 
 
@@ -709,7 +734,8 @@ object Editor {
           t => Orbits.planetState(fp.orig, t).position,
           Orbits.planetState(fp.dest, endDate).position,
           endDate)
-        // startDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))
+        println(startDate)
+        startDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))
         startDate.foreach(t => startDateText.setText(Conversions.julianToCalendarDate(t).dateTimeString))
 
       }
@@ -725,7 +751,8 @@ object Editor {
           Orbits.planetState(fp.orig, startDate).position,
           t => Orbits.planetState(fp.dest, t).position,
           startDate)
-        // endDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))
+        println(endDate)
+        endDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))
         endDate.foreach(t => endDateText.setText(Conversions.julianToCalendarDate(t).dateTimeString))
       }
     })

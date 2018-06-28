@@ -18,11 +18,12 @@ import bdzimmer.util.StringUtils._
 
 // given a time, return position vector
 abstract class FlightFn {
+  val startTime: Double
   def apply(t: Double): Vec3
 }
 
 
-class RoughFlightFn(
+class ConstAccelFlightFn(
     startPos: Vec3,
     dir: Vec3,
     val accel: Double,
@@ -50,17 +51,54 @@ class RoughFlightFn(
 }
 
 
-object RoughFlightFn {
+object ConstAccelFlightFn {
 
   def apply(
-      startPos: Vec3, endPos: Vec3, startTime: Double, flightTime: Double): RoughFlightFn = {
+      startPos: Vec3, endPos: Vec3, startTime: Double, flightTime: Double): ConstAccelFlightFn = {
 
     val path = Vec3.sub(endPos, startPos)
     val pathLength = Vec3.length(path)
     val dir = Vec3(path.x / pathLength, path.y / pathLength, path.z / pathLength)
     val accel = 4 * pathLength / (flightTime * flightTime)
 
-    new RoughFlightFn(startPos, dir, accel, startTime, flightTime)
+    new ConstAccelFlightFn(startPos, dir, accel, startTime, flightTime)
+  }
+
+}
+
+
+class ConstVelFlightFn(
+  startPos: Vec3,
+  dir: Vec3,
+  val vel: Double,
+  val startTime: Double,
+  flightTime: Double) extends FlightFn {
+
+  def apply(t_abs: Double): Vec3 = {
+    val t = t_abs - startTime
+    if (t < 0.0 || t > startTime + flightTime) {
+      Vec3(0.0, 0.0, 0.0)
+    } else {
+      val pos1d = t * vel
+      Vec3.add(startPos, Vec3.mul(dir, pos1d))
+    }
+  }
+}
+
+
+object ConstVelFlightFn {
+
+  val VelMin = 1.0e-9
+
+  def apply(
+      startPos: Vec3, endPos: Vec3, startTime: Double, flightTime: Double): ConstVelFlightFn = {
+
+    val path = Vec3.sub(endPos, startPos)
+    val pathLength = Vec3.length(path)
+    val dir = Vec3(path.x / pathLength, path.y / pathLength, path.z / pathLength)
+    val vel = pathLength / flightTime
+
+    new ConstVelFlightFn(startPos, dir, vel, startTime, flightTime)
   }
 
 }
@@ -73,34 +111,87 @@ object SolveFlight {
   val GuessDelta = 14.0 // two weeks
   val IterMax = 100
 
-  // find end date of a flight, keeping accel less than ship's maximum accel
-  def endDate(
-    ship: Spacecraft,
-    orig: Vec3,
-    destFunc: Double => Vec3,
-    startDate: Double,
-    guessDelta: Double = GuessDelta): Option[Double] = {
+  // solvers that switch based on ship type
 
-    // TODO: if no result, search the next GuessDelta increment?
+  def endDate(
+      ship: Spacecraft,
+      orig: Vec3,
+      destFunc: Double => Vec3,
+      startDate: Double,
+      guessDelta: Double = GuessDelta): Option[Double] = {
+    ship match {
+      case x: ConstAccelCraft => constAccelEndDate(x, orig, destFunc, startDate, guessDelta)
+      case x: ConstVelCraft   =>   constVelEndDate(x, orig, destFunc, startDate, guessDelta)
+    }
+  }
+
+  def startDate(
+      ship: Spacecraft,
+      origFunc: Double => Vec3,
+      dest: Vec3,
+      endDate: Double,
+      guessDelta: Double = GuessDelta): Option[Double] = {
+    ship match {
+      case x: ConstAccelCraft => constAccelStartDate(x, origFunc, dest, endDate, guessDelta)
+      case x: ConstVelCraft   =>   constVelStartDate(x, origFunc, dest, endDate, guessDelta)
+    }
+  }
+
+  // solvers for constant acceleration
+
+  // find end date of a flight, keeping accel less than ship's maximum accel
+  def constAccelEndDate(
+      ship: ConstAccelCraft,
+      orig: Vec3,
+      destFunc: Double => Vec3,
+      startDate: Double,
+      guessDelta: Double = GuessDelta): Option[Double] = {
+
     search(
       startDate, startDate + guessDelta,
-      x => math.abs(RoughFlightFn(orig, destFunc(x), startDate, x - startDate).accel - ship.accel))
+      x => math.abs(ConstAccelFlightFn(orig, destFunc(x), startDate, x - startDate).accel - ship.accel))
   }
 
   // find start date of of the flight, keeping accel less than ship's maximum accel
-  def startDate(
-    ship: Spacecraft,
-    origFunc: Double => Vec3,
-    dest: Vec3,
-    endDate: Double,
-    guessDelta: Double = GuessDelta): Option[Double] = {
+  def constAccelStartDate(
+      ship: ConstAccelCraft,
+      origFunc: Double => Vec3,
+      dest: Vec3,
+      endDate: Double,
+      guessDelta: Double = GuessDelta): Option[Double] = {
 
     search(
       endDate - guessDelta, endDate,
-      x => math.abs(RoughFlightFn(origFunc(x), dest, x, endDate - x).accel - ship.accel))
-
+      x => math.abs(ConstAccelFlightFn(origFunc(x), dest, x, endDate - x).accel - ship.accel))
   }
 
+  // solvers for constant velocity
+
+  // find end date of a flight, keeping vel less than ship's maximum vel
+  def constVelEndDate(
+      ship: ConstVelCraft,
+      orig: Vec3,
+      destFunc: Double => Vec3,
+      startDate: Double,
+      guessDelta: Double = GuessDelta): Option[Double] = {
+
+    search(
+      startDate, startDate + guessDelta,
+      x => math.abs(ConstVelFlightFn(orig, destFunc(x), startDate, x - startDate).vel - ship.vel))
+  }
+
+  // find start date of of the flight, keeping vel less than ship's maximum vel
+  def constVelStartDate(
+      ship: ConstVelCraft,
+      origFunc: Double => Vec3,
+      dest: Vec3,
+      endDate: Double,
+      guessDelta: Double = GuessDelta): Option[Double] = {
+
+    search(
+      endDate - guessDelta, endDate,
+      x => math.abs(ConstVelFlightFn(origFunc(x), dest, x, endDate - x).vel - ship.vel))
+  }
 
   // find a zero of a convex function on a bounded interval via a method like
   // binary search but where the decision to update the lower or upper bound
@@ -111,15 +202,16 @@ object SolveFlight {
 
   def search(
     lowerBound: Double, upperBound: Double, func: Double => Double,
-    eps: Double = Eps, iterMax: Int = IterMax): Option[Double] = {
+    diffEps: Double = Eps, zeroEps: Double = Eps * 1000.0, iterMax: Int = IterMax): Option[Double] = {
     var lb = lowerBound
     var ub = upperBound
+    var x = (lb + ub) * 0.5
     // println(lb + "\t" + ub)
     for (iter <- 0 until iterMax) {
-      val x = (lb + ub) * 0.5
+      x = (lb + ub) * 0.5
       val y = func(x)
-      val dy = func(x + eps) - y
-      if (math.abs(y) > eps) {
+      val dy = func(x + diffEps) - y
+      if (math.abs(y) > zeroEps) {
         if (dy > 0.0) {
           ub = x
         } else {
@@ -138,7 +230,7 @@ object SolveFlight {
 
 object RenderFlight {
 
-  def drawRoughFlight(
+  def drawFlight(
       ship: Spacecraft,
       faction: String,
       origName: String,
@@ -161,10 +253,14 @@ object RenderFlight {
 
     ///
 
-    val roughFlightFn =  RoughFlightFn(
-      origStates.head.position, destStates.last.position,
-      startDateJulian, endDateJulian - startDateJulian)
-    val flightStates = ticks.map(tick => roughFlightFn(tick))
+    val flightFn = ship match {
+      case _: ConstAccelCraft => ConstAccelFlightFn(
+        origStates.head.position, destStates.last.position, startDateJulian, endDateJulian - startDateJulian)
+      case _: ConstVelCraft => ConstVelFlightFn(
+        origStates.head.position, destStates.last.position, startDateJulian, endDateJulian - startDateJulian)
+    }
+
+    val flightStates = ticks.map(tick => flightFn(tick))
 
     val distance = Vec3.length(
         Vec3.sub(destStates.last.position, origStates.head.position))
@@ -208,8 +304,18 @@ object RenderFlight {
     view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
 
     // draw flight summary
-    drawFlightSummary(
-        im, ship, faction, distance, vel, roughFlightFn.accel, origName, destName, startDate, endDate)
+    ship match {
+      case x: ConstAccelCraft => {
+        val accel = flightFn match {
+          case y: ConstAccelFlightFn => y.accel
+          case _ => 0.0
+        }
+        drawFlightSummary(
+          im, x, faction, distance, vel, accel, origName, destName, startDate, endDate)
+      }
+      case x: ConstVelCraft => drawFlightSummary(
+        im, x, faction, distance, vel, origName, destName, startDate, endDate)
+    }
 
     // print some things for debugging
     println("starting position velocity:" + Vec3.length(origStates.head.velocity) + " AU/day")
@@ -224,7 +330,7 @@ object RenderFlight {
   }
 
 
-  def animateRoughFlight(
+  def animateFlight(
       ship: Spacecraft,
       origName: String,
       destName: String,
@@ -247,10 +353,14 @@ object RenderFlight {
 
     ///
 
-    val roughFlightFn =  RoughFlightFn(
-      origStates.head.position, destStates.last.position,
-      startDateJulian, endDateJulian - startDateJulian)
-    val flightStates = ticks.map(tick => roughFlightFn(tick))
+    val flightFn = ship match {
+      case _: ConstAccelCraft => ConstAccelFlightFn(
+        origStates.head.position, destStates.last.position, startDateJulian, endDateJulian - startDateJulian)
+      case _: ConstVelCraft => ConstVelFlightFn(
+        origStates.head.position, destStates.last.position, startDateJulian, endDateJulian - startDateJulian)
+    }
+
+    val flightStates = ticks.map(tick => flightFn(tick))
 
     val distance = Vec3.length(
         Vec3.sub(destStates.last.position, origStates.head.position))
@@ -271,8 +381,6 @@ object RenderFlight {
     val gridLim = (planetMax * 4).toInt
 
     for (idx <- 0 until flightStates.length) {
-
-      println(idx + " / " + flightStates.length)
 
       val curState = flightStates(idx)
 
@@ -301,7 +409,7 @@ object RenderFlight {
 
       val curDateTime = Conversions.julianToCalendarDate(ticks(idx))
 
-      drawRoughFlightAtTime(
+      drawFlightAtTime(
         view,
         im,
         List((origName, origFullPeriod), (destName, destFullPeriod)),
@@ -319,10 +427,10 @@ object RenderFlight {
       val curDist = Vec3.length(
         Vec3.sub(curState, origStates.head.position)) // ship is traveling in a straight line
 
-      val curVel = if (idx > 1) {
+      val curVel = if (idx > 0) {
         val curVelVec = Vec3.sub(curState, flightStates(idx - 1))
         val res = Vec3.length(curVelVec)
-        if (res > 1.0e-9) {
+        if (res > ConstVelFlightFn.VelMin) {
           view.drawArrow(im, OrbitalState(curState, curVelVec), Color.GREEN)
         }
         res
@@ -346,7 +454,7 @@ object RenderFlight {
   }
 
 
-  def drawRoughFlightAtTime(
+  def drawFlightAtTime(
       view: Viewer,
       im: BufferedImage,
       planets: List[(String, Seq[OrbitalState])],
@@ -443,7 +551,7 @@ object RenderFlight {
 
   def drawFlightSummary(
       im: BufferedImage,
-      ship: Spacecraft,
+      ship: ConstAccelCraft,
       faction: String,
       distance: Double,
       vel: Double,
@@ -498,29 +606,90 @@ object RenderFlight {
     table("Faction:",    Seq(faction), 1)
     table("Mass:",       Seq("%.2f".format(ship.mass)    + " tonnes"), 2)
     table("a max:",      Seq("%.4f".format(ship.accel)   + " AU/day²",
-                             "%.4f".format(shipAccelG)   + " g" ), 3)
+                               "%.4f".format(shipAccelG)   + " g" ), 3)
     table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   5)
 
-    table("Departure:", Seq(startDate.dateTimeString + " " + origName), 7)
-    table("Arrival:",   Seq(endDate.dateTimeString   + " " + destName), 8)
-    table("Distance:",  Seq(f"$distance%.4f AU"), 9)
-    table("v mean:",    Seq(f"$vel%.4f AU/day",
-                            f"$velKmPerSec%.4f km/s",
-                            f"$velC%.4f C"), 10)
-    table("a req:",     Seq(f"$accel%.4f AU/day²",
-                            f"$accelG%.4f g"), 13, reqColor)
-    table("f req:",     Seq(f"$thrustKN%.2f kN"), 15, reqColor)
+    table("Departure:",  Seq(startDate.dateTimeString + " " + origName), 7)
+    table("Arrival:",    Seq(endDate.dateTimeString   + " " + destName), 8)
+    table("Distance:",   Seq(f"$distance%.4f AU"), 9)
+    table("v mean:",     Seq(f"$vel%.4f AU/day",
+                                f"$velKmPerSec%.4f km/s",
+                                f"$velC%.4f C"), 10)
+    table("a req:",      Seq(f"$accel%.4f AU/day²",
+                                f"$accelG%.4f g"), 13, reqColor)
+    table("f req:",      Seq(f"$thrustKN%.2f kN"), 15, reqColor)
 
   }
 
 
+  def drawFlightSummary(
+    im: BufferedImage,
+    ship: ConstVelCraft,
+    faction: String,
+    distance: Double,
+    vel: Double,
+    origName: String,
+    destName: String,
+    startDate: CalendarDateTime,
+    endDate: CalendarDateTime): Unit = {
+
+    // draw a table describing a summary of the flight
+
+    val velMetersPerSec = vel * Conversions.AuToMeters / Conversions.DayToSec
+    val velKmPerSec = velMetersPerSec / 1000.0
+    val velC = velMetersPerSec / Conversions.LightToMetersPerSec
+
+    val shipVelMetersPerSec = ship.vel * Conversions.AuToMeters / Conversions.DayToSec
+    val shipVelKmPerSec = shipVelMetersPerSec / 1000.0
+    val shipVelC = velMetersPerSec / Conversions.LightToMetersPerSec
+
+    val columnWidth = 100
+    val tableStartX = Viewer.LineHeight
+    val tableStartY = Viewer.LineHeight * 2
+
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
+
+    def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
+      gr.setColor(Color.GREEN)
+      gr.setFont(Viewer.DisplayFont)
+      gr.drawString(desc, tableStartX, tableStartY + row * Viewer.LineHeight)
+      gr.setColor(color)
+      if (italic) {
+        gr.setFont(Viewer.DisplayFontItalic)
+      }
+      values.zipWithIndex.foreach(x => {
+        gr.drawString(x._1, tableStartX + columnWidth, tableStartY + (row + x._2) * Viewer.LineHeight)
+      })
+    }
+
+    val reqColor = if (ship.vel > vel) {
+      Color.GREEN
+    } else {
+      Color.RED
+    }
+
+    table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, italic = true)
+    table("Faction:",    Seq(faction), 1)
+    table("v max:",      Seq("%.4f".format(ship.vel)    + " AU/day²",
+                                "%.4f".format(shipVelKmPerSec) + " km/s",
+                                "%.4f".format(shipVelC)        + " C"), 2)
+    table("Departure:",  Seq(startDate.dateTimeString + " " + origName), 5)
+    table("Arrival:",    Seq(endDate.dateTimeString   + " " + destName), 6)
+    table("Distance:",   Seq(f"$distance%.4f AU"), 7)
+    table("v req:",     Seq(f"$vel%.4f AU/day",
+                               f"$velKmPerSec%.4f km/s",
+                               f"$velC%.4f C"), 9, reqColor)
+  }
+
+
   def drawFlightStatus(
-      im: BufferedImage,
-      ship: Spacecraft,
-      faction: String,
-      dateTime: CalendarDateTime,
-      distance: Double,
-      vel: Double): Unit = {
+    im: BufferedImage,
+    ship: Spacecraft,
+    faction: String,
+    dateTime: CalendarDateTime,
+    distance: Double,
+    vel: Double): Unit = {
 
     // draw a table describing the current flight status
 
@@ -530,9 +699,21 @@ object RenderFlight {
 
     val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
 
-    val shipAccelG = ship.accel * aud2ToMs2 / Conversions.GToMetersPerSecond
+    val massString = ship match {
+      case x: ConstAccelCraft => "%.2f".format(x.mass)
+      case _ => "undefined"
+    }
 
-    val shipThrustKN = ship.thrust * aud2ToMs2
+    val shipAccel = ship match {
+      case x: ConstAccelCraft => x.accel
+      case _ => 0.0
+    }
+    val shipAccelG = shipAccel * aud2ToMs2 / Conversions.GToMetersPerSecond
+
+    val shipThrustKN = ship match {
+      case x: ConstAccelCraft => x.thrust * aud2ToMs2
+      case _ => 0.0
+    }
 
     val columnWidth = 100
     val tableStartX = Viewer.LineHeight
@@ -556,16 +737,17 @@ object RenderFlight {
 
     table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, italic = true)
     table("Faction:",    Seq(faction), 1)
-    table("Mass:",       Seq("%.2f".format(ship.mass)    + " tonnes"), 2)
-    table("a max:",      Seq("%.4f".format(ship.accel)   + " AU/day²",
-                             "%.4f".format(shipAccelG)   + " g" ), 3)
+    table("Mass:",       Seq(massString    + " tonnes"), 2)
+    table("a max:",      Seq("%.4f".format(shipAccel)   + " AU/day²",
+                                "%.4f".format(shipAccelG)   + " g" ), 3)
     table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   5)
 
-    table("DateTime:",  Seq(dateTime.dateTimeString), 7)
-    table("Distance:",  Seq(f"$distance%.4f AU"), 8)
-    table("v:",         Seq(f"$vel%.4f AU/day",
-                            f"$velKmPerSec%.4f km/s",
-                            f"$velC%.4f C"), 9)
+    table("DateTime:",   Seq(dateTime.dateTimeString), 7)
+    table("Distance:",   Seq(f"$distance%.4f AU"), 8)
+    table("v:",          Seq(f"$vel%.4f AU/day",
+                                f"$velKmPerSec%.4f km/s",
+                                f"$velC%.4f C"), 9)
   }
+
 
 }

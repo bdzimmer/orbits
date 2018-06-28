@@ -1,5 +1,7 @@
 // Copyright (c) 2018 Ben Zimmer. All rights reserved.
 
+// Various unit tests.
+
 package bdzimmer.orbits
 
 import org.scalatest.FunSuite
@@ -8,7 +10,7 @@ class UnitTestsSuite extends FunSuite {
 
   test("solve start and end date") {
 
-    val ship = Spacecraft("Test", 12000.0, 0.45)
+    val ship = ConstAccelCraft("Test", 12000.0, 0.45)
 
     val startDate = CalendarDateTime(2018, 5, 7)
     val endDate = CalendarDateTime(2018, 5, 12)
