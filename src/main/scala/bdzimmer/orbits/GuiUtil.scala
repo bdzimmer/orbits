@@ -35,3 +35,21 @@ object Disable {
   }
 
 }
+
+
+class RunAtInterval(fn: () => Unit, sec: Double) extends Runnable {
+  override def run(): Unit = {
+    var isRunning = true
+    while (isRunning) {
+      fn()
+      try
+        Thread.sleep((sec * 1000.0).toInt)
+      catch {
+        case e: InterruptedException => {
+          isRunning = false
+          // e.printStackTrace()
+        }
+      }
+    }
+  }
+}

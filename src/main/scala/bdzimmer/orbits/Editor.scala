@@ -699,11 +699,9 @@ object Editor {
     val timelineWindow = new JFrame()
 
     var timelineTime: Double = 0.0 // yep
+    var runAtIntervalThread: Thread = null
 
-    val allPanel = new JPanel(new GridLayout(2, 1))
-
-    val timelineSlider = new JSlider(SwingConstants.HORIZONTAL, 1, 1000, 1000)
-    allPanel.add(timelineSlider)
+    val allPanel = new JPanel(new GridLayout(3, 1))
 
     val timelineDateTimeText = new JTextField("", 19)
     timelineDateTimeText.setFont(new Font("monospaced", Font.BOLD, 48))
@@ -711,24 +709,71 @@ object Editor {
     timelineDateTimeText.setForeground(Color.GREEN)
     timelineDateTimeText.setMaximumSize(timelineDateTimeText.getPreferredSize)
 
-    def updateTimelineTime(): Unit = {
-      // TODO: unsafe if flights empty
-      val startDate = flights.map(_.startDate.julian).min
-      val endDate = flights.map(_.endDate.julian).max
-      val sliderPercent = timelineSlider.getValue / 1000.0
-      timelineTime = startDate + (endDate - startDate) * sliderPercent
+    def updateTimelineTime(newTime: Double): Unit = {
+      timelineTime = newTime
       timelineDateTimeText.setText(Conversions.julianToCalendarDate(timelineTime).dateTimeString)
     }
 
+    allPanel.add(timelineDateTimeText)
+
+    val timelineSlider = new JSlider(SwingConstants.HORIZONTAL, 1, 1000, 1000)
+    allPanel.add(timelineSlider)
+
+    val skipPanel = new JPanel(new GridLayout(1, 6))
+    // day, hour, minute
+    val skipAmounts = List(-1.0, -1.0 / 24.0, -1.0 / 1440.0, 1.0 / 1440.0, 1.0 / 24.0, 1.0)
+    val skipLabels = List("<<<", "<<", "<", ">", ">>", ">>>")
+    skipAmounts.zip(skipLabels).foreach({case (skipAmount, skipLabel) => {
+      val skipButton = new JButton(skipLabel)
+
+      // skipButton.addActionListener(new ActionListener {
+      //   override def actionPerformed(e: ActionEvent): Unit = {
+      //    // TODO: update timeline slider position
+      //     updateTimelineTime(timelineTime + skipAmount)
+      //     redraw()
+      //   }
+      // })
+
+      skipButton.addMouseListener(new MouseAdapter() {
+        override def mousePressed(e: MouseEvent): Unit = {
+          runAtIntervalThread = new Thread(new RunAtInterval(() => {
+            // println("updating in thread")
+            // TODO: update timeline slider position
+            updateTimelineTime(timelineTime + skipAmount)
+            redraw()
+          }, 0.05))
+          runAtIntervalThread.start()
+        }
+
+        override def mouseReleased(e: MouseEvent): Unit = {
+          if (runAtIntervalThread != null) {
+            runAtIntervalThread.interrupt()
+          }
+        }
+      })
+
+      skipPanel.add(skipButton)
+    }})
+    allPanel.add(skipPanel)
+
     timelineSlider.addChangeListener(new ChangeListener {
       def stateChanged(event: ChangeEvent): Unit = {
-        updateTimelineTime()
+        // TODO: unsafe if flights empty
+        val startDate = flights.map(_.startDate.julian).min
+        val endDate = flights.map(_.endDate.julian).max
+        val sliderPercent = timelineSlider.getValue / 1000.0
+        updateTimelineTime(startDate + (endDate - startDate) * sliderPercent)
         redraw()
       }
     })
+    updateTimelineTime(flights.map(_.startDate.julian).min)
 
-    allPanel.add(timelineDateTimeText)
     timelineWindow.add(allPanel)
+
+    timelineWindow.setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE)
+    timelineWindow.setAlwaysOnTop(true)
+    timelineWindow.setTitle("Timeline")
+    timelineWindow.pack()
 
     val timelineButton = new JToggleButton("Timeline")
     timelineButton.addActionListener(new ActionListener {
@@ -737,13 +782,6 @@ object Editor {
       }
     })
     toolbar.add(timelineButton)
-
-    updateTimelineTime()
-
-    timelineWindow.setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE)
-    timelineWindow.setAlwaysOnTop(true)
-    timelineWindow.setTitle("Timeline")
-    timelineWindow.pack()
 
     /// ///
 
