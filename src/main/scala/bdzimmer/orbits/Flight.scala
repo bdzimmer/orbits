@@ -457,7 +457,7 @@ object RenderFlight {
   def drawFlightAtTime(
       view: Viewer,
       im: BufferedImage,
-      planets: List[(String, Seq[OrbitalState])],
+      planets: Seq[(String, Seq[OrbitalState])],
       origName: String,
       destName: String,
       origDesc: String,
@@ -468,6 +468,20 @@ object RenderFlight {
       flightColor: Color,
       otherFlights: List[(Seq[Vec3], Color)],
       gridLim: Int): Unit = {
+
+    drawStateAtTime(view, im, planets, otherFlights, gridLim)
+
+    drawHighlightedFlightAtTime(
+      view, im, origName, destName, origDesc, destDesc, origStates, destStates, flightStates, flightColor)
+  }
+
+
+  def drawStateAtTime(
+       view: Viewer,
+       im: BufferedImage,
+       planets: Seq[(String, Seq[OrbitalState])],
+       otherFlights: List[(Seq[Vec3], Color)],
+       gridLim: Int): Unit = {
 
     // draw the grid and the sun
     view.drawGrid(im, gridLim, new Color(0, 0, 80))
@@ -483,6 +497,20 @@ object RenderFlight {
     // draw other flights in the background
     // TODO: optional ship arrows and names
     otherFlights.foreach(x => view.drawMotion(im, x._1, x._2))
+  }
+
+
+  def drawHighlightedFlightAtTime(
+       view: Viewer,
+       im: BufferedImage,
+       origName: String,
+       destName: String,
+       origDesc: String,
+       destDesc: String,
+       origStates: Seq[OrbitalState],
+       destStates: Seq[OrbitalState],
+       flightStates: Seq[Vec3],
+       flightColor: Color): Unit = {
 
     // draw the positions of the start and ending locations and the flight up to this point
     view.drawMotion(im, origStates.map(_.position), Color.GREEN)
@@ -492,7 +520,6 @@ object RenderFlight {
     // draw the names and dates for the origin and destination
     view.drawPosition(im, origStates.head.position, origName, origDesc, Color.GREEN)
     view.drawPosition(im, destStates.last.position, destName, destDesc, Color.GREEN)
-
   }
 
 

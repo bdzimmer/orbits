@@ -8,21 +8,14 @@ import bdzimmer.util.{Result, Pass, Fail}
 
 
 case class CalendarDateTime(
-    year: Int, month: Int, day: Int,
-    hours: Int = 0, minutes: Int = 0, seconds: Double = 0.0) {
+    year: Int,
+    month: Int,
+    day: Int,
+    hours: Int = 0,
+    minutes: Int = 0,
+    seconds: Double = 0.0) {
 
-  def dateTimeString(): String = {
-    val secondsInt = seconds.toInt
-    f"$year%04d-$month%02d-$day%02d $hours%02d:$minutes%02d:$secondsInt%02d"
-  }
-
-
-  def dateString(): String = {
-    f"$year%04d-$month%02d-$day%02d"
-  }
-
-
-  def julian: Double = {
+  val julian: Double = {
     val JGREG = 15 + 31 * (10 + 12 * 1582)
 
     val dayFrac = day + (hours / 24.0) + (minutes / 1440.0) + (seconds / 86400.0)
@@ -42,6 +35,18 @@ case class CalendarDateTime(
 
     math.floor(365.25 * yearMod) + math.floor(30.6001 * (monthMod + 1)) + dayFrac + 1720994.5 + b
   }
+
+
+  def dateTimeString: String = {
+    val secondsInt = seconds.toInt
+    f"$year%04d-$month%02d-$day%02d $hours%02d:$minutes%02d:$secondsInt%02d"
+  }
+
+
+  def dateString: String = {
+    f"$year%04d-$month%02d-$day%02d"
+  }
+
 
 }
 

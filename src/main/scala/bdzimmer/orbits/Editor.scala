@@ -4,7 +4,7 @@
 
 package bdzimmer.orbits
 
-import java.awt.{BorderLayout, Color, Dimension, FlowLayout, GridLayout, Graphics, Image}
+import java.awt.{BorderLayout, Color, Dimension, FlowLayout, GridLayout, Graphics, Image, Font}
 import java.awt.event._
 import java.awt.image.BufferedImage
 
@@ -12,7 +12,7 @@ import javax.swing._
 import javax.swing.event._
 
 import scala.util.Try
-import scala.collection.Seq
+import scala.collection.immutable.Seq
 
 
 // this is sort of a parallel version of how flights are represented in Secondary
@@ -53,26 +53,26 @@ class Editor(
   ) extends JFrame {
 
   // make mutable copy of flights list
-  val flights = flightsList.toBuffer
+  val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
 
   setTitle("Orbits Editor")
 
-  val factions = IO.loadFactions(Editor.FactionsFilename)
+  val factions: Map[String, Color] = IO.loadFactions(Editor.FactionsFilename)
 
   /// /// image for view
 
-  var imWidth = Editor.ViewWidth
-  var imHeight = Editor.ViewHeight
+  var imWidth: Int = Editor.ViewWidth
+  var imHeight: Int = Editor.ViewHeight
   var im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
   var imagePanel = new ImagePanel(im)
 
-  val redrawChangeListener = new ChangeListener {
+  val redrawChangeListener: ChangeListener = new ChangeListener {
     def stateChanged(event: ChangeEvent): Unit = {
       redraw()
     }
   }
 
-  val redrawActionListener = new ActionListener {
+  val redrawActionListener: ActionListener = new ActionListener {
     def actionPerformed(event: ActionEvent): Unit = {
       redraw()
     }
@@ -84,7 +84,7 @@ class Editor(
 
   val toolbarRow0 = new JPanel(new FlowLayout(FlowLayout.LEFT))
 
-  val (flightsToolbar, flightsComboBox, flightsSlider, rebuildFlights) = Editor.buildFlightsToolbar(
+  val (flightsToolbar, flightsComboBox, flightsSlider, getTimelineTime, timelineButton, rebuildFlights) = Editor.buildFlightsToolbar(
       flights, ships, redraw)
   toolbarRow0.add(flightsToolbar)
 
@@ -105,7 +105,7 @@ class Editor(
   val (
     mainMenuBar,
     planetCheckboxes,
-    lagrangePointCheckBox,
+    lagrangePointsCheckBox,
     asteroidBeltCheckBox,
     flightStatusRadioButtons) = Editor.buildMenuBar(
     redrawChangeListener, redrawActionListener, flights, ships.map(x => (x.name, x)).toMap, rebuildFlights)
@@ -184,6 +184,63 @@ class Editor(
   /// ///
 
 
+  def redraw(): Unit = {
+
+    val planets = planetCheckboxes.toList.filter(_._2._1.isSelected).map(x => {
+      (x._1, x._2._2)
+    })
+
+    if (timelineButton.isSelected) {
+
+      // timeline mode
+
+      val curDateJulian = getTimelineTime()
+      val activeFlights = flights.filter(x => curDateJulian > x.startDate.julian && curDateJulian < x.endDate.julian)
+      val fpOption = activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
+
+      Draw.redraw(
+        fpOption,
+        curDateJulian,
+        planets,
+        flights.toList,
+        factions,
+        asteroidBeltCheckBox.isSelected,
+        lagrangePointsCheckBox.isSelected,
+        flightStatusRadioButtons.indexWhere(_.isSelected),
+        getCamera,
+        getViewPos,
+        im
+      )
+
+    } else {
+
+      // individual flight mode
+
+      val idx = flightsComboBox.getSelectedIndex
+      val fp = flights(idx)
+      val flightPercent = flightsSlider.getValue / 100.0
+      val curDateJulian = fp.startDate.julian + (fp.endDate.julian - fp.startDate.julian) * flightPercent
+
+      Draw.redraw(
+        Some(fp),
+        curDateJulian,
+        planets,
+        flights.toList,
+        factions,
+        asteroidBeltCheckBox.isSelected,
+        lagrangePointsCheckBox.isSelected,
+        flightStatusRadioButtons.indexWhere(_.isSelected),
+        getCamera,
+        getViewPos,
+        im
+      )
+
+    }
+
+    imagePanel.repaint()
+    System.out.print(".")
+  }
+
   def rebuildImagePanel(): Unit = {
     imWidth = viewPanel.getWidth
     imHeight = viewPanel.getHeight
@@ -197,162 +254,8 @@ class Editor(
   }
 
 
-  def redraw(): Unit = {
-
-    val idx = flightsComboBox.getSelectedIndex
-    val fp = flights(idx)
-
-    val (flightFn, ticks) = Editor.paramsToFun(fp)
-
-    if (ticks.length < 1) {
-      return
-    }
-
-    // to plot how the origin and desination change curing the flight
-    val origStates = ticks.map(tick => Orbits.planetState(fp.orig, tick))
-    val destStates = ticks.map(tick => Orbits.planetState(fp.dest, tick))
-
-    // take a fraction of the ticks based on the slider
-    val flightPercent = flightsSlider.getValue / 100.0
-    val ticksSubset = ticks.take((flightPercent * ticks.size).toInt)
-    val curDateJulian = ticksSubset.last
-
-    val distance = Vec3.length(
-        Vec3.sub(destStates.last.position, origStates.head.position))
-
-    // average velocity
-    val vel = distance / (fp.endDate.julian - fp.startDate.julian)
-
-    // val allStates = origStates ++ destStates
-    // val planetMax = RenderFlight.maxPosition(allStates)
-    // val gridLim = (planetMax * 4).toInt
-
-    val gridLim = 50 // radius of solar system is about 50 AU
-
-    val flightStates = ticksSubset.map(tick => flightFn(tick))
-    val planets = planetCheckboxes.toList.filter(_._2._1.isSelected).map(x => {
-      (x._1, x._2._2)
-    })
-    val planetMotions = planets.map(x => {
-      (x._1, Orbits.planetMotionPeriod(x._2, curDateJulian))
-    })
-
-    // find other flights that are active at the same time as the current one
-    val activeFlights = flights.filter(x =>
-      !x.equals(fp) && x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
-    val activeFlightFns = activeFlights.map(af => Editor.paramsToFun(af))
-    val otherFlights = activeFlightFns.map({case (afFn, afTicks) => {
-      afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
-    }})
-
-    val camTrans = getCamera()
-    val viewPos = getViewPos()
-    val view = new Viewer(camTrans, viewPos)
-
-    val gr = im.getGraphics
-    gr.setColor(Color.BLACK)
-    gr.fillRect(0, 0, imWidth, imHeight)
-
-    val flightColor = factions.getOrElse(fp.faction, Color.GREEN)
-    val otherFlightsColors = activeFlights.map(x => factions.getOrElse(x.faction, Color.GRAY))
-
-    RenderFlight.drawFlightAtTime(
-        view,
-        im,
-        planetMotions,
-        fp.origName,
-        fp.destName,
-        fp.startDate.dateString,
-        fp.endDate.dateString,
-        origStates,
-        destStates,
-        flightStates,
-        flightColor,
-        otherFlights.zip(otherFlightsColors).toList,
-        gridLim)
-
-    // draw asteroid belt - main belt lies between 2.06 and 3.27 AU
-    if (asteroidBeltCheckBox.isSelected) {
-      view.drawRing(im, 2.06, 3.27, new Color(64, 64, 64, 64))
-    }
-
-    // draw L3, L4 and L5 points of visible planets
-    if (lagrangePointCheckBox.isSelected) {
-      planets.foreach(p => {
-        view.drawPosition(
-          im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2), curDateJulian).position,
-          "L3", "", Color.GRAY, false)
-        view.drawPosition(
-          im, Orbits.planetState(new MeeusPlanets.L4Estimator(p._2), curDateJulian).position,
-          "L4", "", Color.GRAY, false)
-        view.drawPosition(
-          im, Orbits.planetState(new MeeusPlanets.L5Estimator(p._2), curDateJulian).position,
-          "L5", "", Color.GRAY, false)
-      })
-    }
-
-    // draw velocity direction arrows
-
-    def drawVelocityArrow(flightFn: FlightFn, color: Color): Double = {
-      if (curDateJulian - Editor.EpsVel > flightFn.startTime) {
-        val curState = flightFn(curDateJulian)
-        val curVelVec = Vec3.mul(
-          Vec3.sub(curState, flightFn(curDateJulian - Editor.EpsVel)),
-          1.0 / Editor.EpsVel)
-        val curVel = Vec3.length(curVelVec)
-        if (curVel > ConstVelFlightFn.VelMin) {
-          view.drawArrow(im, OrbitalState(curState, curVelVec), color)
-        }
-        curVel
-      } else {
-        0.0
-      }
-    }
-
-    activeFlightFns.zip(otherFlightsColors).foreach({case (x, y) => drawVelocityArrow(
-        x._1, y)})
-
-    val curVel = drawVelocityArrow(
-        flightFn, flightColor)
-
-    val statusOption = flightStatusRadioButtons.indexWhere(_.isSelected)
-
-    if (statusOption == 0) {
-      // draw flight status with current datetime, distance, and velocity
-      RenderFlight.drawFlightStatus(
-          im,
-          fp.ship,
-          fp.faction,
-          Conversions.julianToCalendarDate(curDateJulian),
-          Vec3.length(Vec3.sub(flightStates.last, flightStates.head)),
-          curVel)
-    } else if (statusOption == 1) {
-      // draw flight summary
-      fp.ship match {
-        case x: ConstAccelCraft => {
-          val accel = flightFn match {
-            case y: ConstAccelFlightFn => y.accel
-            case _ => 0.0
-          }
-          RenderFlight.drawFlightSummary(
-            im, x, fp.faction, distance, vel, accel,
-            fp.origName, fp.destName, fp.startDate, fp.endDate)
-        }
-        case x: ConstVelCraft => RenderFlight.drawFlightSummary(
-          im, x, fp.faction, distance, vel,
-          fp.origName, fp.destName, fp.startDate, fp.endDate)
-      }
-
-    }
-
-    imagePanel.repaint()
-    System.out.print(".")
-
-  }
-
-
   // get camera matrix from UI
-  private def getCamera(): Mat44 = {
+  private def getCamera: Mat44 = {
 
     val xAngle = cameraControls.xAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
     val yAngle = cameraControls.yAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
@@ -376,7 +279,7 @@ class Editor(
 
 
   // get viewer position from UI
-  private def getViewPos(): Vec3 = {
+  private def getViewPos: Vec3 = {
     val zViewPos = cameraControls.zViewPosField.getValue.asInstanceOf[Double]
     Vec3(0, 0, zViewPos)
   }
@@ -435,8 +338,6 @@ object Editor {
     (flightFn, ticks)
   }
 
-
-  // TODO: starting to wonder if it was worthwhile to move these functions to the companion object
 
   def buildMenuBar(
       redrawChangeListener: ChangeListener,
@@ -513,9 +414,9 @@ object Editor {
     // TODO: sections for toggling inner and outer planets
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
-    val lagrangePointCheckBox = new JCheckBoxMenuItem("Lagrange Points", true)
-    lagrangePointCheckBox.addChangeListener(redrawChangeListener)
-    viewMenu.add(lagrangePointCheckBox)
+    val lagrangePointsCheckBox = new JCheckBoxMenuItem("Lagrange Points", true)
+    lagrangePointsCheckBox.addChangeListener(redrawChangeListener)
+    viewMenu.add(lagrangePointsCheckBox)
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
     val asteroidBeltCheckBox = new JCheckBoxMenuItem("Asteroid Belt", true)
@@ -533,14 +434,14 @@ object Editor {
     menuBar.add(fileMenu)
     menuBar.add(viewMenu)
 
-    (menuBar, planetCheckBoxes, lagrangePointCheckBox, asteroidBeltCheckBox, flightStatusRadioButtons)
+    (menuBar, planetCheckBoxes, lagrangePointsCheckBox, asteroidBeltCheckBox, flightStatusRadioButtons)
   }
 
 
   def buildFlightsToolbar(
       flights: scala.collection.mutable.Buffer[FlightParams],
       ships: List[Spacecraft],
-      redraw: () => Unit): (JToolBar, JComboBox[String], JSlider, () => Unit) = {
+      redraw: () => Unit): (JToolBar, JComboBox[String], JSlider, () => Double, JToggleButton, () => Unit) = {
 
     val toolbar = new JToolBar()
     toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
@@ -785,8 +686,6 @@ object Editor {
     flightEditWindow.setTitle("Edit Flight")
     flightEditWindow.pack()
 
-    /// ///
-
     val editButton = new JToggleButton("Edit")
     editButton.addActionListener(new ActionListener {
       override def actionPerformed(event: ActionEvent): Unit = {
@@ -795,9 +694,60 @@ object Editor {
     })
     toolbar.add(editButton)
 
+    /// /// timeline window
+
+    val timelineWindow = new JFrame()
+
+    var timelineTime: Double = 0.0 // yep
+
+    val allPanel = new JPanel(new GridLayout(2, 1))
+
+    val timelineSlider = new JSlider(SwingConstants.HORIZONTAL, 1, 1000, 1000)
+    allPanel.add(timelineSlider)
+
+    val timelineDateTimeText = new JTextField("", 19)
+    timelineDateTimeText.setFont(new Font("monospaced", Font.BOLD, 48))
+    timelineDateTimeText.setBackground(Color.BLACK)
+    timelineDateTimeText.setForeground(Color.GREEN)
+    timelineDateTimeText.setMaximumSize(timelineDateTimeText.getPreferredSize)
+
+    def updateTimelineTime(): Unit = {
+      // TODO: unsafe if flights empty
+      val startDate = flights.map(_.startDate.julian).min
+      val endDate = flights.map(_.endDate.julian).max
+      val sliderPercent = timelineSlider.getValue / 1000.0
+      timelineTime = startDate + (endDate - startDate) * sliderPercent
+      timelineDateTimeText.setText(Conversions.julianToCalendarDate(timelineTime).dateTimeString)
+    }
+
+    timelineSlider.addChangeListener(new ChangeListener {
+      def stateChanged(event: ChangeEvent): Unit = {
+        updateTimelineTime()
+        redraw()
+      }
+    })
+
+    allPanel.add(timelineDateTimeText)
+    timelineWindow.add(allPanel)
+
+    val timelineButton = new JToggleButton("Timeline")
+    timelineButton.addActionListener(new ActionListener {
+      override def actionPerformed(e: ActionEvent): Unit = {
+        timelineWindow.setVisible(timelineButton.isSelected)
+      }
+    })
+    toolbar.add(timelineButton)
+
+    updateTimelineTime()
+
+    timelineWindow.setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE)
+    timelineWindow.setAlwaysOnTop(true)
+    timelineWindow.setTitle("Timeline")
+    timelineWindow.pack()
+
     /// ///
 
-    (toolbar, flightsComboBox, flightsSlider, rebuildFlights)
+    (toolbar, flightsComboBox, flightsSlider, () => timelineTime, timelineButton, rebuildFlights)
 
   }
 
@@ -816,7 +766,7 @@ object Editor {
 
     var converterEnabled = true
 
-    val auPerDaySqListener = new DocumentListener {
+    val auPerDaySqListener: DocumentListener = new DocumentListener {
       override def changedUpdate(event: DocumentEvent): Unit = {}
       override def insertUpdate(event: DocumentEvent): Unit = update()
       override def removeUpdate(event: DocumentEvent): Unit = update()
@@ -835,7 +785,7 @@ object Editor {
       }
     }
 
-    val gListener = new DocumentListener {
+    val gListener: DocumentListener = new DocumentListener {
       override def changedUpdate(event: DocumentEvent): Unit = {}
       override def insertUpdate(event: DocumentEvent): Unit = update()
       override def removeUpdate(event: DocumentEvent): Unit = update()
@@ -934,6 +884,161 @@ class ImagePanel(val image: Image) extends JPanel {
   override def paintComponent(gr: Graphics): Unit = {
     super.paintComponent(gr)
     gr.drawImage(image, 0, 0, null)
+  }
+
+}
+
+
+
+object Draw {
+
+  def redraw(
+
+      fpOption: Option[FlightParams],       // flight to highlight with status
+      curDateJulian: Double,
+
+      planets: Seq[(String, OrbitalElementsEstimator)],
+      flights: Seq[FlightParams],
+      factions: Map[String, Color],
+
+      asteroidBelt: Boolean,
+      lagrangePoints: Boolean,
+      statusOption: Int,
+
+      camTrans: Mat44,
+      viewPos: Vec3,
+
+      im: BufferedImage
+    ): Unit = {
+
+    val gridLim = 50 // radius of solar system is about 50 AU
+
+    val planetMotions = planets.map(x => {
+      (x._1, Orbits.planetMotionPeriod(x._2, curDateJulian))
+    })
+
+    // find other flights that are active at the same time as the current one
+    val activeFlights = flights.filter(x =>
+      // !x.equals(fp) &&
+      x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
+    val activeFlightFns = activeFlights.map(af => Editor.paramsToFun(af))
+    val otherFlights = activeFlightFns.map({
+      case (afFn, afTicks) => afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
+    })
+
+    val view = new Viewer(camTrans, viewPos)
+
+    val gr = im.getGraphics
+    gr.setColor(Color.BLACK)
+    gr.fillRect(0, 0, im.getWidth, im.getHeight)
+
+    val otherFlightsColors = activeFlights.map(x => factions.getOrElse(x.faction, Color.GRAY))
+
+    RenderFlight.drawStateAtTime(view, im, planetMotions, otherFlights.zip(otherFlightsColors).toList, gridLim)
+
+    // TODO: move definition of asteroid belt location somewhere else
+    // draw asteroid belt - main belt lies between 2.06 and 3.27 AU
+    if (asteroidBelt) {
+      view.drawRing(im, 2.06, 3.27, new Color(64, 64, 64, 64))
+    }
+
+    // draw L3, L4 and L5 points of visible planets
+    if (lagrangePoints) {
+      planets.foreach(p => {
+        view.drawPosition(
+          im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2), curDateJulian).position,
+          "L3", "", Color.GRAY, fill = false)
+        view.drawPosition(
+          im, Orbits.planetState(new MeeusPlanets.L4Estimator(p._2), curDateJulian).position,
+          "L4", "", Color.GRAY, fill = false)
+        view.drawPosition(
+          im, Orbits.planetState(new MeeusPlanets.L5Estimator(p._2), curDateJulian).position,
+          "L5", "", Color.GRAY, fill = false)
+      })
+    }
+
+    // draw velocity direction arrows
+
+    def drawVelocityArrow(flightFn: FlightFn, color: Color): Double = {
+      if (curDateJulian - Editor.EpsVel > flightFn.startTime) {
+        val curState = flightFn(curDateJulian)
+        val curVelVec = Vec3.mul(
+          Vec3.sub(curState, flightFn(curDateJulian - Editor.EpsVel)),
+          1.0 / Editor.EpsVel)
+        val curVel = Vec3.length(curVelVec)
+        if (curVel > ConstVelFlightFn.VelMin) {
+          view.drawArrow(im, OrbitalState(curState, curVelVec), color)
+        }
+        curVel
+      } else {
+        0.0
+      }
+    }
+
+    activeFlightFns.zip(otherFlightsColors).foreach({case (x, y) => drawVelocityArrow(
+      x._1, y)})
+
+
+    fpOption.foreach(fp => {
+
+      val (flightFn, ticks) = Editor.paramsToFun(fp)
+
+      if (ticks.length < 1) {
+        return
+      }
+
+      // to plot how the origin and desination change curing the flight
+      val origStates = ticks.map(tick => Orbits.planetState(fp.orig, tick))
+      val destStates = ticks.map(tick => Orbits.planetState(fp.dest, tick))
+      val ticksSubset = ticks.takeWhile(x => x < curDateJulian)
+      val flightStates = ticksSubset.map(tick => flightFn(tick))
+      val flightColor = factions.getOrElse(fp.faction, Color.GREEN)
+
+      RenderFlight.drawHighlightedFlightAtTime(view, im, fp.origName, fp.destName, fp.startDate.dateString, fp.endDate.dateString, origStates, destStates, flightStates, flightColor)
+
+      // prepare summary or description
+
+      val distance = Vec3.length(
+        Vec3.sub(destStates.last.position, origStates.head.position))
+
+      // average velocity
+      val vel = distance / (fp.endDate.julian - fp.startDate.julian)
+
+      val curVel = drawVelocityArrow(
+        flightFn, flightColor)
+
+      // val statusOption = flightStatusRadioButtons.indexWhere(_.isSelected)
+
+      if (statusOption == 0) {
+        // draw flight status with current datetime, distance, and velocity
+        RenderFlight.drawFlightStatus(
+          im,
+          fp.ship,
+          fp.faction,
+          Conversions.julianToCalendarDate(curDateJulian),
+          Vec3.length(Vec3.sub(flightStates.last, flightStates.head)),
+          curVel)
+      } else if (statusOption == 1) {
+        // draw flight summary
+        fp.ship match {
+          case x: ConstAccelCraft => {
+            val accel = flightFn match {
+              case y: ConstAccelFlightFn => y.accel
+              case _ => 0.0
+            }
+            RenderFlight.drawFlightSummary(
+              im, x, fp.faction, distance, vel, accel,
+              fp.origName, fp.destName, fp.startDate, fp.endDate)
+          }
+          case x: ConstVelCraft => RenderFlight.drawFlightSummary(
+            im, x, fp.faction, distance, vel,
+            fp.origName, fp.destName, fp.startDate, fp.endDate)
+        }
+
+      }
+
+    })
+
   }
 
 }
