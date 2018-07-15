@@ -5,7 +5,8 @@
 package bdzimmer.orbits
 
 import java.awt.event.{ActionEvent, ActionListener}
-import javax.swing.JComboBox
+import javax.swing.{JComboBox, JSlider}
+import javax.swing.event.{ChangeEvent, ChangeListener}
 
 import scala.util.Try
 
@@ -24,10 +25,28 @@ class DisableableActionListener(callback: ActionEvent => Unit) extends ActionLis
 }
 
 
+class DisableableChangeListener(callback: ChangeEvent => Unit) extends ChangeListener with Disableable {
+  override def stateChanged(event: ChangeEvent): Unit = {
+    if (enabled) {
+      callback(event)
+    }
+  }
+}
+
+
 object Disable {
 
   def apply[A, E](comboBox: JComboBox[E], expr: => A): Option[A] = {
-    val disableables = comboBox.getActionListeners.collect({case x: Disableable => x})
+    val disableables: Array[Disableable] = comboBox.getActionListeners.collect({case x: Disableable => x})
+    apply(disableables, expr)
+  }
+
+  def apply[A](slider: JSlider, expr: => A): Option[A] = {
+    val disableables: Array[Disableable] = slider.getChangeListeners.collect({case x: Disableable => x})
+    apply(disableables, expr)
+  }
+
+  def apply[A](disableables: Array[Disableable], expr: => A): Option[A] = {
     disableables.foreach(_.enabled = false)
     val result = Try(expr).toOption
     disableables.foreach(_.enabled = true)
