@@ -6,6 +6,7 @@ package bdzimmer.orbits
 
 import org.scalatest.FunSuite
 
+
 class UnitTestsSuite extends FunSuite {
 
   test("solve start and end date") {
