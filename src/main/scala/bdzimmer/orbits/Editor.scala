@@ -14,6 +14,8 @@ import javax.swing.event._
 import scala.util.Try
 import scala.collection.immutable.Seq
 
+import bdzimmer.util.StringUtils._
+
 
 // this is sort of a parallel version of how flights are represented in Secondary
 case class FlightParams(
@@ -716,10 +718,27 @@ object Editor {
 
     allPanel.add(timelineDateTimeText)
 
-    val timelineSlider = new JSlider(SwingConstants.HORIZONTAL, 1, 1000, 1000)
+    val sliderMax: Int = 1000
+    val timelineSlider = new JSlider(SwingConstants.HORIZONTAL, 1, sliderMax, sliderMax)
+    timelineSlider.setMajorTickSpacing(100)
+    timelineSlider.setMinorTickSpacing(20)
+    timelineSlider.setPaintTicks(true)
     allPanel.add(timelineSlider)
 
-    val skipPanel = new JPanel(new GridLayout(1, 6))
+    val skipPanel = new JPanel(new GridLayout(1, 7))
+    allPanel.add(skipPanel)
+
+    val delayMsText = new JTextField("50", 4)
+    delayMsText.setMaximumSize(delayMsText.getPreferredSize)
+
+    // TODO: eventually, calculate this whenever flights changes
+    // TODO: unsafe if flights empty
+    def dateRange(): (Double, Double) = {
+      val startDate = flights.map(_.startDate.julian).min
+      val endDate = flights.map(_.endDate.julian).max
+      (startDate, endDate)
+    }
+
     // day, hour, minute
     val skipAmounts = List(-1.0, -1.0 / 24.0, -1.0 / 1440.0, 1.0 / 1440.0, 1.0 / 24.0, 1.0)
     val skipLabels = List("<<<", "<<", "<", ">", ">>", ">>>")
@@ -728,7 +747,6 @@ object Editor {
 
       // skipButton.addActionListener(new ActionListener {
       //   override def actionPerformed(e: ActionEvent): Unit = {
-      //    // TODO: update timeline slider position
       //     updateTimelineTime(timelineTime + skipAmount)
       //     redraw()
       //   }
@@ -738,34 +756,39 @@ object Editor {
         override def mousePressed(e: MouseEvent): Unit = {
           runAtIntervalThread = new Thread(new RunAtInterval(() => {
             // println("updating in thread")
-            // TODO: update timeline slider position
-            updateTimelineTime(timelineTime + skipAmount)
+            val newTime = timelineTime + skipAmount
+            updateTimelineTime(newTime)
+            // update slider position
+            Disable(
+              timelineSlider,
+              {
+                val (startDate, endDate) = dateRange()
+                val sliderPercent = (timelineTime - startDate) / (endDate - startDate)
+                timelineSlider.setValue((sliderPercent * sliderMax).toInt)
+              }
+            )
             redraw()
-          }, 0.05))
+          }, delayMsText.getText.toIntSafe(50) / 1000.0))
           runAtIntervalThread.start()
         }
-
         override def mouseReleased(e: MouseEvent): Unit = {
+          // could potentially update slider position here
           if (runAtIntervalThread != null) {
             runAtIntervalThread.interrupt()
           }
         }
       })
-
       skipPanel.add(skipButton)
     }})
-    allPanel.add(skipPanel)
+    skipPanel.add(delayMsText)
 
-    timelineSlider.addChangeListener(new ChangeListener {
-      def stateChanged(event: ChangeEvent): Unit = {
-        // TODO: unsafe if flights empty
-        val startDate = flights.map(_.startDate.julian).min
-        val endDate = flights.map(_.endDate.julian).max
-        val sliderPercent = timelineSlider.getValue / 1000.0
-        updateTimelineTime(startDate + (endDate - startDate) * sliderPercent)
-        redraw()
-      }
-    })
+    timelineSlider.addChangeListener(new DisableableChangeListener(_ => {
+      // println("fired timelineSlider stateChanged")
+      val (startDate, endDate) = dateRange()
+      val sliderPercent = timelineSlider.getValue / sliderMax.toDouble
+      updateTimelineTime(startDate + (endDate - startDate) * sliderPercent)
+      redraw()
+    }))
     updateTimelineTime(flights.map(_.startDate.julian).min)
 
     timelineWindow.add(allPanel)
