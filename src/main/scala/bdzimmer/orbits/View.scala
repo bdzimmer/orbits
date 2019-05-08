@@ -10,7 +10,7 @@ import java.awt.image.BufferedImage
 import java.awt.{Color, Font, RenderingHints, Graphics2D}
 
 
-class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
+class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSettings) {
 
   def drawGrid(im: BufferedImage, gridLim: Int, color: Color): Unit = {
 
@@ -112,15 +112,15 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
     val x = pos2d.x.toInt + im.getWidth / 2
     val y = im.getHeight - (pos2d.y.toInt + im.getHeight / 2)
 
-    val rad = Viewer.CircleRadius
+    val rad = settings.circleRadius
     if (fill) {
       gr.fillOval(x - rad, y - rad, rad * 2, rad * 2)
     } else {
       gr.drawOval(x - rad, y - rad, rad * 2, rad * 2)
     }
-    gr.setFont(Viewer.DisplayFont)
-    gr.drawString(name, x + rad, y + Viewer.LineHeight)
-    gr.drawString(desc, x + rad, y + Viewer.LineHeight * 2)
+    gr.setFont(settings.displayFont)
+    gr.drawString(name, x + rad, y + settings.lineHeight)
+    gr.drawString(desc, x + rad, y + settings.lineHeight * 2)
   }
 
 
@@ -136,12 +136,21 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
 
 
   def drawArrow(im: BufferedImage, os: OrbitalState, color: Color): Unit = {
-    val position = View.perspective(os.position, camTrans, viewPos)
-    val direction = Vec2.normalize(Vec2.sub(
+
+    if (!settings.arrows3D) {
+      val position = View.perspective(os.position, camTrans, viewPos)
+      val direction = Vec2.normalize(Vec2.sub(
         View.perspective(Vec3.add(os.position, Vec3.normalize(os.velocity)), camTrans, viewPos),
         position))
-    val arrowPoints = Viewer.arrowPoints(position, direction)
-    drawPolygon(im, arrowPoints, color)
+      val arrowPoints = Viewer.arrowPoints(position, direction)
+      drawPolygon(im, arrowPoints, color)
+    } else {
+      val arrowPoints3d = Viewer.arrowPoints3D(
+        os.position, Vec3.normalize(os.velocity), settings.arrowLength / viewPos.z)
+      val arrowPoints = arrowPoints3d.map(x => View.perspective(x, camTrans, viewPos))
+      drawPolygon(im, arrowPoints, color)
+    }
+
   }
 
 
@@ -164,13 +173,39 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3) {
 }
 
 
+case class ViewerSettings(
+    displayFont: Font,
+    displayFontItalic: Font,
+    lineHeight: Int,
+    circleRadius: Int,
+    columnWidth: Int,
+    arrows3D: Boolean,
+    arrowLength: Double
+)
+
 
 object Viewer {
 
-  val DisplayFont = new Font("Monospace", Font.BOLD, 12)
-  val DisplayFontItalic = new Font("Monospace", Font.BOLD | Font.ITALIC, 12)
-  val LineHeight = 14
-  val CircleRadius = 6
+  val ViewerSettingsDefault = ViewerSettings(
+    displayFont = new Font("Monospace", Font.BOLD, 12),
+    displayFontItalic = new Font("Monospace", Font.BOLD | Font.ITALIC, 12),
+    lineHeight = 14,
+    circleRadius = 6,
+    columnWidth = 100,
+    arrows3D = false,
+    arrowLength = 0.0
+  )
+
+  val ViewerSettingsArtsy = ViewerSettings(
+    displayFont = new Font("Orbitron", Font.BOLD, 16),
+    displayFontItalic = new Font("Orbitron", Font.BOLD | Font.ITALIC, 16),
+    lineHeight = 18,
+    circleRadius = 6,
+    columnWidth = 125,
+    arrows3D = true,
+    arrowLength = 150.0
+  )
+
 
   val RenderHints = new RenderingHints(
      RenderingHints.KEY_TEXT_ANTIALIASING,
@@ -193,9 +228,20 @@ object Viewer {
     */
 
     // pos at tip of arrow
-    val tip   = Vec2(dir.x * length, dir.y * length)
-    val left  = Vec2(pos.x - dir.y * width - tip.x, pos.y + dir.x * width - tip.y)
-    val right = Vec2(pos.x + dir.y * width - tip.x, pos.y - dir.x * width - tip.y)
+    val tail = Vec2(pos.x - dir.x * length, pos.y - dir.y * length)
+    val left  = Vec2(tail.x - dir.y * width, tail.y + dir.x * width)
+    val right = Vec2(tail.x + dir.y * width, tail.y - dir.x * width)
+    Seq(left, pos, right)
+
+  }
+
+
+  def arrowPoints3D(pos: Vec3, dir: Vec3, length: Double): Seq[Vec3] = {
+    val width = length / 3.0
+
+    val tail = Vec3(pos.x - dir.x * length, pos.y - dir.y * length, pos.z - dir.z * length)
+    val left  = Vec3(tail.x - dir.y * width, tail.y + dir.x * width, tail.z)
+    val right = Vec3(tail.x + dir.y * width, tail.y - dir.x * width, tail.z)
     Seq(left, pos, right)
 
   }

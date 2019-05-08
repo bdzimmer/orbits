@@ -240,6 +240,8 @@ object RenderFlight {
       startDate: CalendarDateTime,
       endDate: CalendarDateTime): BufferedImage = {
 
+    val viewerSettings = Viewer.ViewerSettingsDefault
+
     val startDateJulian = startDate.julian
     val endDateJulian = endDate.julian
 
@@ -311,10 +313,10 @@ object RenderFlight {
           case _ => 0.0
         }
         drawFlightSummary(
-          im, x, faction, distance, vel, accel, origName, destName, startDate, endDate)
+          im, x, faction, distance, vel, accel, origName, destName, startDate, endDate, viewerSettings)
       }
       case x: ConstVelCraft => drawFlightSummary(
-        im, x, faction, distance, vel, origName, destName, startDate, endDate)
+        im, x, faction, distance, vel, origName, destName, startDate, endDate, viewerSettings)
     }
 
     // print some things for debugging
@@ -339,6 +341,8 @@ object RenderFlight {
       startDate: CalendarDateTime,
       endDate: CalendarDateTime,
       outputDir: String): Unit = {
+
+    val viewerSettings = Viewer.ViewerSettingsDefault
 
     val startDateJulian = startDate.julian
     val endDateJulian = endDate.julian
@@ -405,7 +409,7 @@ object RenderFlight {
       val xshiftAmount =  -imWidth * 0.1
       val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
 
-      val view = new Viewer(camTrans, viewPos)
+      val view = new Viewer(camTrans, viewPos, Viewer.ViewerSettingsDefault)
 
       val curDateTime = Conversions.julianToCalendarDate(ticks(idx))
 
@@ -438,7 +442,7 @@ object RenderFlight {
         0.0
       }
 
-      drawFlightStatus(im, ship, "", curDateTime, curDist, curVel)
+      drawFlightStatus(im, ship, "", curDateTime, curDist, curVel, viewerSettings)
 
       val outputImage = new java.io.File(outputDir / f"$idx%05d.png");
       ImageIO.write(im, "png", outputImage)
@@ -557,7 +561,7 @@ object RenderFlight {
 
   def defaultView(imWidth: Int, imHeight: Int, planetMax: Double, xshift: Boolean = true): Viewer = {
     val (camTrans, viewPos) = defaultViewParams(imWidth, imHeight, planetMax, xshift)
-    new Viewer(camTrans, viewPos)
+    new Viewer(camTrans, viewPos, Viewer.ViewerSettingsDefault)
   }
 
 
@@ -586,7 +590,8 @@ object RenderFlight {
       origName: String,
       destName: String,
       startDate: CalendarDateTime,
-      endDate: CalendarDateTime): Unit = {
+      endDate: CalendarDateTime,
+      viewerSettings: ViewerSettings): Unit = {
 
     // draw a table describing a summary of the flight
 
@@ -603,23 +608,23 @@ object RenderFlight {
     val thrustKN = thrust * aud2ToMs2
     val shipThrustKN = ship.thrust * aud2ToMs2
 
-    val columnWidth = 100
-    val tableStartX = Viewer.LineHeight
-    val tableStartY = Viewer.LineHeight * 2
+    // val columnWidth = 100
+    val tableStartX = viewerSettings.lineHeight
+    val tableStartY = viewerSettings.lineHeight * 2
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
 
     def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
       gr.setColor(Color.GREEN)
-      gr.setFont(Viewer.DisplayFont)
-      gr.drawString(desc, tableStartX, tableStartY + row * Viewer.LineHeight)
+      gr.setFont(viewerSettings.displayFont)
+      gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeight)
       gr.setColor(color)
       if (italic) {
-        gr.setFont(Viewer.DisplayFontItalic)
+        gr.setFont(viewerSettings.displayFontItalic)
       }
       values.zipWithIndex.foreach(x => {
-        gr.drawString(x._1, tableStartX + columnWidth, tableStartY + (row + x._2) * Viewer.LineHeight)
+        gr.drawString(x._1, tableStartX + viewerSettings.columnWidth, tableStartY + (row + x._2) * viewerSettings.lineHeight)
       })
     }
 
@@ -658,7 +663,8 @@ object RenderFlight {
     origName: String,
     destName: String,
     startDate: CalendarDateTime,
-    endDate: CalendarDateTime): Unit = {
+    endDate: CalendarDateTime,
+    viewerSettings: ViewerSettings): Unit = {
 
     // draw a table describing a summary of the flight
 
@@ -670,23 +676,23 @@ object RenderFlight {
     val shipVelKmPerSec = shipVelMetersPerSec / 1000.0
     val shipVelC = velMetersPerSec / Conversions.LightToMetersPerSec
 
-    val columnWidth = 100
-    val tableStartX = Viewer.LineHeight
-    val tableStartY = Viewer.LineHeight * 2
+    // val columnWidth = 100
+    val tableStartX = viewerSettings.lineHeight
+    val tableStartY = viewerSettings.lineHeight * 2
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
 
     def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
       gr.setColor(Color.GREEN)
-      gr.setFont(Viewer.DisplayFont)
-      gr.drawString(desc, tableStartX, tableStartY + row * Viewer.LineHeight)
+      gr.setFont(viewerSettings.displayFont)
+      gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeight)
       gr.setColor(color)
       if (italic) {
-        gr.setFont(Viewer.DisplayFontItalic)
+        gr.setFont(viewerSettings.displayFontItalic)
       }
       values.zipWithIndex.foreach(x => {
-        gr.drawString(x._1, tableStartX + columnWidth, tableStartY + (row + x._2) * Viewer.LineHeight)
+        gr.drawString(x._1, tableStartX + viewerSettings.columnWidth, tableStartY + (row + x._2) * viewerSettings.lineHeight)
       })
     }
 
@@ -716,7 +722,8 @@ object RenderFlight {
     faction: String,
     dateTime: CalendarDateTime,
     distance: Double,
-    vel: Double): Unit = {
+    vel: Double,
+    viewerSettings: ViewerSettings): Unit = {
 
     // draw a table describing the current flight status
 
@@ -742,23 +749,23 @@ object RenderFlight {
       case _ => 0.0
     }
 
-    val columnWidth = 100
-    val tableStartX = Viewer.LineHeight
-    val tableStartY = Viewer.LineHeight * 2
+    // val columnWidth = 100
+    val tableStartX = viewerSettings.lineHeight
+    val tableStartY = viewerSettings.lineHeight * 2
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
 
     def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
       gr.setColor(Color.GREEN)
-      gr.setFont(Viewer.DisplayFont)
-      gr.drawString(desc, tableStartX, tableStartY + row * Viewer.LineHeight)
+      gr.setFont(viewerSettings.displayFont)
+      gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeight)
       gr.setColor(color)
       if (italic) {
-        gr.setFont(Viewer.DisplayFontItalic)
+        gr.setFont(viewerSettings.displayFontItalic)
       }
       values.zipWithIndex.foreach(x => {
-        gr.drawString(x._1, tableStartX + columnWidth, tableStartY + (row + x._2) * Viewer.LineHeight)
+        gr.drawString(x._1, tableStartX + viewerSettings.columnWidth, tableStartY + (row + x._2) * viewerSettings.lineHeight)
       })
     }
 
