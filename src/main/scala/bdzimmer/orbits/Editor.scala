@@ -37,6 +37,7 @@ case class FlightParams(
 
 
 case class CameraControls(
+    cameraType: JComboBox[String],
     xAngleField: JSpinner,
     yAngleField: JSpinner,
     zAngleField: JSpinner,
@@ -93,9 +94,10 @@ class Editor(
 
   val toolbarRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT))
   val (cameraToolbar, cameraControls) = Editor.buildCameraToolbar(imWidth, redrawChangeListener)
-  // toolbarRow1.add(cameraToolbar)
+  cameraControls.cameraType.addActionListener(redrawActionListener)
+  toolbarRow1.add(cameraToolbar)
   // toolbarRow1.add(Editor.buildUnitConverterToolbar())
-  // toolbarsPanel.add(toolbarRow1, BorderLayout.SOUTH)
+  toolbarsPanel.add(toolbarRow1, BorderLayout.SOUTH)
 
   add(toolbarsPanel, BorderLayout.NORTH)
 
@@ -186,9 +188,12 @@ class Editor(
 
   def redraw(): Unit = {
 
+    // find selected planets
+    // TODO: update this when changing planet checkboxes
     val planets = planetCheckboxes.toList.filter(_._2._1.isSelected).map(x => {
       (x._1, x._2._2)
     })
+
 
     if (timelineButton.isSelected) {
 
@@ -221,6 +226,38 @@ class Editor(
       val flightPercent = flightsSlider.getValue / 100.0
       val curDateJulian = fp.startDate.julian + (fp.endDate.julian - fp.startDate.julian) * flightPercent
 
+
+      // get camera and viewer position
+      val (camTrans, viewPos) = cameraControls.cameraType.getSelectedItem.asInstanceOf[String] match {
+        case "Manual" => (getCamera, getViewPos)
+        case _        => {
+
+          val (flightFn, _) = Editor.paramsToFun(fp)
+          val curState = flightFn(curDateJulian)
+
+          // camera placed at 2 AU directly above the sun
+          // val camPos = Vec3(0, 0, 2)
+          val camPos = getCamPos
+          val viewPos = getViewPos
+
+          val camToShip = Vec2(curState.x - camPos.x, curState.y - camPos.y)
+          val camAngleX = math.atan2(curState.z - camPos.z, Vec2.length(camToShip))
+          val camAngleZ = math.atan2(camToShip.x, camToShip.y)
+
+          val camOrient = Vec3(-math.Pi * 0.5 - camAngleX, 0.0, math.Pi - camAngleZ)
+          val camRot = View.rotationZYX(camOrient)
+
+          val camTrans = View.cameraTransform(camRot, camPos)
+          // val xshiftAmount =  -imWidth * 0.1
+          // val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
+
+          (camTrans, viewPos)
+
+        }
+      }
+
+
+
       Draw.redraw(
         Some(fp),
         curDateJulian,
@@ -230,8 +267,8 @@ class Editor(
         asteroidBeltCheckBox.isSelected,
         lagrangePointsCheckBox.isSelected,
         flightStatusRadioButtons.indexWhere(_.isSelected),
-        getCamera,
-        getViewPos,
+        camTrans,
+        viewPos,
         im
       )
 
@@ -268,13 +305,15 @@ class Editor(
       View.rotationZYX(theta)
     }
 
+    View.cameraTransform(camRotation, getCamPos)
+
+  }
+
+  private def getCamPos: Vec3 = {
     val xPos = cameraControls.xPosField.getValue.asInstanceOf[Double]
     val yPos = cameraControls.yPosField.getValue.asInstanceOf[Double]
     val zPos = cameraControls.zPosField.getValue.asInstanceOf[Double]
-    val camPos = Vec3(xPos, yPos, zPos)
-
-    View.cameraTransform(camRotation, camPos)
-
+    Vec3(xPos, yPos, zPos)
   }
 
 
@@ -881,6 +920,8 @@ object Editor {
     val toolbar = new JToolBar()
     toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Camera"))
 
+    val cameraType = new JComboBox[String](List("Manual", "Follow Active").toArray)
+
     val xAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
     val yAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
     val zAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
@@ -913,6 +954,8 @@ object Editor {
     zPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     zViewPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
 
+    toolbar.add(cameraType)
+    toolbar.add(new JSeparator(SwingConstants.VERTICAL))
     toolbar.add(xAngleField)
     toolbar.add(yAngleField)
     toolbar.add(zAngleField)
@@ -924,6 +967,7 @@ object Editor {
     toolbar.add(zViewPosField)
 
     (toolbar, CameraControls(
+        cameraType,
         xAngleField, yAngleField, zAngleField, isIntrinsic,
         xPosField, yPosField, zPosField, zViewPosField))
 

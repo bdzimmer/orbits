@@ -136,7 +136,6 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
 
 
   def drawArrow(im: BufferedImage, os: OrbitalState, color: Color): Unit = {
-
     if (!settings.arrows3D) {
       val position = View.perspective(os.position, camTrans, viewPos)
       val direction = Vec2.normalize(Vec2.sub(
@@ -197,8 +196,10 @@ object Viewer {
   )
 
   val ViewerSettingsArtsy = ViewerSettings(
-    displayFont = new Font("Orbitron", Font.BOLD, 16),
-    displayFontItalic = new Font("Orbitron", Font.BOLD | Font.ITALIC, 16),
+    // displayFont = new Font("Orbitron", Font.BOLD, 16),
+    // displayFontItalic = new Font("Orbitron", Font.BOLD | Font.ITALIC, 16),
+    displayFont = new Font("Monospace", Font.BOLD, 16),
+    displayFontItalic = new Font("Monospace", Font.BOLD | Font.ITALIC, 16),
     lineHeight = 18,
     circleRadius = 6,
     columnWidth = 125,
