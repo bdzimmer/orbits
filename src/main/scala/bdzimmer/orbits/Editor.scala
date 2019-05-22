@@ -49,10 +49,20 @@ case class CameraControls(
 )
 
 
+case class ShowSettings(
+   var planets: scala.collection.immutable.Map[String, Boolean],
+   var lagrangePoints: Boolean,
+   var asteroidBelt: Boolean,
+   var flightStatus: Int      // TODO: enumeration
+)
+
+
 class Editor(
     flightsList: List[FlightParams],
     ships: List[Spacecraft]
   ) extends JFrame {
+
+  var showSettings = Editor.ShowSettingsDefault.copy()
 
   // make mutable copy of flights list
   val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
@@ -69,9 +79,9 @@ class Editor(
   var imagePanel = new ImagePanel(im)
 
   val redrawChangeListener: ChangeListener = new ChangeListener {
-    def stateChanged(event: ChangeEvent): Unit = {
-      redraw()
-    }
+      def stateChanged(event: ChangeEvent): Unit = {
+        redraw()
+      }
   }
 
   val redrawActionListener: ActionListener = new ActionListener {
@@ -103,13 +113,8 @@ class Editor(
 
   /// /// build menu bar
 
-  val (
-    mainMenuBar,
-    planetCheckboxes,
-    lagrangePointsCheckBox,
-    asteroidBeltCheckBox,
-    flightStatusRadioButtons) = Editor.buildMenuBar(
-    redrawChangeListener, redrawActionListener, flights, ships.map(x => (x.name, x)).toMap, rebuildFlights)
+  val mainMenuBar = Editor.buildMenuBar(
+    showSettings, redraw, flights, ships.map(x => (x.name, x)).toMap, rebuildFlights)
 
   setJMenuBar(mainMenuBar)
 
@@ -189,11 +194,8 @@ class Editor(
   def redraw(): Unit = {
 
     // find selected planets
-    // TODO: update this when changing planet checkboxes
-    val planets = planetCheckboxes.toList.filter(_._2._1.isSelected).map(x => {
-      (x._1, x._2._2)
-    })
-
+    val planets = showSettings.planets.filter(_._2).flatMap(
+      x => MeeusPlanets.Planets.get(x._1).map(y => (x._1, y))).toList
 
     if (timelineButton.isSelected) {
 
@@ -209,9 +211,9 @@ class Editor(
         planets,
         flights.toList,
         factions,
-        asteroidBeltCheckBox.isSelected,
-        lagrangePointsCheckBox.isSelected,
-        flightStatusRadioButtons.indexWhere(_.isSelected),
+        showSettings.asteroidBelt,
+        showSettings.lagrangePoints,
+        showSettings.flightStatus,
         getCamera,
         getViewPos,
         im
@@ -264,9 +266,9 @@ class Editor(
         planets,
         flights.toList,
         factions,
-        asteroidBeltCheckBox.isSelected,
-        lagrangePointsCheckBox.isSelected,
-        flightStatusRadioButtons.indexWhere(_.isSelected),
+        showSettings.asteroidBelt,
+        showSettings.lagrangePoints,
+        showSettings.flightStatus,
         camTrans,
         viewPos,
         im
@@ -330,9 +332,19 @@ class Editor(
 
 object Editor {
 
+  // TODO: move to ShowSettingsDefault
+  val InitialVisiblePlanets = List("Earth", "Mars", "Saturn", "Uranus")
+
+  val ShowSettingsDefault = ShowSettings(
+      planets = MeeusPlanets.Planets.map(x => (x._1, InitialVisiblePlanets.contains(x._1))),
+      lagrangePoints = false,
+      asteroidBelt = true,
+      flightStatus = 1
+  )
+
   val ViewWidth = 800
   val ViewHeight = 600
-  val InitialVisiblePlanets = List("Earth", "Mars", "Saturn", "Uranus")
+
 
   val ZoomSpeed = 50
   val PanSpeed = 0.01
@@ -377,16 +389,11 @@ object Editor {
 
 
   def buildMenuBar(
-      redrawChangeListener: ChangeListener,
-      redrawActionListener: ActionListener,
+      showSettings: ShowSettings,
+      redraw: () => Unit,
       flights: scala.collection.mutable.Buffer[FlightParams],
       ships: Map[String, Spacecraft],
-      rebuildFlights: () => Unit): (
-    JMenuBar,
-    scala.collection.immutable.ListMap[String, (JCheckBoxMenuItem, OrbitalElementsEstimator)],
-    JCheckBoxMenuItem,
-    JCheckBoxMenuItem,
-    List[JRadioButtonMenuItem]) = {
+      rebuildFlights: () => Unit): JMenuBar = {
 
     val menuBar = new JMenuBar()
 
@@ -420,7 +427,7 @@ object Editor {
         flights.clear()
         flightsLoaded.foreach(x => flights.append(x))
         rebuildFlights()
-        redrawActionListener.actionPerformed(event) // TODO: awkward
+        redraw()
 
       }
     })
@@ -443,35 +450,59 @@ object Editor {
     val viewMenu = new JMenu("View")
 
     val planetCheckBoxes = MeeusPlanets.Planets.map(x => (x._1, (new JCheckBoxMenuItem(x._1, false), x._2)))
-    InitialVisiblePlanets.foreach(x => planetCheckBoxes.get(x).foreach(_._1.setSelected(true)))
+
+    showSettings.planets.foreach(x => planetCheckBoxes.get(x._1).foreach(_._1.setSelected(x._2)))
+
     planetCheckBoxes.foreach(x => {
-      x._2._1.addChangeListener(redrawChangeListener)
+      x._2._1.addItemListener(new ItemListener {
+        def itemStateChanged(event: ItemEvent): Unit = {
+          println("updating visibility of " + x._1)
+          showSettings.planets = showSettings.planets + (x._1 -> x._2._1.isSelected)
+          redraw()
+        }
+      })
     })
     planetCheckBoxes.foreach(x => viewMenu.add(x._2._1))
+
     // TODO: sections for toggling inner and outer planets
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
-    val lagrangePointsCheckBox = new JCheckBoxMenuItem("Lagrange Points", true)
-    lagrangePointsCheckBox.addChangeListener(redrawChangeListener)
+    val lagrangePointsCheckBox = new JCheckBoxMenuItem("Lagrange Points", showSettings.lagrangePoints)
+    lagrangePointsCheckBox.addItemListener(new ItemListener {
+      override def itemStateChanged(e: ItemEvent): Unit = {
+        showSettings.lagrangePoints = lagrangePointsCheckBox.isSelected
+        redraw()
+      }
+    })
     viewMenu.add(lagrangePointsCheckBox)
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
-    val asteroidBeltCheckBox = new JCheckBoxMenuItem("Asteroid Belt", true)
-    asteroidBeltCheckBox.addChangeListener(redrawChangeListener)
+    val asteroidBeltCheckBox = new JCheckBoxMenuItem("Asteroid Belt", showSettings.asteroidBelt)
+    asteroidBeltCheckBox.addItemListener(new ItemListener {
+      override def itemStateChanged(e: ItemEvent): Unit = {
+        showSettings.asteroidBelt = asteroidBeltCheckBox.isSelected
+        redraw()
+      }
+    })
     viewMenu.add(asteroidBeltCheckBox)
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
     val flightStatusButtonGroup = new ButtonGroup()
     val flightStatusRadioButtons = List("Status", "Summary", "None").map(x => new JRadioButtonMenuItem(x))
-    flightStatusRadioButtons(0).setSelected(true)
-    flightStatusRadioButtons.foreach(x => x.addActionListener(redrawActionListener))
+    flightStatusRadioButtons(showSettings.flightStatus).setSelected(true)
+    flightStatusRadioButtons.foreach(x => x.addActionListener(new ActionListener {
+      override def actionPerformed(e: ActionEvent): Unit = {
+        showSettings.flightStatus = flightStatusRadioButtons.indexWhere(_.isSelected)
+        redraw()
+      }
+    }))
     flightStatusRadioButtons.map(x => flightStatusButtonGroup.add(x))
     flightStatusRadioButtons.foreach(x => viewMenu.add(x))
 
     menuBar.add(fileMenu)
     menuBar.add(viewMenu)
 
-    (menuBar, planetCheckBoxes, lagrangePointsCheckBox, asteroidBeltCheckBox, flightStatusRadioButtons)
+    menuBar
   }
 
 
