@@ -68,7 +68,7 @@ object Draw {
       view, im, planetMotions, otherFlights.zip(otherFlightsColors).toList, GridLim)
 
     if (asteroidBelt) {
-      view.drawRing(im, BeltR0, BeltR1, new Color(64, 64, 64, 64))
+      view.drawRing(im, BeltR0, BeltR1, new Color(64, 64, 64, 128))
     }
 
     // draw L3, L4 and L5 points of visible planets

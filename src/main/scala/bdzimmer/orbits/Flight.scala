@@ -488,7 +488,7 @@ object RenderFlight {
        gridLim: Int): Unit = {
 
     // draw the grid and the sun
-    view.drawGrid(im, gridLim, new Color(0, 0, 80))
+    view.drawGrid(im, gridLim, new Color(0, 0, 128))
     view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
 
     // draw the orbits of planets and their positions
