@@ -36,16 +36,27 @@ case class FlightParams(
 }
 
 
-case class CameraControls(
-    cameraType: JComboBox[String],
-    xAngleField: JSpinner,
-    yAngleField: JSpinner,
-    zAngleField: JSpinner,
-    isIntrinsic: JCheckBox,
-    xPosField: JSpinner,
-    yPosField: JSpinner,
-    zPosField: JSpinner,
-    zViewPosField: JSpinner
+case class CameraSettings(
+    var cameraType: String,
+    var xAngle: Double,
+    var yAngle: Double,
+    var zAngle: Double,
+    var isIntrinsic: Boolean,
+    var xPos: Double,
+    var yPos: Double,
+    var zPos: Double,
+    var zViewPos: Double
+)
+
+
+case class UpdateCameraControls(
+    setXAngle: Double => Unit,
+    setYAngle: Double => Unit,
+    setZAngle: Double => Unit,
+    setXPos: Double => Unit,
+    setYPos: Double => Unit,
+    setZPos: Double => Unit,
+    setZViewPos: Double => Unit
 )
 
 
@@ -62,12 +73,11 @@ class Editor(
     ships: List[Spacecraft]
   ) extends JFrame {
 
-  var showSettings = Editor.ShowSettingsDefault.copy()
+  val showSettings = Editor.ShowSettingsDefault.copy()
+  val cameraSettings = Editor.CameraSettingsDefault.copy()
 
   // make mutable copy of flights list
   val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
-
-  setTitle("Orbits Editor")
 
   val factions: Map[String, Color] = IO.loadFactions(Editor.FactionsFilename)
 
@@ -78,24 +88,14 @@ class Editor(
   var im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
   var imagePanel = new ImagePanel(im)
 
-  val redrawChangeListener: ChangeListener = new ChangeListener {
-      def stateChanged(event: ChangeEvent): Unit = {
-        redraw()
-      }
-  }
-
-  val redrawActionListener: ActionListener = new ActionListener {
-    def actionPerformed(event: ActionEvent): Unit = {
-      redraw()
-    }
-  }
-
   /// /// build toolbars
 
   val toolbarsPanel = new JPanel(new BorderLayout())
 
   val toolbarRow0 = new JPanel(new FlowLayout(FlowLayout.LEFT))
-  val (flightsToolbar, flightsComboBox, flightsSlider, getTimelineTime, timelineButton, rebuildFlights) = Editor.buildFlightsToolbar(
+  val (
+      flightsToolbar, flightsComboBox,
+      flightsSlider, getTimelineTime, timelineButton, rebuildFlights) = Editor.buildFlightsToolbar(
       flights, ships, redraw)
   toolbarRow0.add(flightsToolbar)
   toolbarRow0.add(
@@ -103,8 +103,8 @@ class Editor(
   toolbarsPanel.add(toolbarRow0, BorderLayout.NORTH)
 
   val toolbarRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT))
-  val (cameraToolbar, cameraControls) = Editor.buildCameraToolbar(imWidth, redrawChangeListener)
-  cameraControls.cameraType.addActionListener(redrawActionListener)
+  val (cameraToolbar, updateCameraControls) = Editor.buildCameraToolbar(cameraSettings, imWidth, redraw)
+
   toolbarRow1.add(cameraToolbar)
   // toolbarRow1.add(Editor.buildUnitConverterToolbar())
   toolbarsPanel.add(toolbarRow1, BorderLayout.SOUTH)
@@ -125,8 +125,8 @@ class Editor(
   viewPanel.addMouseWheelListener(new MouseWheelListener() {
     def mouseWheelMoved(event: MouseWheelEvent): Unit = {
       val notches = event.getWheelRotation
-      val zViewPos = cameraControls.zViewPosField.getValue.asInstanceOf[Double] - notches * Editor.ZoomSpeed
-      cameraControls.zViewPosField.setValue(math.max(zViewPos, 0.0))
+      val zViewPos = cameraSettings.zViewPos - notches * Editor.ZoomSpeed
+      updateCameraControls.setZViewPos(math.max(zViewPos, 0.0))
       // don't need to redraw here, since it seems that the above triggers change listener
     }
   })
@@ -141,11 +141,11 @@ class Editor(
       x = event.getX
       y = event.getY
       if (event.getButton == MouseEvent.BUTTON1) {
-        cx = cameraControls.xAngleField.getValue.asInstanceOf[Double]
-        cy = cameraControls.yAngleField.getValue.asInstanceOf[Double]
+        cx = cameraSettings.xAngle
+        cy = cameraSettings.yAngle
       } else {
-        cx = cameraControls.xPosField.getValue.asInstanceOf[Double]
-        cy = cameraControls.yPosField.getValue.asInstanceOf[Double]
+        cx = cameraSettings.xPos
+        cy = cameraSettings.yPos
       }
     }
 
@@ -156,12 +156,12 @@ class Editor(
       // TODO: adjust and rotate direction based on camera angle
       if ((event.getModifiersEx & InputEvent.BUTTON1_DOWN_MASK) != 0) {
         // println("changing angles")
-        cameraControls.xAngleField.setValue(cx + dy * Editor.RotateSpeed)
-        cameraControls.yAngleField.setValue(cy + dx * Editor.RotateSpeed)
+        updateCameraControls.setXAngle(cx + dy * Editor.RotateSpeed)
+        updateCameraControls.setYAngle(cy + dx * Editor.RotateSpeed)
       } else {
         // println("changing pan")
-        cameraControls.xPosField.setValue(cx - dx * Editor.PanSpeed)
-        cameraControls.yPosField.setValue(cy + dy * Editor.PanSpeed)
+        updateCameraControls.setXPos(cx - dx * Editor.PanSpeed)
+        updateCameraControls.setYPos(cy + dy * Editor.PanSpeed)
       }
     }
   }
@@ -173,6 +173,7 @@ class Editor(
 
   /// ///
 
+  setTitle("Orbits Editor")
   pack()
   redraw()
 
@@ -228,9 +229,8 @@ class Editor(
       val flightPercent = flightsSlider.getValue / 100.0
       val curDateJulian = fp.startDate.julian + (fp.endDate.julian - fp.startDate.julian) * flightPercent
 
-
       // get camera and viewer position
-      val (camTrans, viewPos) = cameraControls.cameraType.getSelectedItem.asInstanceOf[String] match {
+      val (camTrans, viewPos) = cameraSettings.cameraType match {
         case "Manual" => (getCamera, getViewPos)
         case _        => {
 
@@ -257,8 +257,6 @@ class Editor(
 
         }
       }
-
-
 
       Draw.redraw(
         Some(fp),
@@ -296,12 +294,12 @@ class Editor(
   // get camera matrix from UI
   private def getCamera: Mat44 = {
 
-    val xAngle = cameraControls.xAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
-    val yAngle = cameraControls.yAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
-    val zAngle = cameraControls.zAngleField.getValue.asInstanceOf[Double] * math.Pi / 180
+    val xAngle = cameraSettings.xAngle * math.Pi / 180
+    val yAngle = cameraSettings.yAngle * math.Pi / 180
+    val zAngle = cameraSettings.zAngle * math.Pi / 180
     val theta = Vec3(xAngle, yAngle, zAngle)
 
-    val camRotation = if (!cameraControls.isIntrinsic.isSelected()) {
+    val camRotation = if (!cameraSettings.isIntrinsic) {
       View.rotationXYZ(theta)
     } else {
       View.rotationZYX(theta)
@@ -312,17 +310,13 @@ class Editor(
   }
 
   private def getCamPos: Vec3 = {
-    val xPos = cameraControls.xPosField.getValue.asInstanceOf[Double]
-    val yPos = cameraControls.yPosField.getValue.asInstanceOf[Double]
-    val zPos = cameraControls.zPosField.getValue.asInstanceOf[Double]
-    Vec3(xPos, yPos, zPos)
+    Vec3(cameraSettings.xPos, cameraSettings.yPos, cameraSettings.zPos)
   }
 
 
   // get viewer position from UI
   private def getViewPos: Vec3 = {
-    val zViewPos = cameraControls.zViewPosField.getValue.asInstanceOf[Double]
-    Vec3(0, 0, zViewPos)
+    Vec3(0, 0, cameraSettings.zViewPos)
   }
 
 
@@ -331,6 +325,19 @@ class Editor(
 
 
 object Editor {
+
+  val CameraSettingsDefault = CameraSettings(
+     cameraType = "Manual",
+     xAngle = 45.0,
+     yAngle = 0.0,
+     zAngle = 180.0,
+     isIntrinsic = false,
+     xPos = 0.0,
+     yPos = -5.0,
+     zPos = 5.0,
+     zViewPos = 0.0
+  )
+
 
   // TODO: move to ShowSettingsDefault
   val InitialVisiblePlanets = List("Earth", "Mars", "Saturn", "Uranus")
@@ -428,7 +435,6 @@ object Editor {
         flightsLoaded.foreach(x => flights.append(x))
         rebuildFlights()
         redraw()
-
       }
     })
 
@@ -944,7 +950,7 @@ object Editor {
 
 
   def buildCameraToolbar(
-      zViewPos: Double, redrawChangeListener: ChangeListener): (JToolBar, CameraControls) = {
+      cameraSettings: CameraSettings, zViewPos: Double, redraw: () => Unit): (JToolBar, UpdateCameraControls) = {
 
     val spinnerWidth = 3
 
@@ -952,34 +958,76 @@ object Editor {
     toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Camera"))
 
     val cameraType = new JComboBox[String](List("Manual", "Follow Active").toArray)
+    cameraType.addActionListener(new ActionListener {
+      override def actionPerformed(e: ActionEvent): Unit = {
+          cameraSettings.cameraType = cameraType.getSelectedItem.asInstanceOf[String]
+          redraw()
+      }
+    })
 
-    val xAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
-    val yAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
-    val zAngleField = new JSpinner(new SpinnerNumberModel(0.0, -360.0, 360.0, 0.25))
-    xAngleField.setValue(45.0)
-    yAngleField.setValue(0.0)
-    zAngleField.setValue(180.0)
-    xAngleField.addChangeListener(redrawChangeListener)
-    yAngleField.addChangeListener(redrawChangeListener)
-    zAngleField.addChangeListener(redrawChangeListener)
+    val xAngleField = new JSpinner(new SpinnerNumberModel(cameraSettings.xAngle, -360.0, 360.0, 0.25))
+    val yAngleField = new JSpinner(new SpinnerNumberModel(cameraSettings.yAngle, -360.0, 360.0, 0.25))
+    val zAngleField = new JSpinner(new SpinnerNumberModel(cameraSettings.zAngle, -360.0, 360.0, 0.25))
+    xAngleField.addChangeListener(new ChangeListener {
+      override def stateChanged(e: ChangeEvent): Unit = {
+        cameraSettings.xAngle = xAngleField.getValue.asInstanceOf[Double]
+        redraw()
+      }
+    })
+    yAngleField.addChangeListener(new ChangeListener {
+      override def stateChanged(e: ChangeEvent): Unit = {
+        cameraSettings.yAngle = yAngleField.getValue.asInstanceOf[Double]
+        redraw()
+      }
+    })
+    zAngleField.addChangeListener(new ChangeListener {
+      override def stateChanged(e: ChangeEvent): Unit = {
+        cameraSettings.zAngle = zAngleField.getValue.asInstanceOf[Double]
+        redraw()
+      }
+    })
     xAngleField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     yAngleField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     zAngleField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     val isIntrinsic = new JCheckBox("Int")
-    isIntrinsic.addChangeListener(redrawChangeListener)
+    isIntrinsic.setSelected(cameraSettings.isIntrinsic)
+    isIntrinsic.addChangeListener(new ChangeListener {
+      override def stateChanged(e: ChangeEvent): Unit = {
+        cameraSettings.isIntrinsic = isIntrinsic.isSelected
+        redraw()
+      }
+    })
 
-    val xPosField = new JSpinner(new SpinnerNumberModel(0.0, -100.0, 100.0, 0.2))
-    val yPosField = new JSpinner(new SpinnerNumberModel(0.0, -100.0, 100.0, 0.2))
-    val zPosField = new JSpinner(new SpinnerNumberModel(0.0, -100.0, 100.0, 0.2))
-    val zViewPosField = new JSpinner(new SpinnerNumberModel(0.0, 0.0, 10000.0, 10.0))
-    xPosField.setValue(0.0)
-    yPosField.setValue(-5.0)
-    zPosField.setValue(5.0)
+    val xPosField = new JSpinner(new SpinnerNumberModel(cameraSettings.xPos, -100.0, 100.0, 0.2))
+    val yPosField = new JSpinner(new SpinnerNumberModel(cameraSettings.yPos, -100.0, 100.0, 0.2))
+    val zPosField = new JSpinner(new SpinnerNumberModel(cameraSettings.zPos, -100.0, 100.0, 0.2))
+    val zViewPosField = new JSpinner(new SpinnerNumberModel(cameraSettings.zViewPos, 0.0, 10000.0, 10.0))
+
+    xPosField.addChangeListener(new ChangeListener {
+      override def stateChanged(e: ChangeEvent): Unit = {
+        cameraSettings.xPos = xPosField.getValue.asInstanceOf[Double]
+        redraw()
+      }
+    })
+    yPosField.addChangeListener(new ChangeListener {
+      override def stateChanged(e: ChangeEvent): Unit = {
+        cameraSettings.yPos = yPosField.getValue.asInstanceOf[Double]
+        redraw()
+      }
+    })
+    zPosField.addChangeListener(new ChangeListener {
+      override def stateChanged(e: ChangeEvent): Unit = {
+        cameraSettings.zPos = zPosField.getValue.asInstanceOf[Double]
+        redraw()
+      }
+    })
+    zViewPosField.addChangeListener(new ChangeListener {
+      override def stateChanged(e: ChangeEvent): Unit = {
+        cameraSettings.zViewPos = zViewPosField.getValue.asInstanceOf[Double]
+        redraw()
+      }
+    })
     zViewPosField.setValue(zViewPos)
-    xPosField.addChangeListener(redrawChangeListener)
-    yPosField.addChangeListener(redrawChangeListener)
-    zPosField.addChangeListener(redrawChangeListener)
-    zViewPosField.addChangeListener(redrawChangeListener)
     xPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     yPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     zPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
@@ -997,10 +1045,17 @@ object Editor {
     toolbar.add(zPosField)
     toolbar.add(zViewPosField)
 
-    (toolbar, CameraControls(
-        cameraType,
-        xAngleField, yAngleField, zAngleField, isIntrinsic,
-        xPosField, yPosField, zPosField, zViewPosField))
+    val updateCameraControls = UpdateCameraControls(
+      setXAngle = x => xAngleField.setValue(x),
+      setYAngle = x => yAngleField.setValue(x),
+      setZAngle = x => zAngleField.setValue(x),
+      setXPos = x => xPosField.setValue(x),
+      setYPos = x => yPosField.setValue(x),
+      setZPos = x => zPosField.setValue(x),
+      setZViewPos = x => zViewPosField.setValue(x)
+    )
+
+    (toolbar, updateCameraControls)
 
   }
 
