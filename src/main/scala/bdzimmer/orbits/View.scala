@@ -58,13 +58,13 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       pos: Seq[Vec3],
       color: Color,
       lines: Boolean = true,
-      verticals: Boolean = false): Unit = {
+      verticals: Boolean = true): Unit = {
 
     val pos2d = pos.map(p => View.perspective(p, camTrans, viewPos))
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
 
-    if (lines) {
+    if (!lines) {
       val colInt = color.getRGB
       pos2d.foreach(p => {
         val x = p.x.toInt + im.getWidth / 2
@@ -88,7 +88,39 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     }
 
     if (verticals) {
-      gr.setColor(color)
+      val colorWithAlpha = new Color(
+        color.getRed, color.getGreen, color.getBlue, Math.min(128, color.getAlpha))
+      gr.setColor(colorWithAlpha)
+
+      if (pos.length > 1) {
+        pos.zipWithIndex.dropRight(1).foreach({case (pr0, idx) => {
+
+          val p0 = View.perspective(pr0, camTrans, viewPos)
+          val pr0_b = Vec3(pr0.x, pr0.y, 0.0)
+          val p0_b = View.perspective(pr0_b, camTrans, viewPos)
+
+          val pr1 = pos(idx + 1)
+          val p1 = View.perspective(pr1, camTrans, viewPos)
+          val pr1_b = Vec3(pr1.x, pr1.y, 0.0)
+          val p1_b = View.perspective(pr1_b, camTrans, viewPos)
+
+
+          val (x0, y0) = cvtPos(im, p0.x.toInt, p0.y.toInt)
+          val (x0_b, y0_b) = cvtPos(im, p0_b.x.toInt, p0_b.y.toInt)
+          val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)
+          val (x1_b, y1_b) = cvtPos(im, p1_b.x.toInt, p1_b.y.toInt)
+
+          gr.fillPolygon(
+              Array(x0, x0_b, x1_b, x1),
+              Array(y0, y0_b, y1_b, y1),
+             4
+          )
+
+
+        }})
+      }
+
+      /*
       pos.foreach(pr => {
         val p = View.perspective(pr, camTrans, viewPos)
         val pr0 = Vec3(pr.x, pr.y, 0.0)
@@ -99,10 +131,16 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
         val y2 = im.getHeight - (p2.y.toInt + im.getHeight / 2)
         gr.drawLine(x, y, x2, y2)
       })
+      */
+
     }
 
   }
 
+
+  def cvtPos(im: BufferedImage, x: Int, y: Int): (Int, Int) = {
+    (x + im.getWidth / 2, im.getHeight - (y+ im.getHeight / 2))
+  }
 
   def drawPosition(
       im: BufferedImage, pos: Vec3, name: String, desc: String,
@@ -180,8 +218,14 @@ case class ViewerSettings(
     displayFont: Font,
     displayFontItalic: Font,
     lineHeight: Int,
-    circleRadius: Int,
     columnWidth: Int,
+
+    displayFontSmall: Font,
+    displayFontItalicSmall: Font,
+    lineHeightSmall: Int,
+    columnWidthSmall: Int,
+
+    circleRadius: Int,
     arrows3D: Boolean,
     arrowLength: Double
 )
@@ -193,8 +237,15 @@ object Viewer {
     displayFont = new Font("Monospace", Font.BOLD, 12),
     displayFontItalic = new Font("Monospace", Font.BOLD | Font.ITALIC, 12),
     lineHeight = 14,
-    circleRadius = 6,
     columnWidth = 100,
+
+    displayFontSmall = new Font("Monospace", Font.BOLD, 12),
+    displayFontItalicSmall = new Font("Monospace", Font.BOLD | Font.ITALIC, 12),
+    lineHeightSmall = 14,
+    columnWidthSmall = 100,
+
+
+    circleRadius = 6,
     arrows3D = false,
     arrowLength = 0.0
   )
@@ -202,11 +253,18 @@ object Viewer {
   val ViewerSettingsArtsy = ViewerSettings(
     // displayFont = new Font("Orbitron", Font.BOLD, 16),
     // displayFontItalic = new Font("Orbitron", Font.BOLD | Font.ITALIC, 16),
-    displayFont = new Font("Monospace", Font.BOLD, 16),
-    displayFontItalic = new Font("Monospace", Font.BOLD | Font.ITALIC, 16),
+
+    displayFont = new Font("Consolas", Font.PLAIN, 16),
+    displayFontItalic = new Font("Consolas", Font.PLAIN | Font.ITALIC, 16),
     lineHeight = 18,
-    circleRadius = 6,
     columnWidth = 125,
+
+    displayFontSmall = new Font("Consolas", Font.PLAIN, 10),
+    displayFontItalicSmall = new Font("Consolas", Font.PLAIN | Font.ITALIC, 10),
+    lineHeightSmall = 11,
+    columnWidthSmall = 60,
+
+    circleRadius = 6,
     arrows3D = true,
     arrowLength = 150.0
   )
