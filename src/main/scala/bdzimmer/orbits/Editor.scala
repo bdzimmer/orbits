@@ -75,6 +75,7 @@ class Editor(
 
   val showSettings = Editor.ShowSettingsDefault.copy()
   val cameraSettings = Editor.CameraSettingsDefault.copy()
+  var prevPos = Vec3(0.0, 0.0, 0.0)
 
   // make mutable copy of flights list
   val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
@@ -206,6 +207,40 @@ class Editor(
       val activeFlights = flights.filter(x => curDateJulian > x.startDate.julian && curDateJulian < x.endDate.julian)
       val fpOption = activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
 
+      // get camera and viewer position
+      val (camTrans, viewPos) = cameraSettings.cameraType match {
+        case "Manual" => (getCamera, getViewPos)
+        case _        => {
+
+          val damping = 20.0
+          val initial = Vec3.mul(prevPos, damping)
+
+          // average positions of active flights with initial
+          val curState = Vec3.mul(
+            activeFlights.map(fp => {
+              val (flightFn, _) = Editor.paramsToFun(fp)
+              flightFn(curDateJulian)
+            }).foldLeft(initial)(Vec3.add),
+            1.0 / (activeFlights.length + damping)
+          )
+
+          // update previous position
+          prevPos = curState
+
+          val camPos = getCamPos
+          val viewPos = getViewPos
+          val camRot = Editor.pointCamera(curState, camPos)
+
+          val camTrans = View.cameraTransform(camRot, camPos)
+          // val xshiftAmount =  -imWidth * 0.1
+          // val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
+
+          // update pr
+
+          (camTrans, viewPos)
+        }
+      }
+
       Draw.redraw(
         fpOption,
         curDateJulian,
@@ -215,8 +250,8 @@ class Editor(
         showSettings.asteroidBelt,
         showSettings.lagrangePoints,
         showSettings.flightStatus,
-        getCamera,
-        getViewPos,
+        camTrans,
+        viewPos,
         im
       )
 
@@ -237,17 +272,9 @@ class Editor(
           val (flightFn, _) = Editor.paramsToFun(fp)
           val curState = flightFn(curDateJulian)
 
-          // camera placed at 2 AU directly above the sun
-          // val camPos = Vec3(0, 0, 2)
           val camPos = getCamPos
           val viewPos = getViewPos
-
-          val camToShip = Vec2(curState.x - camPos.x, curState.y - camPos.y)
-          val camAngleX = math.atan2(curState.z - camPos.z, Vec2.length(camToShip))
-          val camAngleZ = math.atan2(camToShip.x, camToShip.y)
-
-          val camOrient = Vec3(-math.Pi * 0.5 - camAngleX, 0.0, math.Pi - camAngleZ)
-          val camRot = View.rotationZYX(camOrient)
+          val camRot = Editor.pointCamera(curState, camPos)
 
           val camTrans = View.cameraTransform(camRot, camPos)
           // val xshiftAmount =  -imWidth * 0.1
@@ -367,7 +394,6 @@ object Editor {
     val startDateJulian = fp.startDate.julian
     val endDateJulian = fp.endDate.julian
 
-
     val res = if ((endDateJulian - startDateJulian) > 1.0) {
       // one tick per hour
       1.0 / 24.0
@@ -392,6 +418,14 @@ object Editor {
     }
 
     (flightFn, ticks)
+  }
+
+  def pointCamera(point: Vec3, camPos: Vec3): Mat33 = {
+    val camToPoint = Vec2(point.x - camPos.x, point.y - camPos.y)
+    val camAngleX = math.atan2(point.z - camPos.z, Vec2.length(camToPoint))
+    val camAngleZ = math.atan2(camToPoint.x, camToPoint.y)
+    val camOrient = Vec3(-math.Pi * 0.5 - camAngleX, 0.0, math.Pi - camAngleZ)
+    View.rotationZYX(camOrient)
   }
 
 
@@ -814,43 +848,89 @@ object Editor {
     // day, hour, minute
     val skipAmounts = List(-1.0, -1.0 / 24.0, -1.0 / 1440.0, 1.0 / 1440.0, 1.0 / 24.0, 1.0)
     val skipLabels = List("<<<", "<<", "<", ">", ">>", ">>>")
+    val skipButtons = new ClearableButtonGroup()
     skipAmounts.zip(skipLabels).foreach({case (skipAmount, skipLabel) => {
-      val skipButton = new JButton(skipLabel)
 
-      // skipButton.addActionListener(new ActionListener {
-      //   override def actionPerformed(e: ActionEvent): Unit = {
-      //     updateTimelineTime(timelineTime + skipAmount)
-      //     redraw()
-      //   }
-      // })
+      if (false) {
 
-      skipButton.addMouseListener(new MouseAdapter() {
-        override def mousePressed(e: MouseEvent): Unit = {
-          runAtIntervalThread = new Thread(new RunAtInterval(() => {
-            // println("updating in thread")
-            val newTime = timelineTime + skipAmount
-            updateTimelineTime(newTime)
-            // update slider position
-            Disable(
-              timelineSlider,
-              {
-                val (startDate, endDate) = dateRange()
-                val sliderPercent = (timelineTime - startDate) / (endDate - startDate)
-                timelineSlider.setValue((sliderPercent * sliderMax).toInt)
-              }
-            )
-            redraw()
-          }, delayMsText.getText.toIntSafe(50) / 1000.0))
-          runAtIntervalThread.start()
-        }
-        override def mouseReleased(e: MouseEvent): Unit = {
-          // could potentially update slider position here
-          if (runAtIntervalThread != null) {
-            runAtIntervalThread.interrupt()
+        val skipButton = new JButton(skipLabel)
+
+        // skipButton.addActionListener(new ActionListener {
+        //   override def actionPerformed(e: ActionEvent): Unit = {
+        //     updateTimelineTime(timelineTime + skipAmount)
+        //     redraw()
+        //   }
+        // })
+
+        skipButton.addMouseListener(new MouseAdapter() {
+          override def mousePressed(e: MouseEvent): Unit = {
+            runAtIntervalThread = new Thread(new RunAtInterval(() => {
+              // println("updating in thread")
+              val newTime = timelineTime + skipAmount
+              updateTimelineTime(newTime)
+              // update slider position
+              Disable(
+                timelineSlider,
+                {
+                  val (startDate, endDate) = dateRange()
+                  val sliderPercent = (timelineTime - startDate) / (endDate - startDate)
+                  timelineSlider.setValue((sliderPercent * sliderMax).toInt)
+                }
+              )
+              redraw()
+            }, delayMsText.getText.toIntSafe(50) / 1000.0))
+            runAtIntervalThread.start()
           }
-        }
-      })
-      skipPanel.add(skipButton)
+          override def mouseReleased(e: MouseEvent): Unit = {
+            // could potentially update slider position here
+            if (runAtIntervalThread != null) {
+              runAtIntervalThread.interrupt()
+            }
+          }
+        })
+        skipPanel.add(skipButton)
+
+      } else {
+
+        val skipButton = new JToggleButton(skipLabel)
+        skipButton.addItemListener(new ItemListener {
+          override def itemStateChanged(e: ItemEvent): Unit = {
+            if(e.getStateChange == ItemEvent.SELECTED) {
+              runAtIntervalThread = new Thread(new RunAtInterval(() => {
+                // println("updating in thread")
+                val newTime = timelineTime + skipAmount
+                updateTimelineTime(newTime)
+                // update slider position
+                Disable(
+                  timelineSlider,
+                  {
+                    val (startDate, endDate) = dateRange()
+                    val sliderPercent = (timelineTime - startDate) / (endDate - startDate)
+                    timelineSlider.setValue((sliderPercent * sliderMax).toInt)
+                  }
+                )
+                redraw()
+              }, delayMsText.getText.toIntSafe(50) / 1000.0))
+              runAtIntervalThread.start()
+            } else if (e.getStateChange == ItemEvent.DESELECTED) {
+              // could potentially update slider position here
+              if (runAtIntervalThread != null) {
+                runAtIntervalThread.interrupt()
+              }
+            }
+
+          }
+        })
+        skipButton.addActionListener(new ActionListener {
+          override def actionPerformed(e: ActionEvent): Unit = {
+            if (!skipButton.isSelected) {
+              skipButtons.clearSelection()
+            }
+          }
+        })
+        skipButtons.add(skipButton)
+        skipPanel.add(skipButton)
+      }
     }})
     skipPanel.add(delayMsText)
 

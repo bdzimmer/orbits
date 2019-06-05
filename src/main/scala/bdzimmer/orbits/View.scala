@@ -58,7 +58,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       pos: Seq[Vec3],
       color: Color,
       lines: Boolean = true,
-      verticals: Boolean = true): Unit = {
+      verticals: Boolean = false): Unit = {
 
     val pos2d = pos.map(p => View.perspective(p, camTrans, viewPos))
 
@@ -76,13 +76,11 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     } else {
       gr.setColor(color)
       if (pos2d.length > 1) {
-        pos2d.zipWithIndex.dropRight(1).foreach({case (p, idx) => {
-          val x = p.x.toInt + im.getWidth / 2
-          val y = im.getHeight - (p.y.toInt + im.getHeight / 2)
+        pos2d.zipWithIndex.dropRight(1).foreach({case (p1, idx) => {
+          val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)  // TODO: experiment with round
           val p2 = pos2d(idx + 1)
-          val x2 = p2.x.toInt + im.getWidth / 2
-          val y2 = im.getHeight - (p2.y.toInt + im.getHeight / 2)
-          gr.drawLine(x, y, x2, y2)
+          val (x2, y2) = cvtPos(im, p2.x.toInt, p2.y.toInt)
+          gr.drawLine(x1, y1, x2, y2)
         }})
       }
     }
@@ -139,7 +137,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
 
 
   def cvtPos(im: BufferedImage, x: Int, y: Int): (Int, Int) = {
-    (x + im.getWidth / 2, im.getHeight - (y+ im.getHeight / 2))
+    (x + im.getWidth / 2, im.getHeight - (y + im.getHeight / 2))
   }
 
   def drawPosition(
@@ -167,13 +165,16 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
 
 
   def drawPolygon(im: BufferedImage, polygon: Seq[Vec2], color: Color): Unit = {
-    val gr = im.getGraphics.asInstanceOf[Graphics2D]
-    gr.setRenderingHints(Viewer.RenderHints)
-    gr.setColor(color)
-    gr.fillPolygon(
-        polygon.map(v => v.x.toInt + im.getWidth / 2).toArray,
-        polygon.map(v => im.getHeight - (v.y.toInt + im.getHeight / 2)).toArray,
+    val ptsShifted = polygon.map(p => cvtPos(im, p.x.toInt, p.y.toInt))
+    if (!ptsShifted.exists(p => (math.abs(p._1) > 32768) || (math.abs(p._2) > 32768))) {
+      val gr = im.getGraphics.asInstanceOf[Graphics2D]
+      gr.setRenderingHints(Viewer.RenderHints)
+      gr.setColor(color)
+      gr.fillPolygon(
+        ptsShifted.map(_._1).toArray,
+        ptsShifted.map(_._2).toArray,
         polygon.length)
+    }
   }
 
 
@@ -254,19 +255,19 @@ object Viewer {
     // displayFont = new Font("Orbitron", Font.BOLD, 16),
     // displayFontItalic = new Font("Orbitron", Font.BOLD | Font.ITALIC, 16),
 
-    displayFont = new Font("Consolas", Font.PLAIN, 16),
-    displayFontItalic = new Font("Consolas", Font.PLAIN | Font.ITALIC, 16),
+    displayFont = new Font("Play", Font.PLAIN, 16),
+    displayFontItalic = new Font("Play", Font.PLAIN | Font.ITALIC, 16),
     lineHeight = 18,
     columnWidth = 125,
 
-    displayFontSmall = new Font("Consolas", Font.PLAIN, 10),
-    displayFontItalicSmall = new Font("Consolas", Font.PLAIN | Font.ITALIC, 10),
+    displayFontSmall = new Font("Play", Font.PLAIN, 10),
+    displayFontItalicSmall = new Font("Play", Font.PLAIN | Font.ITALIC, 10),
     lineHeightSmall = 11,
     columnWidthSmall = 60,
 
     circleRadius = 6,
     arrows3D = true,
-    arrowLength = 150.0
+    arrowLength = 100.0
   )
 
 

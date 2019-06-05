@@ -5,7 +5,7 @@
 package bdzimmer.orbits
 
 import java.awt.event.{ActionEvent, ActionListener}
-import javax.swing.{JComboBox, JSlider}
+import javax.swing.{JComboBox, JSlider, ButtonGroup, ButtonModel}
 import javax.swing.event.{ChangeEvent, ChangeListener}
 
 import scala.util.Try
@@ -69,6 +69,17 @@ class RunAtInterval(fn: () => Unit, sec: Double) extends Runnable {
           // e.printStackTrace()
         }
       }
+    }
+  }
+}
+
+
+class ClearableButtonGroup extends ButtonGroup {
+  override def setSelected(model: ButtonModel, selected: Boolean): Unit = {
+    if (selected) {
+      super.setSelected(model, selected)
+    } else {
+      clearSelection()
     }
   }
 }

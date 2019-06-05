@@ -790,6 +790,7 @@ object RenderFlight {
     im: BufferedImage,
     ship: Spacecraft,
     faction: String,
+    factionColor: Color,
     dateTime: CalendarDateTime,
     distance: Double,
     vel: Double,
@@ -842,8 +843,8 @@ object RenderFlight {
       })
     }
 
-    table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, italic = true)
-    table("Faction:",    Seq(faction), 1)
+    table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, factionColor, italic = true)
+    table("Faction:",    Seq(faction), 1, factionColor)
     // table("Mass:",       Seq(massString    + " tonnes"), 2)
     // table("a max:",      Seq("%.4f".format(shipAccel)   + " AU/day²",
     //   "%.4f".format(shipAccelG)   + " g" ), 3)
@@ -854,7 +855,8 @@ object RenderFlight {
     table("v:",          Seq(f"$vel%.4f AU/day",
                                 f"$velKmPerSec%.4f km/s"),
                                 // f"$velC%.4f C"),
-                               2)
+                               2,
+                               factionColor)
   }
 
 }

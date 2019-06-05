@@ -104,20 +104,22 @@ object Draw {
     activeFlights.foreach(flight => {
         val (afFn, afTicks) = Editor.paramsToFun(flight)
         val positions = afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
-        val color = factions.getOrElse(flight.faction, Color.GRAY)
+        val factionColor = factions.getOrElse(flight.faction, Color.GRAY)
 
         // draw motion and velocity arrow
-        view.drawMotion(im, positions, color)
-        val vel = drawVelocityArrow(afFn, color)
+        view.drawMotion(im, positions, factionColor)
+        val vel = drawVelocityArrow(afFn, factionColor)
 
         // draw status
-        val pos2d = View.perspective(positions.last, camTrans, viewPos)
-        val (x, y) = view.cvtPos(im, pos2d.x.round.toInt, pos2d.y.round.toInt)
+        // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong
+        val pos2d = View.perspective(afFn(curDateJulian), camTrans, viewPos)
+        val (x, y) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
         RenderFlight.drawFlightStatus(
           x, y,
           im,
           flight.ship,
           flight.faction,
+          Color.green,
           Conversions.julianToCalendarDate(curDateJulian),
           Vec3.length(Vec3.sub(positions.last, positions.head)),
           vel,
