@@ -809,7 +809,7 @@ object Editor {
     var timelineTime: Double = 0.0 // yep
     var runAtIntervalThread: Thread = null
 
-    val allPanel = new JPanel(new GridLayout(3, 1))
+    val allPanel = new JPanel(new GridLayout(5, 1))
 
     val timelineDateTimeText = new JTextField("", 19)
     timelineDateTimeText.setFont(new Font("monospaced", Font.BOLD, 48))
@@ -817,19 +817,26 @@ object Editor {
     timelineDateTimeText.setForeground(Color.GREEN)
     timelineDateTimeText.setMaximumSize(timelineDateTimeText.getPreferredSize)
 
-    def updateTimelineTime(newTime: Double): Unit = {
-      timelineTime = newTime
-      timelineDateTimeText.setText(Conversions.julianToCalendarDate(timelineTime).dateTimeString)
-    }
-
     allPanel.add(timelineDateTimeText)
 
     val sliderMax: Int = 1000
-    val timelineSlider = new JSlider(SwingConstants.HORIZONTAL, 1, sliderMax, sliderMax)
+    val timelineSlider = new JSlider(SwingConstants.HORIZONTAL, 1, sliderMax, 1)
     timelineSlider.setMajorTickSpacing(100)
     timelineSlider.setMinorTickSpacing(20)
     timelineSlider.setPaintTicks(true)
     allPanel.add(timelineSlider)
+
+    val minSlider = new JSlider(SwingConstants.HORIZONTAL, 1, sliderMax, 1)
+    minSlider.setMajorTickSpacing(100)
+    minSlider.setMinorTickSpacing(20)
+    minSlider.setPaintTicks(true)
+    allPanel.add(minSlider)
+
+    val maxSlider = new JSlider(SwingConstants.HORIZONTAL, 1, sliderMax, sliderMax)
+    maxSlider.setMajorTickSpacing(100)
+    maxSlider.setMinorTickSpacing(20)
+    maxSlider.setPaintTicks(true)
+    allPanel.add(maxSlider)
 
     val skipPanel = new JPanel(new GridLayout(1, 7))
     allPanel.add(skipPanel)
@@ -843,6 +850,19 @@ object Editor {
       val startDate = flights.map(_.startDate.julian).min
       val endDate = flights.map(_.endDate.julian).max
       (startDate, endDate)
+    }
+
+    def updateTimelineTime(newTime: Double, startDate: Double, endDate: Double): Unit = {
+      val timeMin = startDate + (endDate - startDate) * minSlider.getValue / sliderMax.toDouble
+      val timeMax = startDate + (endDate - startDate) * maxSlider.getValue / sliderMax.toDouble
+      if (newTime < timeMin) {
+        timelineTime = timeMax // - (timeMin - newTime)
+      } else if (newTime > timeMax) {
+        timelineTime = timeMin // + (newTime - timeMax)
+      } else {
+        timelineTime = newTime
+      }
+      timelineDateTimeText.setText(Conversions.julianToCalendarDate(timelineTime).dateTimeString)
     }
 
     // day, hour, minute
@@ -867,12 +887,12 @@ object Editor {
             runAtIntervalThread = new Thread(new RunAtInterval(() => {
               // println("updating in thread")
               val newTime = timelineTime + skipAmount
-              updateTimelineTime(newTime)
+              val (startDate, endDate) = dateRange()
+              updateTimelineTime(newTime, startDate, endDate)
               // update slider position
               Disable(
                 timelineSlider,
                 {
-                  val (startDate, endDate) = dateRange()
                   val sliderPercent = (timelineTime - startDate) / (endDate - startDate)
                   timelineSlider.setValue((sliderPercent * sliderMax).toInt)
                 }
@@ -899,12 +919,12 @@ object Editor {
               runAtIntervalThread = new Thread(new RunAtInterval(() => {
                 // println("updating in thread")
                 val newTime = timelineTime + skipAmount
-                updateTimelineTime(newTime)
+                val (startDate, endDate) = dateRange()
+                updateTimelineTime(newTime, startDate, endDate)
                 // update slider position
                 Disable(
                   timelineSlider,
                   {
-                    val (startDate, endDate) = dateRange()
                     val sliderPercent = (timelineTime - startDate) / (endDate - startDate)
                     timelineSlider.setValue((sliderPercent * sliderMax).toInt)
                   }
@@ -938,10 +958,11 @@ object Editor {
       // println("fired timelineSlider stateChanged")
       val (startDate, endDate) = dateRange()
       val sliderPercent = timelineSlider.getValue / sliderMax.toDouble
-      updateTimelineTime(startDate + (endDate - startDate) * sliderPercent)
+      updateTimelineTime(startDate + (endDate - startDate) * sliderPercent, startDate, endDate)
       redraw()
     }))
-    updateTimelineTime(flights.map(_.startDate.julian).min)
+    val (startDate, endDate) = dateRange()
+    updateTimelineTime(flights.map(_.startDate.julian).min, startDate, endDate)
 
     timelineWindow.add(allPanel)
 
