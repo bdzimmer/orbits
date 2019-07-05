@@ -71,6 +71,15 @@ object MeeusPlanets {
       Polynomial4(28.753753,  0.3702806,   0.0001208),
       Polynomial4(47.145944,  1.1852083,   0.0001739))
 
+  val Venus = new NonEarthPolynomialEstimator(
+      Polynomial4(342.767053,	58519.21191,	0.0003097),
+     0.7233316,
+      Polynomial4(0.00682069, -0.00004774, 0.000000091),
+      Polynomial4(3.393631,	0.0010058, -0.0000010),
+      Polynomial4(54.384186,	0.5081861, -0.0013864),
+      Polynomial4(75.779647,	0.8998500,	0.0004100)
+  )
+
   val Earth = new EarthPolynomialEstimator(
       Polynomial4(99.69668,    36000.76892,  0.0003025),
       1.0000002,
@@ -85,6 +94,14 @@ object MeeusPlanets {
       Polynomial4(1.850333,  -0.0006750,    0.0000126),
       Polynomial4(285.431761, 1.0697667,    0.0001313,  0.00000414),
       Polynomial4(48.786442,  0.7709917,    0.0000014, -0.000005330))
+
+  val Jupiter = new NonEarthPolynomialEstimator(
+      Polynomial4(238.049257, 3036.301986,	0.0003347, -0.00000165),
+      5.202561,
+      Polynomial4(0.04833475, 0.000164180, 	-0.0000004676, -0.0000000017),
+      Polynomial4(1.308736, -0.0056961, 0.0000039),
+      Polynomial4(273.277558, 0.5594317, 0.00070405, 0.00000508),
+      Polynomial4(99.443414, 1.0105300, 0.00035222, -0.00000851))
 
   val Saturn = new NonEarthPolynomialEstimator(
       Polynomial4(266.564377,  1223.509884,  0.0003245, -0.0000058),
@@ -102,13 +119,23 @@ object MeeusPlanets {
       Polynomial4(98.071581,  0.9857650,  0.0010745, -0.00000061),
       Polynomial4(73.477111,  0.4986678,  0.0013117))
 
+  val Neptune = new NonEarthPolynomialEstimator(
+      Polynomial4(84.457994, 219.885914, 0.0003205, -0.00000060),
+      30.10957,
+      Polynomial4(0.00899704, 0.000006330, -0.000000002),
+      Polynomial4(1.779242,	-0.0095436, -0.0000091),
+      Polynomial4(276.045975, 0.3256394, 0.00014095, 0.000004113),
+      Polynomial4(130.681389,	1.0989350,	0.00024987,	-0.000004718))
 
   val Planets = scala.collection.immutable.ListMap(
       "Mercury" -> Mercury,
+      "Venus"   -> Venus,
       "Earth"   -> Earth,
       "Mars"    -> Mars,
+      "Jupiter" -> Jupiter,
       "Saturn"  -> Saturn,
-      "Uranus"  -> Uranus)
+      "Uranus"  -> Uranus,
+      "Neptune" -> Neptune)
 
 
   class NonEarthPolynomialEstimator(
@@ -172,7 +199,7 @@ object MeeusPlanets {
     a2: Double = 0.0,
     a3: Double = 0.0) {
 
-    def apply(t: Double): Double =  a0 + a1 * t + a2 * t * t + a3 * t * t * t;
+    def apply(t: Double): Double =  a0 + a1 * t + a2 * t * t + a3 * t * t * t
 
   }
 

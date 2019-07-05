@@ -240,6 +240,8 @@ object RenderFlight {
       startDate: CalendarDateTime,
       endDate: CalendarDateTime): BufferedImage = {
 
+    val viewerSettings = Viewer.ViewerSettingsDefault
+
     val startDateJulian = startDate.julian
     val endDateJulian = endDate.julian
 
@@ -311,10 +313,10 @@ object RenderFlight {
           case _ => 0.0
         }
         drawFlightSummary(
-          im, x, faction, distance, vel, accel, origName, destName, startDate, endDate)
+          im, x, faction, distance, vel, accel, origName, destName, startDate, endDate, viewerSettings)
       }
       case x: ConstVelCraft => drawFlightSummary(
-        im, x, faction, distance, vel, origName, destName, startDate, endDate)
+        im, x, faction, distance, vel, origName, destName, startDate, endDate, viewerSettings)
     }
 
     // print some things for debugging
@@ -339,6 +341,8 @@ object RenderFlight {
       startDate: CalendarDateTime,
       endDate: CalendarDateTime,
       outputDir: String): Unit = {
+
+    val viewerSettings = Viewer.ViewerSettingsDefault
 
     val startDateJulian = startDate.julian
     val endDateJulian = endDate.julian
@@ -405,7 +409,7 @@ object RenderFlight {
       val xshiftAmount =  -imWidth * 0.1
       val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
 
-      val view = new Viewer(camTrans, viewPos)
+      val view = new Viewer(camTrans, viewPos, Viewer.ViewerSettingsDefault)
 
       val curDateTime = Conversions.julianToCalendarDate(ticks(idx))
 
@@ -438,7 +442,7 @@ object RenderFlight {
         0.0
       }
 
-      drawFlightStatus(im, ship, "", curDateTime, curDist, curVel)
+      drawFlightStatus(im, ship, "", curDateTime, curDist, curVel, viewerSettings)
 
       val outputImage = new java.io.File(outputDir / f"$idx%05d.png");
       ImageIO.write(im, "png", outputImage)
@@ -484,7 +488,7 @@ object RenderFlight {
        gridLim: Int): Unit = {
 
     // draw the grid and the sun
-    view.drawGrid(im, gridLim, new Color(0, 0, 80))
+    view.drawGrid(im, gridLim, new Color(0, 0, 128))
     view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
 
     // draw the orbits of planets and their positions
@@ -557,7 +561,7 @@ object RenderFlight {
 
   def defaultView(imWidth: Int, imHeight: Int, planetMax: Double, xshift: Boolean = true): Viewer = {
     val (camTrans, viewPos) = defaultViewParams(imWidth, imHeight, planetMax, xshift)
-    new Viewer(camTrans, viewPos)
+    new Viewer(camTrans, viewPos, Viewer.ViewerSettingsDefault)
   }
 
 
@@ -586,7 +590,8 @@ object RenderFlight {
       origName: String,
       destName: String,
       startDate: CalendarDateTime,
-      endDate: CalendarDateTime): Unit = {
+      endDate: CalendarDateTime,
+      viewerSettings: ViewerSettings): Unit = {
 
     // draw a table describing a summary of the flight
 
@@ -603,23 +608,23 @@ object RenderFlight {
     val thrustKN = thrust * aud2ToMs2
     val shipThrustKN = ship.thrust * aud2ToMs2
 
-    val columnWidth = 100
-    val tableStartX = Viewer.LineHeight
-    val tableStartY = Viewer.LineHeight * 2
+    // val columnWidth = 100
+    val tableStartX = viewerSettings.lineHeight
+    val tableStartY = viewerSettings.lineHeight * 2
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
 
     def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
       gr.setColor(Color.GREEN)
-      gr.setFont(Viewer.DisplayFont)
-      gr.drawString(desc, tableStartX, tableStartY + row * Viewer.LineHeight)
+      gr.setFont(viewerSettings.displayFont)
+      gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeight)
       gr.setColor(color)
       if (italic) {
-        gr.setFont(Viewer.DisplayFontItalic)
+        gr.setFont(viewerSettings.displayFontItalic)
       }
       values.zipWithIndex.foreach(x => {
-        gr.drawString(x._1, tableStartX + columnWidth, tableStartY + (row + x._2) * Viewer.LineHeight)
+        gr.drawString(x._1, tableStartX + viewerSettings.columnWidth, tableStartY + (row + x._2) * viewerSettings.lineHeight)
       })
     }
 
@@ -658,7 +663,8 @@ object RenderFlight {
     origName: String,
     destName: String,
     startDate: CalendarDateTime,
-    endDate: CalendarDateTime): Unit = {
+    endDate: CalendarDateTime,
+    viewerSettings: ViewerSettings): Unit = {
 
     // draw a table describing a summary of the flight
 
@@ -670,23 +676,23 @@ object RenderFlight {
     val shipVelKmPerSec = shipVelMetersPerSec / 1000.0
     val shipVelC = velMetersPerSec / Conversions.LightToMetersPerSec
 
-    val columnWidth = 100
-    val tableStartX = Viewer.LineHeight
-    val tableStartY = Viewer.LineHeight * 2
+    // val columnWidth = 100
+    val tableStartX = viewerSettings.lineHeight
+    val tableStartY = viewerSettings.lineHeight * 2
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
 
     def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
       gr.setColor(Color.GREEN)
-      gr.setFont(Viewer.DisplayFont)
-      gr.drawString(desc, tableStartX, tableStartY + row * Viewer.LineHeight)
+      gr.setFont(viewerSettings.displayFont)
+      gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeight)
       gr.setColor(color)
       if (italic) {
-        gr.setFont(Viewer.DisplayFontItalic)
+        gr.setFont(viewerSettings.displayFontItalic)
       }
       values.zipWithIndex.foreach(x => {
-        gr.drawString(x._1, tableStartX + columnWidth, tableStartY + (row + x._2) * Viewer.LineHeight)
+        gr.drawString(x._1, tableStartX + viewerSettings.columnWidth, tableStartY + (row + x._2) * viewerSettings.lineHeight)
       })
     }
 
@@ -716,7 +722,8 @@ object RenderFlight {
     faction: String,
     dateTime: CalendarDateTime,
     distance: Double,
-    vel: Double): Unit = {
+    vel: Double,
+    viewerSettings: ViewerSettings): Unit = {
 
     // draw a table describing the current flight status
 
@@ -742,23 +749,23 @@ object RenderFlight {
       case _ => 0.0
     }
 
-    val columnWidth = 100
-    val tableStartX = Viewer.LineHeight
-    val tableStartY = Viewer.LineHeight * 2
+    // val columnWidth = 100
+    val tableStartX = viewerSettings.lineHeight
+    val tableStartY = viewerSettings.lineHeight * 2
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
 
     def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
       gr.setColor(Color.GREEN)
-      gr.setFont(Viewer.DisplayFont)
-      gr.drawString(desc, tableStartX, tableStartY + row * Viewer.LineHeight)
+      gr.setFont(viewerSettings.displayFont)
+      gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeight)
       gr.setColor(color)
       if (italic) {
-        gr.setFont(Viewer.DisplayFontItalic)
+        gr.setFont(viewerSettings.displayFontItalic)
       }
       values.zipWithIndex.foreach(x => {
-        gr.drawString(x._1, tableStartX + columnWidth, tableStartY + (row + x._2) * Viewer.LineHeight)
+        gr.drawString(x._1, tableStartX + viewerSettings.columnWidth, tableStartY + (row + x._2) * viewerSettings.lineHeight)
       })
     }
 
@@ -776,5 +783,80 @@ object RenderFlight {
                                 f"$velC%.4f C"), 9)
   }
 
+
+  def drawFlightStatus(
+    tableStartX: Int,
+    tableStartY: Int,
+    im: BufferedImage,
+    ship: Spacecraft,
+    faction: String,
+    factionColor: Color,
+    dateTime: CalendarDateTime,
+    distance: Double,
+    vel: Double,
+    viewerSettings: ViewerSettings): Unit = {
+
+    // draw a table describing the current flight status
+
+    val velMetersPerSec = vel * Conversions.AuToMeters / Conversions.DayToSec
+    val velKmPerSec = velMetersPerSec / 1000.0
+    // val velC = velMetersPerSec / Conversions.LightToMetersPerSec
+
+    val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
+
+    // val massString = ship match {
+    //   case x: ConstAccelCraft => "%.2f".format(x.mass)
+    //   case _ => "undefined"
+    // }
+
+    val shipAccel = ship match {
+      case x: ConstAccelCraft => x.accel
+      case _ => 0.0
+    }
+    // val shipAccelG = shipAccel * aud2ToMs2 / Conversions.GToMetersPerSecond
+
+    // val shipThrustKN = ship match {
+    //   case x: ConstAccelCraft => x.thrust * aud2ToMs2
+    //   case _ => 0.0
+    // }
+
+    // val columnWidth = 100
+    // val tableStartX = viewerSettings.lineHeight
+    // val tableStartY = viewerSettings.lineHeight * 2
+
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
+
+    def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
+      gr.setColor(Color.GREEN)
+      gr.setFont(viewerSettings.displayFontSmall)
+      // gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeightSmall)
+      gr.setColor(color)
+      if (italic) {
+        gr.setFont(viewerSettings.displayFontItalicSmall)
+      }
+      values.zipWithIndex.foreach(x => {
+        gr.drawString(
+          x._1,
+          tableStartX, // + viewerSettings.columnWidthSmall,
+          tableStartY + (row + x._2) * viewerSettings.lineHeightSmall + viewerSettings.lineHeightSmall)
+      })
+    }
+
+    table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, factionColor, italic = true)
+    table("Faction:",    Seq(faction), 1, factionColor)
+    // table("Mass:",       Seq(massString    + " tonnes"), 2)
+    // table("a max:",      Seq("%.4f".format(shipAccel)   + " AU/day²",
+    //   "%.4f".format(shipAccelG)   + " g" ), 3)
+    // table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   5)
+
+    // table("DateTime:",   Seq(dateTime.dateTimeString), 7)
+    // table("Distance:",   Seq(f"$distance%.4f AU"), 8)
+    table("v:",          Seq(f"$vel%.4f AU/day",
+                                f"$velKmPerSec%.4f km/s"),
+                                // f"$velC%.4f C"),
+                               2,
+                               factionColor)
+  }
 
 }
