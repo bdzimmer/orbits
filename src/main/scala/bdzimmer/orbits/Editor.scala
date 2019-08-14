@@ -104,7 +104,7 @@ class Editor(
   toolbarsPanel.add(toolbarRow0, BorderLayout.NORTH)
 
   val toolbarRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT))
-  val (cameraToolbar, updateCameraControls) = Editor.buildCameraToolbar(cameraSettings, imWidth, redraw)
+  val (cameraToolbar, updateCameraControls) = Editor.buildCameraToolbar(cameraSettings, redraw)
 
   toolbarRow1.add(cameraToolbar)
   // toolbarRow1.add(Editor.buildUnitConverterToolbar())
@@ -364,7 +364,7 @@ object Editor {
      xPos = 0.0,
      yPos = -5.0,
      zPos = 5.0,
-     zViewPos = 0.0
+     zViewPos = 800.0
   )
 
   // TODO: damping becomes a part of CameraSettings
@@ -1055,7 +1055,7 @@ object Editor {
 
 
   def buildCameraToolbar(
-      cameraSettings: CameraSettings, zViewPos: Double, redraw: () => Unit): (JToolBar, UpdateCameraControls) = {
+      cameraSettings: CameraSettings, redraw: () => Unit): (JToolBar, UpdateCameraControls) = {
 
     val spinnerWidth = 3
 
@@ -1132,7 +1132,7 @@ object Editor {
         redraw()
       }
     })
-    zViewPosField.setValue(zViewPos)
+    zViewPosField.setValue(cameraSettings.zViewPos)
     xPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     yPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     zPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
@@ -1193,7 +1193,7 @@ object Editor {
 
         val outputFile = new java.io.File("temp.mp4")
         RenderFlight.imagesToVideo(
-          outputDir.getAbsolutePath, outputFile.getAbsolutePath, 800, 600)
+          outputDir.getAbsolutePath, outputFile.getAbsolutePath, 800, 600, 24)
 
       }
     })

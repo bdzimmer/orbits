@@ -39,8 +39,8 @@ object Animation {
     }
 
     // TODO: make these parameters
-    val imWidth = 1280
-    val imHeight = 720
+    val imWidth = 1280 / 2
+    val imHeight = 720 / 2
 
     val im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
 
@@ -59,9 +59,14 @@ object Animation {
     // calculate initial state: mean of all active flights
     // this doesn't include damping
     val initActiveFlights = getActiveFlights(startDateJulian)
-    var prevState = Vec3.mul(
-      sumStates(initActiveFlights, startDateJulian),
-      1.0 / initActiveFlights.length)
+
+    var prevState = if (initActiveFlights.length > 0.0) {
+      Vec3.mul(
+        sumStates(initActiveFlights, startDateJulian),
+        1.0 / initActiveFlights.length)
+    } else {
+      Vec3(0.0, 0.0, 0.0)
+    }
 
     val ticks = (startDateJulian to endDateJulian by animationSettings.interval).toList.toIndexedSeq
 
@@ -70,8 +75,8 @@ object Animation {
       val activeFlights = getActiveFlights(tick)
 
       // TODO: may not want to highlight a particular flight
+      // in that case fpOption should be None
       val fpOption = activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
-
 
       val dampedComponent = Vec3.mul(prevState, Editor.Damping)
       val sumComponent = sumStates(activeFlights, tick)
@@ -84,7 +89,7 @@ object Animation {
       // update previous position
       prevState = curState
       val camRot = Editor.pointCamera(curState, initCamPos)
-      val camTrans = View.cameraTransform(camRot, initViewPos)
+      val camTrans = View.cameraTransform(camRot, initCamPos)
 
       Draw.redraw(
         fpOption,
@@ -100,10 +105,17 @@ object Animation {
         im
       )
 
-      val outputFilename = new java.io.File(outputDirname / f"$idx%05d.png");
+      val outputFilename = new java.io.File(outputDirname / f"$idx%05d.png")
       ImageIO.write(im, "png", outputFilename)
+      println(Conversions.julianToCalendarDate(tick), activeFlights.length, idx + " / " + ticks.length + " " + outputFilename)
 
     }})
+
+    RenderFlight.imagesToVideo(
+      outputDirname,
+      outputDirname / "animation.mp4",
+      imWidth, imHeight, animationSettings.fps)
+
 
   }
 
