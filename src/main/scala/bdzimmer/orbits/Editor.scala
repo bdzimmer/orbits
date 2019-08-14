@@ -42,7 +42,7 @@ case class CameraSettings(
     var yAngle: Double,
     var zAngle: Double,
     var isIntrinsic: Boolean,
-    var xPos: Double,
+    var xPos: Double,   // TODO: make pos a Vec3
     var yPos: Double,
     var zPos: Double,
     var zViewPos: Double
@@ -212,8 +212,9 @@ class Editor(
         case "Manual" => (getCamera, getViewPos)
         case _        => {
 
-          val damping = 20.0
-          val initial = Vec3.mul(prevPos, damping)
+          // TODO: extract damping logic
+
+          val initial = Vec3.mul(prevPos, Editor.Damping)
 
           // average positions of active flights with initial
           val curState = Vec3.mul(
@@ -221,7 +222,7 @@ class Editor(
               val (flightFn, _) = Editor.paramsToFun(fp)
               flightFn(curDateJulian)
             }).foldLeft(initial)(Vec3.add),
-            1.0 / (activeFlights.length + damping)
+            1.0 / (activeFlights.length + Editor.Damping)
           )
 
           // update previous position
@@ -234,8 +235,6 @@ class Editor(
           val camTrans = View.cameraTransform(camRot, camPos)
           // val xshiftAmount =  -imWidth * 0.1
           // val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
-
-          // update pr
 
           (camTrans, viewPos)
         }
@@ -353,6 +352,9 @@ class Editor(
 
 object Editor {
 
+  // TODO: consider moving some of this to a separate config
+  // so secondary isn't taking the orbits editor as a dep
+
   val CameraSettingsDefault = CameraSettings(
      cameraType = "Manual",
      xAngle = 45.0,
@@ -365,8 +367,10 @@ object Editor {
      zViewPos = 0.0
   )
 
+  // TODO: damping becomes a part of CameraSettings
+  val Damping = 20.0
 
-  // TODO: move to ShowSettingsDefault
+  // TODO: move to ShowSettingsDefault?
   val InitialVisiblePlanets = List("Earth", "Mars", "Saturn", "Uranus")
 
   val ShowSettingsDefault = ShowSettings(
@@ -1163,6 +1167,8 @@ object Editor {
 
 
   def buildExportToolbar(getCurrentFlight: () => FlightParams): JToolBar = {
+
+    // TODO: replace with new functionality
 
     val toolbar = new JToolBar()
     toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
