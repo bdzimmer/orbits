@@ -13,12 +13,13 @@ import bdzimmer.util.StringUtils._
 
 
 case class AnimationSettings(
+  width: Int,
+  height: Int,
   camPos: Vec3,
   zViewPos: Double,
   fps: Int,
   interval: Double,
   damping: Double
-  // TODO: other options such as canvas size
 )
 
 
@@ -38,11 +39,8 @@ object Animation {
       flights.filter(x => tick > x.startDate.julian && tick < x.endDate.julian)
     }
 
-    // TODO: make these parameters
-    val imWidth = 1280 / 2
-    val imHeight = 720 / 2
-
-    val im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
+    val im = new BufferedImage(
+      animationSettings.width, animationSettings.height, BufferedImage.TYPE_INT_ARGB)
 
     // lot of duplicate code between this and Editor.draw, but that's ok for now
     val startDateJulian = startDate.julian
@@ -107,15 +105,19 @@ object Animation {
 
       val outputFilename = new java.io.File(outputDirname / f"$idx%05d.png")
       ImageIO.write(im, "png", outputFilename)
-      println(Conversions.julianToCalendarDate(tick), activeFlights.length, idx + " / " + ticks.length + " " + outputFilename)
+      println(
+        // Conversions.julianToCalendarDate(tick),
+        // activeFlights.length,
+        idx + " / " + ticks.length + " " + outputFilename)
 
     }})
 
     RenderFlight.imagesToVideo(
       outputDirname,
       outputDirname / "animation.mp4",
-      imWidth, imHeight, animationSettings.fps)
-
+      animationSettings.width,
+      animationSettings.height,
+      animationSettings.fps)
 
   }
 
