@@ -6,9 +6,10 @@ package bdzimmer.orbits
 
 import java.awt.Color
 import java.awt.image.BufferedImage
+import java.util
 
-import javax.imageio.ImageIO
-
+// import javax.imageio.ImageIO
+import org.apache.commons.imaging.{ImageFormats, Imaging}
 import bdzimmer.util.StringUtils._
 
 
@@ -70,7 +71,11 @@ object Animation {
 
     ticks.zipWithIndex.foreach({case (tick, idx) => {
 
+      val initTimeStart = System.currentTimeMillis
+
       val activeFlights = getActiveFlights(tick)
+
+      val activeFlightsTime = System.currentTimeMillis - initTimeStart // interested in how much time this is
 
       // TODO: may not want to highlight a particular flight
       // in that case fpOption should be None
@@ -89,6 +94,12 @@ object Animation {
       val camRot = Editor.pointCamera(curState, initCamPos)
       val camTrans = View.cameraTransform(camRot, initCamPos)
 
+      val initTime = System.currentTimeMillis - initTimeStart
+
+      // ~~~~ ~~~~ ~~~~
+
+      val drawTimeStart = System.currentTimeMillis
+
       Draw.redraw(
         fpOption,
         tick,
@@ -103,12 +114,29 @@ object Animation {
         im
       )
 
+      val drawTime = System.currentTimeMillis - drawTimeStart
+
+      // ~~~~ ~~~~ ~~~~
+
+      val writeTimeStart = System.currentTimeMillis
+
       val outputFilename = new java.io.File(outputDirname / f"$idx%05d.png")
-      ImageIO.write(im, "png", outputFilename)
+
+      // ImageIO.write(im, "png", outputFilename)
+      Imaging.writeImage(im, outputFilename, ImageFormats.PNG, new util.HashMap[String, Object]())
+
+      val writeTime = System.currentTimeMillis - writeTimeStart
+
+      // ~~~~ ~~~~ ~~~~
+      // show "profiling"
+
       println(
         // Conversions.julianToCalendarDate(tick),
         // activeFlights.length,
-        idx + " / " + ticks.length + " " + outputFilename)
+        outputFilename + " "  +
+        idx + " / " + ticks.length + " " +
+        Conversions.julianToCalendarDate(tick).dateTimeString + " " +
+        "(" + initTime + " [" + activeFlightsTime + "] " + drawTime + " " + writeTime + ")")
 
     }})
 
