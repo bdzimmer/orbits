@@ -112,6 +112,7 @@ object Draw {
 
         // draw status
         // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong
+        // TODO: make this optional in ShowSettings
         val pos2d = View.perspective(afFn(curDateJulian), camTrans, viewPos)
         val (x, y) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
         RenderFlight.drawFlightStatus(

@@ -527,8 +527,8 @@ object RenderFlight {
   }
 
 
-  def imagesToVideo(inputDir: String, outputFile: String, width: Int, height: Int): Unit = {
-    val command = s"ffmpeg -y -r 24 -f image2 -s ${width}x$height -i $inputDir/%05d.png -vcodec libx264 -crf 25 -pix_fmt yuv420p $outputFile"
+  def imagesToVideo(inputDir: String, outputFile: String, width: Int, height: Int, fps: Int): Unit = {
+    val command = s"ffmpeg -y -r $fps -f image2 -s ${width}x$height -i $inputDir/%05d.png -vcodec libx264 -crf 25 -pix_fmt yuv420p $outputFile"
     println(command)
     Try(command.!!)
   }

@@ -75,7 +75,7 @@ class IntegrationSuite extends FunSuite with TempDirectory {
     assert(outputDir.list.length > 0)
 
     val outputFile = new java.io.File(tempDirname / "testflight.mp4")
-    RenderFlight.imagesToVideo(outputDir.getAbsolutePath, outputFile.getAbsolutePath, 800, 600)
+    RenderFlight.imagesToVideo(outputDir.getAbsolutePath, outputFile.getAbsolutePath, 800, 600, 30)
 
     assert(outputFile.exists)
 
