@@ -37,7 +37,7 @@ object Animation {
       outputDirname: String): Unit = {
 
     def getActiveFlights(tick: Double): List[FlightParams] = {
-      flights.filter(x => tick > x.startDate.julian && tick < x.endDate.julian)
+      flights.filter(x => tick >= x.startDate.julian && tick < x.endDate.julian)
     }
 
     val im = new BufferedImage(
@@ -59,13 +59,24 @@ object Animation {
     // this doesn't include damping
     val initActiveFlights = getActiveFlights(startDateJulian)
 
-    var prevState = if (initActiveFlights.length > 0.0) {
+    var prevState = if (initActiveFlights.nonEmpty) {
+      // average flight position at start date
       Vec3.mul(
         sumStates(initActiveFlights, startDateJulian),
         1.0 / initActiveFlights.length)
     } else {
-      Vec3(0.0, 0.0, 0.0)
+      // anticipate average position of first flight(s)
+      val firstFlightDateJulian = flights.map(_.startDate.julian).min
+      println(firstFlightDateJulian)
+      // TODO: may have to advance this by a small fraction of a day or something
+      val firstActiveFlights = getActiveFlights(firstFlightDateJulian)
+      println(firstActiveFlights.length)
+      Vec3.mul(
+        sumStates(firstActiveFlights, firstFlightDateJulian),
+        1.0 / firstActiveFlights.length)
+      // Vec3(0.0, 0.0, 0.0)
     }
+
 
     val ticks = (startDateJulian to endDateJulian by animationSettings.interval).toList.toIndexedSeq
 
