@@ -63,6 +63,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     val pos2d = pos.map(p => View.perspective(p, camTrans, viewPos))
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
 
     if (!lines) {
       val colInt = color.getRGB
