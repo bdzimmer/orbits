@@ -31,7 +31,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       val y2 = im.getHeight - (end.y.toInt + im.getHeight / 2)
       // println(x1 + " " + y1 + " " + x2 + " " + y2)
       // don't draw wildly inappropriate values
-      if (x1.abs < 32768 && y1.abs < 32768 && x2.abs < 32768 && y2.abs < 32768) {
+      if (x1.abs < Viewer.DrawMax && y1.abs < Viewer.DrawMax && x2.abs < Viewer.DrawMax  && y2.abs < Viewer.DrawMax) {
         gr.drawLine(x1, y1, x2, y2)
       }
     }
@@ -81,7 +81,9 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
           val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)  // TODO: experiment with round
           val p2 = pos2d(idx + 1)
           val (x2, y2) = cvtPos(im, p2.x.toInt, p2.y.toInt)
-          gr.drawLine(x1, y1, x2, y2)
+          if (x1.abs < Viewer.DrawMax && y1.abs < Viewer.DrawMax && x2.abs < Viewer.DrawMax && y2.abs < Viewer.DrawMax) {
+            gr.drawLine(x1, y1, x2, y2)
+          }
         }})
       }
     }
@@ -167,7 +169,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
 
   def drawPolygon(im: BufferedImage, polygon: Seq[Vec2], color: Color): Unit = {
     val ptsShifted = polygon.map(p => cvtPos(im, p.x.toInt, p.y.toInt))
-    if (!ptsShifted.exists(p => (math.abs(p._1) > 32768) || (math.abs(p._2) > 32768))) {
+    if (!ptsShifted.exists(p => p._1.abs > Viewer.DrawMax || p._2.abs > Viewer.DrawMax)) {
       val gr = im.getGraphics.asInstanceOf[Graphics2D]
       gr.setRenderingHints(Viewer.RenderHints)
       gr.setColor(color)
@@ -234,6 +236,8 @@ case class ViewerSettings(
 
 
 object Viewer {
+
+  val DrawMax = 32768
 
   val ViewerSettingsDefault = ViewerSettings(
     displayFont = new Font("Monospace", Font.BOLD, 12),
