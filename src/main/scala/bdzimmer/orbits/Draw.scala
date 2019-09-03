@@ -78,7 +78,8 @@ object Draw {
 
     // draw the grid and the sun
     view.drawGrid(im, GridLim, new Color(0, 0, 128))
-    view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
+    val sun = Vec3(0.0, 0.0, 0.0)
+    view.drawPosition(im, sun, "Sun", "", Color.YELLOW) // for now
 
     // draw the orbits of planets and their positions
     // the sequence of orbital states for each planet should start from same time
@@ -112,30 +113,40 @@ object Draw {
     // otherFlights.zip(otherFlightsColors).toList.foreach(x => view.drawMotion(im, x._1, x._2))
 
     activeFlights.foreach(flight => {
-        val (afFn, afTicks) = Editor.paramsToFun(flight)
-        val positions = afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
-        val factionColor = factions.getOrElse(flight.faction, Color.GRAY)
+      val (flightFn, ticks) = Editor.paramsToFun(flight)
+      val positions = ticks.filter(x => x <= curDateJulian).map(tick => flightFn(tick))
+      val factionColor = factions.getOrElse(flight.faction, Color.GRAY)
 
-        // draw motion and velocity arrow
-        view.drawMotion(im, positions, factionColor)
-        val vel = drawVelocityArrow(afFn, factionColor)
+      if (true) {
+        val origStates = ticks.map(tick => Orbits.planetState(flight.orig, tick))
+        val destStates = ticks.map(tick => Orbits.planetState(flight.dest, tick))
+        view.drawMotion(im, origStates.map(_.position), factionColor)
+        view.drawMotion(im, destStates.map(_.position), factionColor)
+      }
 
-        // draw status
-        // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong
-        // TODO: make this optional in ShowSettings
-        val pos2d = View.perspective(afFn(curDateJulian), camTrans, viewPos)
-        val (x, y) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
-        RenderFlight.drawFlightStatus(
-          x, y,
-          im,
-          flight.ship,
-          flight.faction,
-          Color.green,
-          Conversions.julianToCalendarDate(curDateJulian),
-          Vec3.length(Vec3.sub(positions.last, positions.head)),
-          vel,
-          DisplaySettings
-        )
+      // draw motion and velocity arrow
+      view.drawMotion(im, positions, factionColor)
+      val vel = drawVelocityArrow(flightFn, factionColor)
+
+      // draw flight radii
+      RenderFlight.drawFlightRadii(im, flight, curDateJulian, view)
+
+      // draw status
+      // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong
+      // TODO: make this optional in ShowSettings
+      val pos2d = View.perspective(flightFn(curDateJulian), camTrans, viewPos)
+      val (x, y) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
+      RenderFlight.drawFlightStatus(
+        x, y,
+        im,
+        flight.ship,
+        flight.faction,
+        Color.green,
+        Conversions.julianToCalendarDate(curDateJulian),
+        Vec3.length(Vec3.sub(positions.last, positions.head)),
+        vel,
+        DisplaySettings
+      )
 
     })
 
@@ -148,27 +159,25 @@ object Draw {
         return
       }
 
-      // to plot how the origin and desination change curing the flight
       val origStates = ticks.map(tick => Orbits.planetState(fp.orig, tick))
       val destStates = ticks.map(tick => Orbits.planetState(fp.dest, tick))
       val ticksSubset = ticks.takeWhile(x => x < curDateJulian)
       val flightStates = ticksSubset.map(tick => flightFn(tick))
-      val flightColor = factions.getOrElse(fp.faction, Color.GREEN)
 
-      RenderFlight.drawHighlightedFlightAtTime(
-        view, im, fp.origName, fp.destName, fp.startDate.dateString, fp.endDate.dateString,
-        origStates, destStates, flightStates, flightColor)
+      val factionColor = factions.getOrElse(fp.faction, Color.GREEN)
+
+      // RenderFlight.highlightFlight(
+      //   view, im, fp, factions,
+      //   origStates, destStates, flightStates, flightColor)
 
       // prepare summary or description
-
       val distance = Vec3.length(
         Vec3.sub(destStates.last.position, origStates.head.position))
 
       // average velocity
       val vel = distance / (fp.endDate.julian - fp.startDate.julian)
 
-      val curVel = drawVelocityArrow(
-        flightFn, flightColor)
+      val curVel = drawVelocityArrow(flightFn, factionColor)
 
       if (statusOption == 0) {
         // draw flight status with current datetime, distance, and velocity

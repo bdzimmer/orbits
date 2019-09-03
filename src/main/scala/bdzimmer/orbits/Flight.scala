@@ -503,6 +503,27 @@ object RenderFlight {
     otherFlights.foreach(x => view.drawMotion(im, x._1, x._2))
   }
 
+  def highlightFlight(
+      view: Viewer,
+      im: BufferedImage,
+      flight: FlightParams,
+      factions: Map[String, Color],
+
+      origStates: Seq[OrbitalState],
+      destStates: Seq[OrbitalState],
+      flightStates: Seq[Vec3],
+      flightColor: Color): Unit = {
+
+    // to plot how the origin and desination change curing the flight
+
+    RenderFlight.drawHighlightedFlightAtTime(
+      view, im,
+      flight.origName, flight.destName,
+      flight.startDate.dateString, flight.endDate.dateString,
+      origStates, destStates, flightStates, flightColor)
+
+  }
+
 
   def drawHighlightedFlightAtTime(
        view: Viewer,
@@ -517,13 +538,13 @@ object RenderFlight {
        flightColor: Color): Unit = {
 
     // draw the positions of the start and ending locations and the flight up to this point
-    view.drawMotion(im, origStates.map(_.position), Color.GREEN)
-    view.drawMotion(im, destStates.map(_.position), Color.GREEN)
+    view.drawMotion(im, origStates.map(_.position), flightColor)
+    view.drawMotion(im, destStates.map(_.position), flightColor)
     view.drawMotion(im, flightStates,               flightColor)
 
     // draw the names and dates for the origin and destination
-    view.drawPosition(im, origStates.head.position, origName, origDesc, Color.GREEN)
-    view.drawPosition(im, destStates.last.position, destName, destDesc, Color.GREEN)
+    // view.drawPosition(im, origStates.head.position, origName, origDesc, Color.GREEN)
+    // view.drawPosition(im, destStates.last.position, destName, destDesc, Color.GREEN)
   }
 
 
@@ -870,6 +891,39 @@ object RenderFlight {
                                 // f"$velC%.4f C"),
                                2,
                                factionColor)
+  }
+
+  def drawFlightRadii(
+      im: BufferedImage,
+      flight: FlightParams,
+      curDateJulian: Double,
+      view: Viewer): Unit = {
+
+    // draw start, end, and current radius lines to start and end destinations
+
+    val sun = Vec3(0.0, 0.0, 0.0)
+
+    val startDateJulian = flight.startDate.julian
+    val endDateJulian = flight.endDate.julian
+
+    val origStart = Orbits.planetState(flight.orig, startDateJulian)
+    // val origEnd = Orbits.planetState(flight.orig, endDateJulian)
+    val origCur = Orbits.planetState(flight.orig, curDateJulian)
+
+    // val destStart = Orbits.planetState(flight.dest, startDateJulian)
+    val destEnd = Orbits.planetState(flight.dest, endDateJulian)
+    val destCur = Orbits.planetState(flight.dest, curDateJulian)
+
+    val color = new Color(255, 255, 255, 31)
+
+    view.drawLine(im, sun, origStart.position, color)
+    // view.drawLine(im, sun, origEnd.position, color)
+    view.drawLine(im, sun, origCur.position, color)
+
+    view.drawLine(im, sun, destCur.position, color)
+    // view.drawLine(im, sun, destStart.position, color)
+    view.drawLine(im, sun, destEnd.position, color)
+
   }
 
 }

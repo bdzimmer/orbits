@@ -151,6 +151,22 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
   }
 
 
+  def drawLine(im: BufferedImage, v1: Vec3, v2: Vec3, color: Color): Unit = {
+    val p1 = View.perspective(v1, camTrans, viewPos)
+    val p2 = View.perspective(v2, camTrans, viewPos)
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
+    gr.setColor(color)
+
+    val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)
+    val (x2, y2) = cvtPos(im, p2.x.toInt, p2.y.toInt)
+    if (x1.abs < Viewer.DrawMax && y1.abs < Viewer.DrawMax && x2.abs < Viewer.DrawMax && y2.abs < Viewer.DrawMax) {
+      gr.drawLine(x1, y1, x2, y2)
+    }
+
+  }
+
+
   def cvtPos(im: BufferedImage, x: Int, y: Int): (Int, Int) = {
     (x + im.getWidth / 2, im.getHeight - (y + im.getHeight / 2))
   }
