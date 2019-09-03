@@ -4,7 +4,7 @@
 
 package bdzimmer.orbits
 
-import java.awt.{BorderLayout, Color, Dimension, FlowLayout, GridLayout, Graphics, Image, Font}
+import java.awt.{BorderLayout, Color, Dimension, FlowLayout, GridLayout, Graphics, Image, Font, Toolkit}
 import java.awt.event._
 import java.awt.image.BufferedImage
 
@@ -72,6 +72,8 @@ class Editor(
     flightsList: List[FlightParams],
     ships: List[Spacecraft]
   ) extends JFrame {
+
+  Toolkit.getDefaultToolkit().setDynamicLayout(false)
 
   val showSettings = Editor.ShowSettingsDefault.copy()
   val cameraSettings = Editor.CameraSettingsDefault.copy()
@@ -179,9 +181,14 @@ class Editor(
   redraw()
 
   addComponentListener(new ComponentAdapter {
+    // var last = System.currentTimeMillis
     override def componentResized(event: ComponentEvent): Unit = {
-      rebuildImagePanel()
-      redraw()
+      // val now = System.currentTimeMillis
+      // if (now > last + 250) {
+        rebuildImagePanel()
+        redraw()
+      //   last = now
+      // }
     }
   })
 

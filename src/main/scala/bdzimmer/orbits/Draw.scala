@@ -68,21 +68,11 @@ object Draw {
     val activeFlights = flights.filter(x =>
       // !x.equals(fp) &&
       x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
-    // val activeFlightFns = activeFlights.map(af => Editor.paramsToFun(af))
-    // val otherFlights = activeFlightFns.map({
-    //   case (afFn, afTicks) => afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
-    // })
 
     // clear the image
     val gr = im.getGraphics
     gr.setColor(Color.BLACK)
     gr.fillRect(0, 0, im.getWidth, im.getHeight)
-
-    val otherFlightsColors = activeFlights.map(x => factions.getOrElse(x.faction, Color.GRAY))
-
-    // RenderFlight.drawStateAtTime(
-    //   view, im, planetMotions, otherFlights.zip(otherFlightsColors).toList, GridLim)
-
 
     // ~~~~
 
@@ -95,7 +85,27 @@ object Draw {
     // as the final state of the flight - this is the time that we are drawing the
     // flight at
     planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view))
-    planetMotions.foreach(x => view.drawPosition(im, x._2.head.position, x._1, "", Color.GRAY))
+    planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.GRAY))
+
+    // draw L3, L4 and L5 points of visible planets
+    if (lagrangePoints) {
+      planets.foreach(p => {
+        view.drawPosition(
+          im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2), curDateJulian).position,
+          "L3", "", Color.GRAY, fill = false)
+        view.drawPosition(
+          im, Orbits.planetState(new MeeusPlanets.L4Estimator(p._2), curDateJulian).position,
+          "L4", "", Color.GRAY, fill = false)
+        view.drawPosition(
+          im, Orbits.planetState(new MeeusPlanets.L5Estimator(p._2), curDateJulian).position,
+          "L5", "", Color.GRAY, fill = false)
+      })
+    }
+
+    // draw the asteroid belt
+    if (asteroidBelt) {
+      view.drawRing(im, BeltR0, BeltR1, new Color(64, 64, 64, 128))
+    }
 
     // draw other flights in the background
     // TODO: optional ship arrows and names?
@@ -130,28 +140,6 @@ object Draw {
     })
 
 
-    // ~~~
-
-    if (asteroidBelt) {
-      view.drawRing(im, BeltR0, BeltR1, new Color(64, 64, 64, 128))
-    }
-
-    // draw L3, L4 and L5 points of visible planets
-    if (lagrangePoints) {
-      planets.foreach(p => {
-        view.drawPosition(
-          im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2), curDateJulian).position,
-          "L3", "", Color.GRAY, fill = false)
-        view.drawPosition(
-          im, Orbits.planetState(new MeeusPlanets.L4Estimator(p._2), curDateJulian).position,
-          "L4", "", Color.GRAY, fill = false)
-        view.drawPosition(
-          im, Orbits.planetState(new MeeusPlanets.L5Estimator(p._2), curDateJulian).position,
-          "L5", "", Color.GRAY, fill = false)
-      })
-    }
-
-
     fpOption.foreach(fp => {
 
       val (flightFn, ticks) = Editor.paramsToFun(fp)
@@ -181,21 +169,6 @@ object Draw {
 
       val curVel = drawVelocityArrow(
         flightFn, flightColor)
-
-      /*
-      // draw status
-      val pos2d = View.perspective(flightStates.last, camTrans, viewPos)
-      RenderFlight.drawFlightStatus(
-        pos2d.x.toInt, pos2d.y.toInt,
-        im,
-        fp.ship,
-        fp.faction,
-        Conversions.julianToCalendarDate(curDateJulian),
-        Vec3.length(Vec3.sub(flightStates.last, flightStates.head)),
-        vel,
-        DisplaySettings
-      )
-      */
 
       if (statusOption == 0) {
         // draw flight status with current datetime, distance, and velocity

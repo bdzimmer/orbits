@@ -58,7 +58,8 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       pos: Seq[Vec3],
       color: Color,
       lines: Boolean = true,
-      verticals: Boolean = false): Unit = {
+      verticals: Boolean = false,
+      adjustAlpha: Boolean = true): Unit = {
 
     val pos2d = pos.map(p => View.perspective(p, camTrans, viewPos))
 
@@ -78,6 +79,17 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       gr.setColor(color)
       if (pos2d.length > 1) {
         pos2d.zipWithIndex.dropRight(1).foreach({case (p1, idx) => {
+
+          if (adjustAlpha) {
+            // experiment with transparency
+            val fraction = 1.0 * idx / pos2d.length
+            val alpha = 255.0 * fraction
+            // val alpha = if (1.0 * idx / pos2d.length > 0.5) { 255.0 } else { 127.0 }
+            val artsyColor = new Color(
+              color.getRed, color.getGreen, color.getBlue, alpha.toInt)
+            gr.setColor(artsyColor)
+          }
+
           val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)  // TODO: experiment with round
           val p2 = pos2d(idx + 1)
           val (x2, y2) = cvtPos(im, p2.x.toInt, p2.y.toInt)

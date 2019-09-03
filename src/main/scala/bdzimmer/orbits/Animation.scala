@@ -66,8 +66,8 @@ object Animation {
         1.0 / initActiveFlights.length)
     } else {
       // anticipate average position of first flight(s)
+      // TODO: this might not be safe for empty list of flights
       val firstFlightDateJulian = flights.map(_.startDate.julian).min
-      println(firstFlightDateJulian)
       // TODO: may have to advance this by a small fraction of a day or something
       val firstActiveFlights = getActiveFlights(firstFlightDateJulian)
       println(firstActiveFlights.length)
@@ -80,6 +80,7 @@ object Animation {
 
     val ticks = (startDateJulian to endDateJulian by animationSettings.interval).toList.toIndexedSeq
 
+    // TODO: multithread this
     ticks.zipWithIndex.foreach({case (tick, idx) => {
 
       val initTimeStart = System.currentTimeMillis

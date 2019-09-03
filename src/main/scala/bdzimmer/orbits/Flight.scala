@@ -528,7 +528,7 @@ object RenderFlight {
 
 
   def imagesToVideo(inputDir: String, outputFile: String, width: Int, height: Int, fps: Int): Unit = {
-    val command = s"ffmpeg -y -r $fps -f image2 -s ${width}x$height -i $inputDir/%05d.png -vcodec libx264 -crf 25 -pix_fmt yuv420p $outputFile"
+    val command = s"ffmpeg -y -r $fps -f image2 -s ${width}x$height -i $inputDir/%05d.png -threads 2 -vcodec libx264 -crf 25 -pix_fmt yuv420p $outputFile"
     println(command)
     Try(command.!!)
   }
@@ -566,16 +566,29 @@ object RenderFlight {
 
 
   def drawOrbit(
-      im: BufferedImage, fullPeriod: Seq[OrbitalState],
-      view: Viewer, color: Color = Color.GRAY): Unit = {
+      im: BufferedImage,
+      fullPeriod: Seq[OrbitalState],
+      view: Viewer,
+      color: Color = Color.GRAY,
+      adjustAlpha: Boolean = true): Unit = {
 
     // draw an orbit using arrows
-
-    view.drawMotion(im, fullPeriod.map(_.position), Color.GRAY)
-
+    view.drawMotion(im, fullPeriod.map(_.position), color, adjustAlpha)
     val arrowIndex = fullPeriod.length / 4
-    view.drawArrow(im, fullPeriod(arrowIndex), Color.GRAY)
-    view.drawArrow(im, fullPeriod(arrowIndex * 3), Color.GRAY)
+
+    if (!adjustAlpha) {
+      view.drawArrow(im, fullPeriod(arrowIndex), color)
+      view.drawArrow(im, fullPeriod(arrowIndex * 3), color)
+    } else {
+      val qColor = new Color(
+        color.getRed, color.getGreen, color.getBlue,
+        (255.0 * 0.25).toInt)
+      val tqColor = new Color(
+        color.getRed, color.getGreen, color.getBlue,
+        (255.0 * 0.75).toInt)
+      view.drawArrow(im, fullPeriod(arrowIndex), qColor)
+      view.drawArrow(im, fullPeriod(arrowIndex * 3), tqColor)
+    }
 
   }
 

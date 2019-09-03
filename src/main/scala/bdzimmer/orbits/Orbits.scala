@@ -186,7 +186,10 @@ object Orbits {
     // val period = math.sqrt(365.0 * 365.0 * r3)
     val period = planetPeriod(oeStartTime.semimajorAxis)
     val timeInterval = period / nPoints
-    val times = (0 to nPoints).map(t => startTime + t * timeInterval)
+    // calculate the period BEFORE the start date
+    val times = (0 to nPoints).map(t => (startTime - period) + t * timeInterval)
+    // confirm that the LAST tick is identical to the start date
+    // println(startTime + " " + times.last)
     times.map(t => planetState(oee, t))
   }
 
