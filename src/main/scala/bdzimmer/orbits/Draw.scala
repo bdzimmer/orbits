@@ -88,6 +88,20 @@ object Draw {
     planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view))
     planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.GRAY))
 
+    // draw Luna
+    // TODO: precisely calculate period instead of taking 30
+    val lunaRelMotion = Orbits.motionPeriod(Moons.Luna.moon, curDateJulian, 30.0, 30)
+    val earthMotion = Orbits.motionPeriod(Moons.Luna.parent, curDateJulian, 30.0, 30)
+    val earthState = earthMotion.last
+
+    val lunaOrbitMotion = lunaRelMotion.map(x => OrbitalState(
+      Vec3.add(x.position, earthState.position),
+      x.velocity))
+
+    RenderFlight.drawOrbit(im, lunaOrbitMotion, view)
+    view.drawPosition(im, lunaOrbitMotion.last.position, "Luna", "", Color.GRAY)
+
+
     // draw L3, L4 and L5 points of visible planets
     if (lagrangePoints) {
       planets.foreach(p => {

@@ -6,7 +6,6 @@
 
 package bdzimmer.orbits
 
-
 case class OrbitalState(position: Vec3, velocity: Vec3)
 
 
@@ -22,7 +21,7 @@ case class OrbitalElements(
   // e - eccentricity of the orbit
   eccentricity:  Double,
 
-  // i - inclination on the plane of the ecliplic
+  // i - inclination on the plane of the ecliptic
   inclination:   Double,
 
   // lowercase omega - argument of periapsis
@@ -228,6 +227,75 @@ object MeeusPlanets {
       val period = Orbits.planetPeriod(oeeT.semimajorAxis)
       oee(t - period / 6.0)
     }
+  }
+
+}
+
+
+object Moons {
+
+  // https://ssd.jpl.nasa.gov/?sat_elem
+
+  //  Common Table Column Headings:
+  //    a	Semi-major Axis (mean value)
+  //    e	Eccentricity (mean value)
+  //    w	Argument of periapsis (mean value)
+  //    M	Mean anomaly (mean value)
+  //    i	Inclination with respect to the reference plane: ecliptic, ICRF, or local Laplace (mean value)
+  //    node	Longitude of the ascending node (mean value) measured from the node of the reference plane on the ICRF equator
+  //    n	Longitude rate (mean value)
+  //    P	Sidereal period (mean value)
+  //    Pw	Argument of periapsis precession period (mean value)
+  //    Pnode	Longitude of the ascending node precession period (mean value)
+
+  //  Headings only for elements with respect to the local Laplace plane:
+  //    R.A.	Right ascension and ...
+  //    Dec   Declination of the Laplace plane pole with respect to the ICRF.
+  //    Tilt	The angle between the planet equator and the Laplace plane.
+
+  val DegToRad = math.Pi / 180
+
+  // TODO: different types for
+  case class Moon(parent: OrbitalElementsEstimator, moon: OrbitalElementsEstimator)
+
+  val Luna = Moon(
+    MeeusPlanets.Earth, new MoonEclipticEstimator(
+      384400.0,	0.0554,	318.15,	135.27,	5.16,	125.08,	13.176358, 27.322,5.997,18.600))
+
+
+  class MoonEclipticEstimator(
+    a: Double,
+    e: Double,
+    w: Double,
+    m: Double,
+    i: Double,
+    node: Double,
+    n: Double,
+    p: Double,
+    pw: Double,
+    pnode: Double) extends OrbitalElementsEstimator {
+
+    def apply(t: Double): OrbitalElements = {
+
+      // TODO: implement "correct" epoch
+      val meanAnomalyDelta = t * n
+
+      // TODO: precession of argument of periapsis and precession of longitude of ascending node
+
+      OrbitalElements(
+        longitudeMean = (node + w + m) * DegToRad,
+        semimajorAxis = a * 1000.0 / Conversions.AuToMeters,
+        eccentricity = e,
+        inclination = i * DegToRad,
+        argPeriapsis = w * DegToRad,
+        longitudeAscending = node * DegToRad,
+        longitudePeriapsis = w * DegToRad,
+        meanAnomaly = (m + meanAnomalyDelta) * DegToRad,
+        rp = a * (1 - e),
+        ra = a * (1 + e)
+      )
+    }
+
   }
 
 }

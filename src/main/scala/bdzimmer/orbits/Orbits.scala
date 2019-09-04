@@ -193,6 +193,15 @@ object Orbits {
     times.map(t => planetState(oee, t))
   }
 
+
+  def motionPeriod(oee: OrbitalElementsEstimator, startTime: Double, period: Double, nPoints: Int = 365): Seq[OrbitalState] = {
+    val timeInterval = period / nPoints
+    // calculate the period BEFORE the start date
+    val times = (0 to nPoints).map(t => (startTime - period) + t * timeInterval)
+    times.map(t => planetState(oee, t))
+  }
+
+
   def planetPeriod(semimajorAxis: Double): Double = {
     // Apply Kepler's Third Law to find the full period of a planet.
     // Assumes the planet is orbiting the sun.
