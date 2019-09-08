@@ -10,8 +10,6 @@
 package bdzimmer.orbits
 
 import scala.collection.immutable.Seq
-import scala.sys.process._
-import scala.util.Try
 
 
 sealed abstract class Spacecraft {
@@ -98,41 +96,21 @@ object Orbits {
   }
 
 
-  def radius(oe: OrbitalElements, trueAnomaly: Double): Double = {
+  def radius(oe: OrbitalElements, angle: Double): Double = {
     val e = oe.eccentricity
     val e2 = e * e
-    oe.semimajorAxis * (1 - e2) / (1 + e * math.cos(trueAnomaly))
+    oe.semimajorAxis * (1 - e2) / (1 + e * math.cos(angle))
   }
-
-
-  // these functions work, but I'm not currently using them
-  /*
-  def planetXYZ(oee: OrbitalElementsEstimator, t: Double): Vec3d = {
-    val oe = oee(t)
-    val v  = trueAnomaly(oe)
-    val r  = radius(oe, v)
-    cartesianCoords(oe, v, r)
-  }
-
-
-  def cartesianCoords(oe: OrbitalElements, v: Double, r: Double): Vec3d = {
-
-    val i = oe.inclination
-    val o = oe.longitudeAscending  // uppercase omega
-    val p = oe.longitudePeriapsis  // pi
-
-    val x = r * (math.cos(o) * math.cos(v + p - o) - math.sin(o) * math.sin(v + p - o) * math.cos(i))
-    val y = r * (math.sin(o) * math.cos(v + p - o) + math.cos(o) * math.sin(v + p - o) * math.cos(i))
-    val z = r * (math.sin(v + p - o) * math.sin(i))
-
-    Vec3d(x, y, z)
-  }
-  *
-  */
 
 
   def positionOrbital(oe: OrbitalElements, v: Double, r: Double): Vec3 = {
     Vec3(r * math.cos(v), r * math.sin(v), 0.0)
+  }
+
+
+  def positionOrbital(oe: OrbitalElements, v: Double): Vec3 = {
+    val r = radius(oe, v)
+    positionOrbital(oe, v, r)
   }
 
 
@@ -181,11 +159,50 @@ object Orbits {
   }
 
 
-  def planetMotionPeriod(oee: OrbitalElementsEstimator, startTime: Double, nPoints: Int = 365): Seq[OrbitalState] = {
+  def planetMotionPeriod(
+      oee: OrbitalElementsEstimator,
+      startTime: Double,
+      nPoints: Int = 365): Seq[OrbitalState] = {
+
     val oeStartTime = oee(startTime)
-    // val r3 = oeStartTime.semimajorAxis * oeStartTime.semimajorAxis * oeStartTime.semimajorAxis
-    // val period = math.sqrt(365.0 * 365.0 * r3)
     val period = planetPeriod(oeStartTime.semimajorAxis)
+    motionPeriod(oee, startTime, period, nPoints)
+
+    // val timeInterval = period / nPoints
+    // // calculate the period BEFORE the start date
+    // val times = (0 to nPoints).map(t => (startTime - period) + t * timeInterval)
+    // // confirm that the LAST tick is identical to the start date
+    // // println(startTime + " " + times.last)
+    // times.map(t => planetState(oee, t))
+  }
+
+
+  def moonMotionPeriod(
+      primary: OrbitalElementsEstimator,
+      moon: OrbitalElementsEstimator,
+      startTime: Double,
+      nPoints: Int = 30): Seq[OrbitalState] = {
+
+    // TODO: actually calculate period instead of taking 30
+    val period = 30.0
+
+    val moonRelMotion = Orbits.motionPeriod(moon, startTime, period, nPoints)
+
+    // use this method if we want to plot the absolute position
+    // of the moon over time below
+    // val primaryMotion = Orbits.motionPeriod(primary, startTime, period, nPoints)
+    // val earthState = primaryMotion.last
+
+    val primaryState = planetState(primary, startTime)
+
+    moonRelMotion.map(x => OrbitalState(
+      Vec3.add(x.position, primaryState.position),
+      x.velocity))
+
+  }
+
+
+  def motionPeriod(oee: OrbitalElementsEstimator, startTime: Double, period: Double, nPoints: Int = 365): Seq[OrbitalState] = {
     val timeInterval = period / nPoints
     // calculate the period BEFORE the start date
     val times = (0 to nPoints).map(t => (startTime - period) + t * timeInterval)
@@ -195,16 +212,8 @@ object Orbits {
   }
 
 
-  def motionPeriod(oee: OrbitalElementsEstimator, startTime: Double, period: Double, nPoints: Int = 365): Seq[OrbitalState] = {
-    val timeInterval = period / nPoints
-    // calculate the period BEFORE the start date
-    val times = (0 to nPoints).map(t => (startTime - period) + t * timeInterval)
-    times.map(t => planetState(oee, t))
-  }
-
-
   def planetPeriod(semimajorAxis: Double): Double = {
-    // Apply Kepler's Third Law to find the full period of a planet.
+    // Apply Kepler's Third Law to find (approximately) the full period of a planet.
     // Assumes the planet is orbiting the sun.
     val periodOfEarth = 365.25
     val r3 = semimajorAxis * semimajorAxis * semimajorAxis

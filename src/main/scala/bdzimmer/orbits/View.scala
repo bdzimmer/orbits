@@ -171,6 +171,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     (x + im.getWidth / 2, im.getHeight - (y + im.getHeight / 2))
   }
 
+
   def drawPosition(
       im: BufferedImage, pos: Vec3, name: String, desc: String,
       color: Color, fill: Boolean = true): Unit = {
@@ -180,6 +181,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(color)
 
+    // TODO: use cvtPos
     val x = pos2d.x.toInt + im.getWidth / 2
     val y = im.getHeight - (pos2d.y.toInt + im.getHeight / 2)
 
@@ -192,6 +194,21 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     gr.setFont(settings.displayFont)
     gr.drawString(name, x + rad, y + settings.lineHeight)
     gr.drawString(desc, x + rad, y + settings.lineHeight * 2)
+  }
+
+
+  def drawLabel(im: BufferedImage, label: String, pos: Vec3, color: Color): Unit = {
+
+    val pos2d = View.perspective(pos, camTrans, viewPos)
+    val (x, y) = cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
+
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
+    gr.setColor(color)
+
+    gr.setFont(settings.displayFont)
+    gr.drawString(label, x, y + settings.lineHeight)
+
   }
 
 

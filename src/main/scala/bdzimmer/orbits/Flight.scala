@@ -893,6 +893,7 @@ object RenderFlight {
                                factionColor)
   }
 
+
   def drawFlightRadii(
       im: BufferedImage,
       flight: FlightParams,
@@ -925,5 +926,60 @@ object RenderFlight {
     view.drawLine(im, sun, destEnd.position, color)
 
   }
+
+
+  def drawOrbitInfo(
+      im: BufferedImage,
+      oe: OrbitalElements,
+      transformation: Mat44,
+      view: Viewer): Unit = {
+
+    // transformation is an additional transformation to be applied
+    // for use with moons etc.
+
+    // ~~~~ draw ascending node
+    val color = new Color(255, 255, 255, 31)
+
+    val centerTrans = transform(transformation, Vec3(0.0, 0.0, 0.0))
+
+    // argument of periapsis is angle forward from ascending node to periapsis (angle 0.0)
+    val nodePos = Orbits.transformOrbitalInertial(
+      Orbits.positionOrbital(oe, 0.0 - oe.argPeriapsis), oe)
+    val nodePosTrans = transform(transformation, nodePos)
+
+    view.drawLine(im, centerTrans, nodePosTrans, color)
+    view.drawLabel(im, "ascending node", nodePosTrans, color)
+
+    // ~~~ draw periapsis
+
+    // periapsis is at angle 0.0
+    val periPos = Orbits.transformOrbitalInertial(
+      Orbits.positionOrbital(oe, 0.0),
+      oe)
+    val periPosTrans = transform(transformation, periPos)
+
+    view.drawLine(im, centerTrans, periPosTrans, color)
+    view.drawLabel(im, "periapsis", periPosTrans, color)
+
+    // ~~~~ draw true anomaly
+
+    val vPos = Orbits.transformOrbitalInertial(
+      Orbits.positionOrbital(oe),
+      oe)
+    val vPosTrans = transform(transformation, vPos)
+
+    view.drawLine(im, centerTrans, vPosTrans, color)
+    // don't need to draw a label, since probably the planet will
+    // be there
+
+  }
+
+
+  def transform(mat: Mat44, vec: Vec3): Vec3 = {
+    val vecH = new Vec4(vec, 1.0)
+    val pH = mat.mul(vecH)
+    Vec3(pH.x / pH.w, pH.y / pH.w, pH.z / pH.w)
+  }
+
 
 }

@@ -254,7 +254,7 @@ object Moons {
   val J_2000_01_01_12 = 2451545.0
 
   // TODO: different types for
-  case class Moon(parent: OrbitalElementsEstimator, moon: OrbitalElementsEstimator)
+  case class Moon(primary: OrbitalElementsEstimator, moon: OrbitalElementsEstimator)
 
   val Luna = Moon(
     MeeusPlanets.Earth, new MoonEclipticEstimator(
