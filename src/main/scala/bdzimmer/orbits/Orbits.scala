@@ -36,6 +36,7 @@ case class ConstVelCraft (
 
 object Conversions {
 
+  val DegToRad = math.Pi / 180
   val AuToMeters = 1.49597870700e11
   val DayToSec = 86400.0
   val LightToMetersPerSec = 299792458.0

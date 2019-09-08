@@ -59,9 +59,6 @@ object MeeusPlanets {
   // 0 January 1900 12h
   val J1900 = 2415020.0
 
-  val DegToRad = math.Pi / 180
-
-
   val Mercury = new NonEarthPolynomialEstimator(
       Polynomial4(178.179078, 149474.07078, 0.0003011),
       0.3870986,
@@ -149,11 +146,11 @@ object MeeusPlanets {
     def apply(t: Double): OrbitalElements = {
       val x = (t - J1900) / 36525
 
-      val longMean = longitudeMean(x)  * DegToRad
+      val longMean = longitudeMean(x)  * Conversions.DegToRad
       val ecc = eccentricity(x)
-      val inc = inclination(x) * DegToRad
-      val argPeri = argPeriapsis(x) * DegToRad
-      val longAsc = longitudeAscending(x) * DegToRad
+      val inc = inclination(x) * Conversions.DegToRad
+      val argPeri = argPeriapsis(x) * Conversions.DegToRad
+      val longAsc = longitudeAscending(x) * Conversions.DegToRad
       val longPeri = argPeri + longAsc
       val meanAnomaly = longMean - longPeri
       val rp = semimajorAxis * (1 - ecc)
@@ -177,9 +174,9 @@ object MeeusPlanets {
     def apply(t: Double): OrbitalElements = {
       val x = (t - J1900) / 36525
 
-      val longMean = longitudeMean(x) * DegToRad
+      val longMean = longitudeMean(x) * Conversions.DegToRad
       val ecc = eccentricity(x)
-      val meanAnom = meanAnomaly(x) * DegToRad
+      val meanAnom = meanAnomaly(x) * Conversions.DegToRad
       val longAscending = 0.0
       val longPeri = longMean - meanAnom
       val argPeri = longPeri // longPeri - longAscending (longAscending = 0.0)
@@ -253,17 +250,20 @@ object Moons {
   //    Dec   Declination of the Laplace plane pole with respect to the ICRF.
   //    Tilt	The angle between the planet equator and the Laplace plane.
 
-  val DegToRad = math.Pi / 180
+  // Epoch 2000 Jan. 1.50 TT
+  val J_2000_01_01_12 = 2451545.0
 
   // TODO: different types for
   case class Moon(parent: OrbitalElementsEstimator, moon: OrbitalElementsEstimator)
 
   val Luna = Moon(
     MeeusPlanets.Earth, new MoonEclipticEstimator(
+      J_2000_01_01_12,
       384400.0,	0.0554,	318.15,	135.27,	5.16,	125.08,	13.176358, 27.322,5.997,18.600))
 
 
   class MoonEclipticEstimator(
+    epoch: Double,
     a: Double,
     e: Double,
     w: Double,
@@ -277,22 +277,24 @@ object Moons {
 
     def apply(t: Double): OrbitalElements = {
 
-      // TODO: implement "correct" epoch
-      val meanAnomalyDelta = t * n
+      // TODO: double check correct implementation of epoch
+      val meanAnomalyDelta = (t - epoch) * n
 
       // TODO: precession of argument of periapsis and precession of longitude of ascending node
 
+      val semiMajorAxis = a * 1000.0 / Conversions.AuToMeters
+
       OrbitalElements(
-        longitudeMean = (node + w + m) * DegToRad,
-        semimajorAxis = a * 1000.0 / Conversions.AuToMeters,
+        longitudeMean = (node + w + m) * Conversions.DegToRad,
+        semimajorAxis = semiMajorAxis,
         eccentricity = e,
-        inclination = i * DegToRad,
-        argPeriapsis = w * DegToRad,
-        longitudeAscending = node * DegToRad,
-        longitudePeriapsis = w * DegToRad,
-        meanAnomaly = (m + meanAnomalyDelta) * DegToRad,
-        rp = a * (1 - e),
-        ra = a * (1 + e)
+        inclination = i * Conversions.DegToRad,
+        argPeriapsis = w * Conversions.DegToRad,
+        longitudeAscending = node * Conversions.DegToRad,
+        longitudePeriapsis = w * Conversions.DegToRad,
+        meanAnomaly = (m + meanAnomalyDelta) * Conversions.DegToRad,
+        rp = semiMajorAxis * (1 - e),
+        ra = semiMajorAxis * (1 + e)
       )
     }
 
