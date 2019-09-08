@@ -209,13 +209,49 @@ class Editor(
     val planets = showSettings.planets.filter(_._2).flatMap(
       x => MeeusPlanets.Planets.get(x._1).map(y => (x._1, y))).toList
 
-    // TODO: combine camera type logic if possible; it will get more complicated
+    val timelineMode = timelineButton.isSelected
 
-    if (timelineButton.isSelected) {
+    // logic for finding the current time that we are displaying
+    val curDateJulian = if (timelineMode) {
+      getTimelineTime()
+    } else {
+      val idx = flightsComboBox.getSelectedIndex
+      val fp = flights(idx)
+      val flightPercent = flightsSlider.getValue / 100.0
+      fp.startDate.julian + (fp.endDate.julian - fp.startDate.julian) * flightPercent
+    }
 
-      // timeline mode
+    val (camTrans, viewPos, fpOption) = getViewInfo(curDateJulian, timelineMode)
 
-      val curDateJulian = getTimelineTime()
+    Draw.redraw(
+      fpOption,
+      curDateJulian,
+      planets,
+      flights.toList,
+      factions,
+      showSettings.asteroidBelt,
+      showSettings.lagrangePoints,
+      showSettings.orbitInfo,
+      showSettings.flightStatus,
+      camTrans,
+      viewPos,
+      im
+    )
+
+    imagePanel.repaint()
+    System.out.print(".")
+  }
+
+
+  def getViewInfo(
+      curDateJulian: Double,
+      timelineMode: Boolean): (Mat44, Vec3, Option[FlightParams]) = {
+
+    // TODO: combine timeline / non-timeline type logic if possible; it will get more complicated
+    // TODO: separate manual from both modes would be a start
+
+    if (timelineMode) {
+
       val activeFlights = flights.filter(x => curDateJulian > x.startDate.julian && curDateJulian < x.endDate.julian)
       val fpOption = activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
 
@@ -241,29 +277,16 @@ class Editor(
 
           val camPos = getCamPos
           val camRot = Editor.pointCamera(curState, camPos)
-
           val camTrans = View.cameraTransform(camRot, camPos)
 
           (camTrans, getViewPos)
         }
+
         case _ =>  (getCamera, getViewPos)
 
       }
 
-      Draw.redraw(
-        fpOption,
-        curDateJulian,
-        planets,
-        flights.toList,
-        factions,
-        showSettings.asteroidBelt,
-        showSettings.lagrangePoints,
-        showSettings.orbitInfo,
-        showSettings.flightStatus,
-        camTrans,
-        viewPos,
-        im
-      )
+      (camTrans, viewPos, fpOption)
 
     } else {
 
@@ -271,8 +294,6 @@ class Editor(
 
       val idx = flightsComboBox.getSelectedIndex
       val fp = flights(idx)
-      val flightPercent = flightsSlider.getValue / 100.0
-      val curDateJulian = fp.startDate.julian + (fp.endDate.julian - fp.startDate.julian) * flightPercent
 
       // get camera and viewer position
       val (camTrans, viewPos) = cameraSettings.cameraType match {
@@ -283,13 +304,10 @@ class Editor(
           val curState = flightFn(curDateJulian)
 
           val camPos = getCamPos
-          val viewPos = getViewPos
           val camRot = Editor.pointCamera(curState, camPos)
-
           val camTrans = View.cameraTransform(camRot, camPos)
 
-          (camTrans, viewPos)
-
+          (camTrans, getViewPos)
         }
 
         // TODO: handle in a more general way
@@ -299,38 +317,19 @@ class Editor(
           val curState = Orbits.planetState(planet, curDateJulian).position
 
           val camPos = getCamPos
-          val viewPos = getViewPos
           val camRot = Editor.pointCamera(curState, camPos)
-
           val camTrans = View.cameraTransform(camRot, camPos)
 
-          (camTrans, viewPos)
-
+          (camTrans, getViewPos)
         }
-
 
         case "Manual" => (getCamera, getViewPos)
       }
 
-      Draw.redraw(
-        Some(fp),
-        curDateJulian,
-        planets,
-        flights.toList,
-        factions,
-        showSettings.asteroidBelt,
-        showSettings.lagrangePoints,
-        showSettings.orbitInfo,
-        showSettings.flightStatus,
-        camTrans,
-        viewPos,
-        im
-      )
+      (camTrans, viewPos, Some(fp))
 
     }
 
-    imagePanel.repaint()
-    System.out.print(".")
   }
 
   def rebuildImagePanel(): Unit = {
