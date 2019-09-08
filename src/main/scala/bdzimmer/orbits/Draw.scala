@@ -34,6 +34,8 @@ object Draw {
 
       asteroidBelt: Boolean,
       lagrangePoints: Boolean,
+      orbitInfo: Boolean,
+
       statusOption: Int,
 
       camTrans: Mat44,
@@ -97,13 +99,15 @@ object Draw {
       RenderFlight.drawOrbit(im, lunaOrbitMotion, view)
       view.drawPosition(im, lunaOrbitMotion.last.position, "Luna", "", Color.GRAY)
 
-      RenderFlight.drawOrbitInfo(
-        im,
-        Moons.Luna.moon(curDateJulian),
-        Transformations.transformation(
-          Transformations.Identity3,
-          Orbits.planetState(Moons.Luna.primary, curDateJulian).position),
-        view)
+      if (orbitInfo) {
+        RenderFlight.drawOrbitInfo(
+          im,
+          Moons.Luna.moon(curDateJulian),
+          Transformations.transformation(
+            Transformations.Identity3,
+            Orbits.planetState(Moons.Luna.primary, curDateJulian).position),
+          view)
+      }
     }
 
     // draw moons of Mars
@@ -114,25 +118,28 @@ object Draw {
         RenderFlight.drawOrbit(im, motion, view)
         view.drawPosition(im, motion.last.position, name, "", Color.GRAY)
 
-        RenderFlight.drawOrbitInfo(
-          im,
-          moon.moon(curDateJulian),
-          Transformations.transformation(
-            laplacePlane.getOrElse(Transformations.Identity3),
-            Orbits.planetState(moon.primary, curDateJulian).position),
-          view
-        )
+        if (orbitInfo) {
+          RenderFlight.drawOrbitInfo(
+            im,
+            moon.moon(curDateJulian),
+            Transformations.transformation(
+              laplacePlane.getOrElse(Transformations.Identity3),
+              Orbits.planetState(moon.primary, curDateJulian).position),
+            view)
+        }
       }})
 
     }
 
     // ~~~~ ~~~~ ~~~~ ~~~~
 
-    // experiment with drawing the orbital element info
-    if (true) {
-      val oe = MeeusPlanets.Saturn(curDateJulian)
-      RenderFlight.drawOrbitInfo(
-        im, oe, Transformations.IdentityTransformation, view)
+    // draw orbit info
+    if (orbitInfo) {
+      planets.foreach(x => {
+        val oe = x._2(curDateJulian)
+        RenderFlight.drawOrbitInfo(
+          im, oe, Transformations.IdentityTransformation, view)
+      })
     }
 
 

@@ -60,10 +60,12 @@ case class UpdateCameraControls(
 )
 
 
+// TODO: make the fields constant
 case class ShowSettings(
    var planets: scala.collection.immutable.Map[String, Boolean],
    var lagrangePoints: Boolean,
    var asteroidBelt: Boolean,
+   var orbitInfo: Boolean,
    var flightStatus: Int      // TODO: enumeration
 )
 
@@ -256,6 +258,7 @@ class Editor(
         factions,
         showSettings.asteroidBelt,
         showSettings.lagrangePoints,
+        showSettings.orbitInfo,
         showSettings.flightStatus,
         camTrans,
         viewPos,
@@ -317,6 +320,7 @@ class Editor(
         factions,
         showSettings.asteroidBelt,
         showSettings.lagrangePoints,
+        showSettings.orbitInfo,
         showSettings.flightStatus,
         camTrans,
         viewPos,
@@ -402,6 +406,7 @@ object Editor {
       planets = MeeusPlanets.Planets.map(x => (x._1, InitialVisiblePlanets.contains(x._1))),
       lagrangePoints = false,
       asteroidBelt = true,
+      orbitInfo = false,
       flightStatus = 1
   )
 
@@ -554,6 +559,16 @@ object Editor {
       }
     })
     viewMenu.add(asteroidBeltCheckBox)
+    viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
+
+    val orbitInfoCheckBox = new JCheckBoxMenuItem("Orbit Info", showSettings.orbitInfo)
+    orbitInfoCheckBox.addItemListener(new ItemListener {
+      override def itemStateChanged(e: ItemEvent): Unit = {
+        showSettings.orbitInfo = orbitInfoCheckBox.isSelected
+        redraw()
+      }
+    })
+    viewMenu.add(orbitInfoCheckBox)
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
     val flightStatusButtonGroup = new ButtonGroup()

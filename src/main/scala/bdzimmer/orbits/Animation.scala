@@ -120,6 +120,7 @@ object Animation {
         factions,
         showSettings.asteroidBelt,
         showSettings.lagrangePoints,
+        showSettings.orbitInfo,
         showSettings.flightStatus,
         camTrans,
         initViewPos,
