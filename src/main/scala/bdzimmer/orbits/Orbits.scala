@@ -9,6 +9,8 @@
 
 package bdzimmer.orbits
 
+import bdzimmer.orbits.Moons.MoonEclipticEstimator
+
 import scala.collection.immutable.Seq
 
 
@@ -140,6 +142,19 @@ object Orbits {
   }
 
 
+  def laplacePlaneTransformation(rightAscension: Double, declination: Double): Mat33 = {
+    // calculate transformation of laplace plane relative to planet's axis
+    // TODO: sort of a guess for now
+    // Should be able to double check by seeing if the resulting orbit lies roughly in the same
+
+    // first rotate around Z by rightAscension
+    // then rotate around X by declination
+
+    Transformations.rotX(declination).mul(Transformations.rotZ(rightAscension))
+
+  }
+
+
   def planetState(oee: OrbitalElementsEstimator, t: Double, dt: Double = 0.0001): OrbitalState = {
     val oeT1 = oee(t)
     val posOrbT1 = positionOrbital(oeT1)
@@ -179,14 +194,22 @@ object Orbits {
 
   def moonMotionPeriod(
       primary: OrbitalElementsEstimator,
-      moon: OrbitalElementsEstimator,
+      moon: MoonEclipticEstimator,
+      laplacePlane: Option[Mat33],
       startTime: Double,
-      nPoints: Int = 30): Seq[OrbitalState] = {
+      nPoints: Int = 90): Seq[OrbitalState] = {
 
-    // TODO: actually calculate period instead of taking 30
-    val period = 30.0
+    // TODO: is there a way to properly calculate the period instead of using this?
+    val period = moon.p
 
     val moonRelMotion = Orbits.motionPeriod(moon, startTime, period, nPoints)
+
+    // TODO: apply laplace plane transformation
+    val moonRelMotionRot = laplacePlane.map(mat => {
+      moonRelMotion.map(x =>  {
+        OrbitalState(mat.mul(x.position), mat.mul(x.velocity))
+      })
+    }).getOrElse(moonRelMotion)
 
     // use this method if we want to plot the absolute position
     // of the moon over time below
@@ -195,7 +218,7 @@ object Orbits {
 
     val primaryState = planetState(primary, startTime)
 
-    moonRelMotion.map(x => OrbitalState(
+    moonRelMotionRot.map(x => OrbitalState(
       Vec3.add(x.position, primaryState.position),
       x.velocity))
 

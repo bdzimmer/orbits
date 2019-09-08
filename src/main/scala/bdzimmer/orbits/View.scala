@@ -191,13 +191,18 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     } else {
       gr.drawOval(x - rad, y - rad, rad * 2, rad * 2)
     }
+
     gr.setFont(settings.displayFont)
-    gr.drawString(name, x + rad, y + settings.lineHeight)
-    gr.drawString(desc, x + rad, y + settings.lineHeight * 2)
+    if (name.length > 0) {
+      gr.drawString(name, x + rad, y + settings.lineHeight)
+    }
+    if (desc.length > 0) {
+      gr.drawString(desc, x + rad, y + settings.lineHeight * 2)
+    }
   }
 
 
-  def drawLabel(im: BufferedImage, label: String, pos: Vec3, color: Color): Unit = {
+  def drawLabel(im: BufferedImage, label: String, desc: String, pos: Vec3, color: Color): Unit = {
 
     val pos2d = View.perspective(pos, camTrans, viewPos)
     val (x, y) = cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
@@ -207,7 +212,12 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     gr.setColor(color)
 
     gr.setFont(settings.displayFont)
-    gr.drawString(label, x, y + settings.lineHeight)
+    if (label.length > 0) {
+      gr.drawString(label, x, y + settings.lineHeight)
+    }
+    if (desc.length > 0) {
+      gr.drawString(desc, x, y + settings.lineHeight * 2)
+    }
 
   }
 
@@ -374,71 +384,17 @@ object Viewer {
 
 object View {
 
-  val UnitX = Vec3(1.0, 0.0, 0.0)
-  val UnitY = Vec3(0.0, 1.0, 0.0)
-  val UnitZ = Vec3(0.0, 0.0, 1.0)
-
-  val Vec3Zero = Vec3(0.0, 0.0, 0.0)
-
-  val Identity3 = Mat33(UnitX, UnitY, UnitZ)
-  val IdentityTransformation = transformation(Identity3, Vec3Zero)
-
-
-  def transformation(rot: Mat33, trans: Vec3): Mat44 = {
-     Mat44(
-      new Vec4(rot.c0, 0.0),
-      new Vec4(rot.c1, 0.0),
-      new Vec4(rot.c2, 0.0),
-      new Vec4(trans,  1.0)
-    )
-  }
-
-
   // perspective transformation calculations
   // https://en.wikipedia.org/wiki/3D_projection#Perspective_projection
 
   def cameraTransform(rot: Mat33, pos: Vec3): Mat44 = {
 
-    val translation = transformation(Identity3, Vec3(-pos.x, -pos.y, -pos.z))
-    val rotation = transformation(rot, Vec3Zero)
+    val translation = Transformations.transformation(Transformations.Identity3, Vec3(-pos.x, -pos.y, -pos.z))
+    val rotation = Transformations.transformation(rot, Transformations.Vec3Zero)
     // interesting to experiment with this
     // translation.mul(rotation)
     rotation.mul(translation)
   }
-
-
-  def rotationXYZ(theta: Vec3): Mat33 = {
-    rotZ(theta.z).mul(rotY(theta.y)).mul(rotX(theta.x))
-  }
-
-  def rotationZYX(theta: Vec3): Mat33 = {
-    rotX(theta.x).mul(rotY(theta.y)).mul(rotZ(theta.z))
-  }
-
-
-  def rotX(theta: Double): Mat33 = {
-    Mat33(
-      UnitX,
-      Vec3(0.0, math.cos(theta), -math.sin(theta)),
-      Vec3(0.0, math.sin(theta),  math.cos(theta)))
-  }
-
-
-  def rotY(theta: Double): Mat33 = {
-    Mat33(
-      Vec3( math.cos(theta), 0.0, math.sin(theta)),
-      UnitY,
-      Vec3(-math.sin(theta), 0.0, math.cos(theta)))
-  }
-
-
-  def rotZ(theta: Double): Mat33 = {
-    Mat33(
-      Vec3(math.cos(theta), -math.sin(theta), 0.0),
-      Vec3(math.sin(theta),  math.cos(theta), 0.0),
-      UnitZ)
-  }
-
 
   def perspective(point: Vec3, camTrans: Mat44, viewPos: Vec3): Vec2 = {
     val ph = new Vec4(point, 1.0)

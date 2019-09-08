@@ -128,7 +128,8 @@ class Editor(
   viewPanel.addMouseWheelListener(new MouseWheelListener() {
     def mouseWheelMoved(event: MouseWheelEvent): Unit = {
       val notches = event.getWheelRotation
-      val zViewPos = cameraSettings.zViewPos - notches * Editor.ZoomSpeed
+      val multiplier = if (event.isControlDown) { 100.0 } else {1.0}
+      val zViewPos = cameraSettings.zViewPos - notches * Editor.ZoomSpeed * multiplier
       updateCameraControls.setZViewPos(math.max(zViewPos, 0.0))
       // don't need to redraw here, since it seems that the above triggers change listener
     }
@@ -206,6 +207,8 @@ class Editor(
     val planets = showSettings.planets.filter(_._2).flatMap(
       x => MeeusPlanets.Planets.get(x._1).map(y => (x._1, y))).toList
 
+    // TODO: combine camera type logic if possible; it will get more complicated
+
     if (timelineButton.isSelected) {
 
       // timeline mode
@@ -216,8 +219,7 @@ class Editor(
 
       // get camera and viewer position
       val (camTrans, viewPos) = cameraSettings.cameraType match {
-        case "Manual" => (getCamera, getViewPos)
-        case _        => {
+        case "Follow Active"        => {
 
           // TODO: extract damping logic
 
@@ -236,15 +238,14 @@ class Editor(
           prevPos = curState
 
           val camPos = getCamPos
-          val viewPos = getViewPos
           val camRot = Editor.pointCamera(curState, camPos)
 
           val camTrans = View.cameraTransform(camRot, camPos)
-          // val xshiftAmount =  -imWidth * 0.1
-          // val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
 
-          (camTrans, viewPos)
+          (camTrans, getViewPos)
         }
+        case _ =>  (getCamera, getViewPos)
+
       }
 
       Draw.redraw(
@@ -272,8 +273,8 @@ class Editor(
 
       // get camera and viewer position
       val (camTrans, viewPos) = cameraSettings.cameraType match {
-        case "Manual" => (getCamera, getViewPos)
-        case _        => {
+
+        case "Follow Active"        => {
 
           val (flightFn, _) = Editor.paramsToFun(fp)
           val curState = flightFn(curDateJulian)
@@ -283,12 +284,29 @@ class Editor(
           val camRot = Editor.pointCamera(curState, camPos)
 
           val camTrans = View.cameraTransform(camRot, camPos)
-          // val xshiftAmount =  -imWidth * 0.1
-          // val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
 
           (camTrans, viewPos)
 
         }
+
+        // TODO: handle in a more general way
+        case "Earth" | "Mars" | "Saturn" | "Uranus" => {
+
+          val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth)
+          val curState = Orbits.planetState(planet, curDateJulian).position
+
+          val camPos = getCamPos
+          val viewPos = getViewPos
+          val camRot = Editor.pointCamera(curState, camPos)
+
+          val camTrans = View.cameraTransform(camRot, camPos)
+
+          (camTrans, viewPos)
+
+        }
+
+
+        case "Manual" => (getCamera, getViewPos)
       }
 
       Draw.redraw(
@@ -333,9 +351,9 @@ class Editor(
     val theta = Vec3(xAngle, yAngle, zAngle)
 
     val camRotation = if (!cameraSettings.isIntrinsic) {
-      View.rotationXYZ(theta)
+      Transformations.rotationXYZ(theta)
     } else {
-      View.rotationZYX(theta)
+      Transformations.rotationZYX(theta)
     }
 
     View.cameraTransform(camRotation, getCamPos)
@@ -391,7 +409,7 @@ object Editor {
   val ViewHeight = 600
 
 
-  val ZoomSpeed = 50
+  val ZoomSpeed = 500
   val PanSpeed = 0.01
   val RotateSpeed = 0.1
   val ControlsWidth = 400
@@ -436,7 +454,7 @@ object Editor {
     val camAngleX = math.atan2(point.z - camPos.z, Vec2.length(camToPoint))
     val camAngleZ = math.atan2(camToPoint.x, camToPoint.y)
     val camOrient = Vec3(-math.Pi * 0.5 - camAngleX, 0.0, math.Pi - camAngleZ)
-    View.rotationZYX(camOrient)
+    Transformations.rotationZYX(camOrient)
   }
 
 
@@ -1069,7 +1087,8 @@ object Editor {
     val toolbar = new JToolBar()
     toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Camera"))
 
-    val cameraType = new JComboBox[String](List("Manual", "Follow Active").toArray)
+    // TODO: better programatic creation of camera types
+    val cameraType = new JComboBox[String](List("Manual", "Follow Active", "Earth", "Mars", "Saturn", "Uranus").toArray)
     cameraType.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
           cameraSettings.cameraType = cameraType.getSelectedItem.asInstanceOf[String]

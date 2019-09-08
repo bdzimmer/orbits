@@ -250,30 +250,56 @@ object Moons {
   //    Dec   Declination of the Laplace plane pole with respect to the ICRF.
   //    Tilt	The angle between the planet equator and the Laplace plane.
 
+  // http://extras.springer.com/2009/978-3-540-88054-7/16_vi4b_422.pdf
+
   // Epoch 2000 Jan. 1.50 TT
   val J_2000_01_01_12 = 2451545.0
 
-  // TODO: different types for
-  case class Moon(primary: OrbitalElementsEstimator, moon: OrbitalElementsEstimator)
+  // Epoch 1950 Jan. 1.0 TT
+  val J_1950_01_01_00 = 2433282.5
+
+  class LaplacePlane(ra: Double, dec: Double) {
+    val rightAscension = ra * Conversions.DegToRad
+    val declination = dec * Conversions.DegToRad
+  }
+
+  case class Moon(primary: OrbitalElementsEstimator, moon: MoonEclipticEstimator, laplacePlane: Option[LaplacePlane])
 
   val Luna = Moon(
-    MeeusPlanets.Earth, new MoonEclipticEstimator(
+    MeeusPlanets.Earth,
+    new MoonEclipticEstimator(
       J_2000_01_01_12,
-      384400.0,	0.0554,	318.15,	135.27,	5.16,	125.08,	13.176358, 27.322,5.997,18.600))
+      384400.0,	0.0554,	318.15,	135.27,	5.16, 125.08, 13.176358, 27.322, 5.997, 18.600),
+    None)
 
+  val Phobos = Moon(
+    MeeusPlanets.Mars,
+    new MoonEclipticEstimator(
+      J_1950_01_01_00,
+      9376.0,	0.0151,	150.057,	91.059,	1.075, 207.784, 1128.8447569, 0.3189, 1.1316, 2.2617),
+    Some(new LaplacePlane(317.671, 52.893))
+  )
+
+  val Deimos = Moon(
+    MeeusPlanets.Mars,
+    new MoonEclipticEstimator(
+      J_1950_01_01_00,
+      23458.0, 0.0002, 260.729, 325.329, 1.788, 24.525, 285.1618790,	1.2624,	27.3703,	54.5367),
+    Some(new LaplacePlane(316.657, 53.529))
+  )
 
   class MoonEclipticEstimator(
-    epoch: Double,
-    a: Double,
-    e: Double,
-    w: Double,
-    m: Double,
-    i: Double,
-    node: Double,
-    n: Double,
-    p: Double,
-    pw: Double,
-    pnode: Double) extends OrbitalElementsEstimator {
+      epoch: Double,
+      a: Double,
+      e: Double,
+      w: Double,
+      m: Double,
+      i: Double,
+      node: Double,
+      n: Double,
+      val p: Double,
+      pw: Double,
+      pnode: Double) extends OrbitalElementsEstimator {
 
     def apply(t: Double): OrbitalElements = {
 

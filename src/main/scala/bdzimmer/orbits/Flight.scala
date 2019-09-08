@@ -403,7 +403,7 @@ object RenderFlight {
       val camAngleZ = math.atan2(camToShip.x, camToShip.y)
 
       val camOrient = Vec3(-math.Pi * 0.5 - camAngleX, 0.0, math.Pi - camAngleZ)
-      val camRot = View.rotationZYX(camOrient)
+      val camRot = Transformations.rotationZYX(camOrient)
 
       val camTrans = View.cameraTransform(camRot, camPos)
       val xshiftAmount =  -imWidth * 0.1
@@ -568,7 +568,7 @@ object RenderFlight {
 
     val camOrient = Vec3(-math.Pi * 0.25, 0, math.Pi)
     val camPos = Vec3(0, -planetMax * 2.25, planetMax * 2.25)
-    val camTrans = View.cameraTransform(View.rotationZYX(camOrient), camPos)
+    val camTrans = View.cameraTransform(Transformations.rotationZYX(camOrient), camPos)
     val xshiftAmount = if (xshift) {
       -imWidth * 0.1
     } else {
@@ -943,35 +943,44 @@ object RenderFlight {
     val centerTrans = transform(transformation, Vec3(0.0, 0.0, 0.0))
 
     // argument of periapsis is angle forward from ascending node to periapsis (angle 0.0)
+    val nodeAngle = 0.0 - oe.argPeriapsis
     val nodePos = Orbits.transformOrbitalInertial(
-      Orbits.positionOrbital(oe, 0.0 - oe.argPeriapsis), oe)
+      Orbits.positionOrbital(oe, nodeAngle), oe)
     val nodePosTrans = transform(transformation, nodePos)
 
     view.drawLine(im, centerTrans, nodePosTrans, color)
-    view.drawLabel(im, "ascending node", nodePosTrans, color)
+    view.drawLabel(im, "ascending node", dispAngle(nodeAngle), nodePosTrans, Color.GRAY)
 
     // ~~~ draw periapsis
 
     // periapsis is at angle 0.0
+    val periAngle = 0.0
     val periPos = Orbits.transformOrbitalInertial(
-      Orbits.positionOrbital(oe, 0.0),
+      Orbits.positionOrbital(oe, periAngle),
       oe)
     val periPosTrans = transform(transformation, periPos)
 
     view.drawLine(im, centerTrans, periPosTrans, color)
-    view.drawLabel(im, "periapsis", periPosTrans, color)
+    view.drawLabel(im, "periapsis", dispAngle(periAngle), periPosTrans, Color.GRAY)
 
     // ~~~~ draw true anomaly
 
+    val vAngle = Orbits.trueAnomaly(oe)
     val vPos = Orbits.transformOrbitalInertial(
-      Orbits.positionOrbital(oe),
+      Orbits.positionOrbital(oe, vAngle),
       oe)
     val vPosTrans = transform(transformation, vPos)
 
     view.drawLine(im, centerTrans, vPosTrans, color)
-    // don't need to draw a label, since probably the planet will
-    // be there
+    view.drawLabel(im, "", dispAngle(vAngle), vPosTrans, Color.GRAY)
 
+  }
+
+  private def dispAngle(x: Double): String = {
+    val angle = x / math.Pi
+    val angleMod = angle % 2.0
+    val angleModRound = math.rint(angleMod * 1000.0) / 1000.0
+    angleModRound.toString + "\u03C0"
   }
 
 

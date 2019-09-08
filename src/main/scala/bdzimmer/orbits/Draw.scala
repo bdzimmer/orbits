@@ -88,10 +88,11 @@ object Draw {
     planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view))
     planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.GRAY))
 
+    // ~~~~ ~~~~ Experimentation with moons ~~~~ ~~~~
+
     // draw Luna
     if (true) {
-      val lunaOrbitMotion = Orbits.moonMotionPeriod(
-        Moons.Luna.primary, Moons.Luna.moon, curDateJulian)
+      val lunaOrbitMotion = Orbits.moonMotionPeriod(Moons.Luna.primary, Moons.Luna.moon, None, curDateJulian)
 
       RenderFlight.drawOrbit(im, lunaOrbitMotion, view)
       view.drawPosition(im, lunaOrbitMotion.last.position, "Luna", "", Color.GRAY)
@@ -99,18 +100,39 @@ object Draw {
       RenderFlight.drawOrbitInfo(
         im,
         Moons.Luna.moon(curDateJulian),
-        View.transformation(
-          View.Identity3,
+        Transformations.transformation(
+          Transformations.Identity3,
           Orbits.planetState(Moons.Luna.primary, curDateJulian).position),
         view)
     }
 
+    // draw moons of Mars
+    if (true) {
+      List((Moons.Phobos, "Phobos"), (Moons.Deimos, "Deimos")).foreach({case (moon, name) => {
+        val laplacePlane = moon.laplacePlane.map(y => Orbits.laplacePlaneTransformation(y.rightAscension, y.declination))
+        val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
+        RenderFlight.drawOrbit(im, motion, view)
+        view.drawPosition(im, motion.last.position, name, "", Color.GRAY)
+
+        RenderFlight.drawOrbitInfo(
+          im,
+          moon.moon(curDateJulian),
+          Transformations.transformation(
+            laplacePlane.getOrElse(Transformations.Identity3),
+            Orbits.planetState(moon.primary, curDateJulian).position),
+          view
+        )
+      }})
+
+    }
+
+    // ~~~~ ~~~~ ~~~~ ~~~~
 
     // experiment with drawing the orbital element info
     if (true) {
       val oe = MeeusPlanets.Saturn(curDateJulian)
       RenderFlight.drawOrbitInfo(
-        im, oe, View.IdentityTransformation, view)
+        im, oe, Transformations.IdentityTransformation, view)
     }
 
 
