@@ -7,11 +7,15 @@ package bdzimmer.orbits
 import java.awt.{BorderLayout, Color, Dimension, FlowLayout, GridLayout, Graphics, Image, Font, Toolkit}
 import java.awt.event._
 import java.awt.image.BufferedImage
+import java.text.SimpleDateFormat
+import java.util.Calendar
 
 import javax.swing._
 import javax.swing.event._
 
 import scala.util.Try
+
+import org.apache.commons.imaging.{ImageFormats, Imaging}
 
 import bdzimmer.util.StringUtils._
 
@@ -104,7 +108,7 @@ class Editor(
       flights, ships, redraw)
   toolbarRow0.add(flightsToolbar)
   toolbarRow0.add(
-    Editor.buildExportToolbar(() => flights(flightsComboBox.getSelectedIndex)))
+    Editor.buildExportToolbar(redrawGeneric))
   toolbarsPanel.add(toolbarRow0, BorderLayout.NORTH)
 
   val toolbarRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT))
@@ -204,6 +208,16 @@ class Editor(
 
 
   def redraw(): Unit = {
+    redrawGeneric(im)
+    imagePanel.repaint()
+    System.out.print(".")
+  }
+
+
+  def redrawGeneric(image: BufferedImage): Unit = {
+    // extra layer of abstraction; while this grabs uses all of the UI options,
+    // it allows rendering to an arbitrary image; ie, a much higher resolution
+    // image that will be saved to disk.
 
     // find selected planets
     val planets = showSettings.planets.filter(_._2).flatMap(
@@ -235,11 +249,9 @@ class Editor(
       showSettings.flightStatus,
       camTrans,
       viewPos,
-      im
+      image
     )
 
-    imagePanel.repaint()
-    System.out.print(".")
   }
 
 
@@ -914,19 +926,11 @@ object Editor {
     val skipButtons = new ClearableButtonGroup()
     skipAmounts.zip(skipLabels).foreach({case (skipAmount, skipLabel) => {
 
-      if (false) {
+      val skipButton = new JToggleButton(skipLabel)
 
-        val skipButton = new JButton(skipLabel)
-
-        // skipButton.addActionListener(new ActionListener {
-        //   override def actionPerformed(e: ActionEvent): Unit = {
-        //     updateTimelineTime(timelineTime + skipAmount)
-        //     redraw()
-        //   }
-        // })
-
-        skipButton.addMouseListener(new MouseAdapter() {
-          override def mousePressed(e: MouseEvent): Unit = {
+      skipButton.addItemListener(new ItemListener {
+        override def itemStateChanged(e: ItemEvent): Unit = {
+          if(e.getStateChange == ItemEvent.SELECTED) {
             runAtIntervalThread = new Thread(new RunAtInterval(() => {
               // println("updating in thread")
               val newTime = timelineTime + skipAmount
@@ -943,58 +947,28 @@ object Editor {
               redraw()
             }, delayMsText.getText.toIntSafe(50) / 1000.0))
             runAtIntervalThread.start()
-          }
-          override def mouseReleased(e: MouseEvent): Unit = {
+          } else if (e.getStateChange == ItemEvent.DESELECTED) {
             // could potentially update slider position here
             if (runAtIntervalThread != null) {
               runAtIntervalThread.interrupt()
             }
           }
-        })
-        skipPanel.add(skipButton)
 
-      } else {
+        }
+      })
 
-        val skipButton = new JToggleButton(skipLabel)
-        skipButton.addItemListener(new ItemListener {
-          override def itemStateChanged(e: ItemEvent): Unit = {
-            if(e.getStateChange == ItemEvent.SELECTED) {
-              runAtIntervalThread = new Thread(new RunAtInterval(() => {
-                // println("updating in thread")
-                val newTime = timelineTime + skipAmount
-                val (startDate, endDate) = dateRange()
-                updateTimelineTime(newTime, startDate, endDate)
-                // update slider position
-                Disable(
-                  timelineSlider,
-                  {
-                    val sliderPercent = (timelineTime - startDate) / (endDate - startDate)
-                    timelineSlider.setValue((sliderPercent * sliderMax).toInt)
-                  }
-                )
-                redraw()
-              }, delayMsText.getText.toIntSafe(50) / 1000.0))
-              runAtIntervalThread.start()
-            } else if (e.getStateChange == ItemEvent.DESELECTED) {
-              // could potentially update slider position here
-              if (runAtIntervalThread != null) {
-                runAtIntervalThread.interrupt()
-              }
-            }
-
+      skipButton.addActionListener(new ActionListener {
+        override def actionPerformed(e: ActionEvent): Unit = {
+          if (!skipButton.isSelected) {
+            skipButtons.clearSelection()
           }
-        })
-        skipButton.addActionListener(new ActionListener {
-          override def actionPerformed(e: ActionEvent): Unit = {
-            if (!skipButton.isSelected) {
-              skipButtons.clearSelection()
-            }
-          }
-        })
-        skipButtons.add(skipButton)
-        skipPanel.add(skipButton)
-      }
+        }
+      })
+
+      skipButtons.add(skipButton)
+      skipPanel.add(skipButton)
     }})
+
     skipPanel.add(delayMsText)
 
     timelineSlider.addChangeListener(new DisableableChangeListener(_ => {
@@ -1206,35 +1180,35 @@ object Editor {
 
 
 
-  def buildExportToolbar(getCurrentFlight: () => FlightParams): JToolBar = {
+  def buildExportToolbar(
+      drawImage: BufferedImage => Unit): JToolBar = {
 
-    // TODO: replace with new functionality
+    // TODO: make image width and height parameters
 
     val toolbar = new JToolBar()
     toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
-    toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Unit Converter"))
+    toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Export"))
 
     val exportButton = new JButton("Export")
 
     exportButton.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
 
-        val flight = getCurrentFlight()
+        val writeTimeStart = System.currentTimeMillis
 
-        val outputDir = new java.io.File("temp")
-        outputDir.mkdirs()
+        val sdf = new SimpleDateFormat("YYYYMMdd_HHmmss")
+        val formatted = sdf.format(Calendar.getInstance().getTime)
 
-        RenderFlight.animateFlight(
-          flight.ship,
-          flight.origName, flight.destName,
-          flight.orig, flight.dest,
-          flight.startDate, flight.endDate,
-          outputDir.getAbsolutePath)
+        val outputFile = new java.io.File("orbits_" + formatted + ".png")
 
-        val outputFile = new java.io.File("temp.mp4")
-        RenderFlight.imagesToVideo(
-          outputDir.getAbsolutePath, outputFile.getAbsolutePath, 800, 600, 24)
+        val image = new BufferedImage(1920, 1080, BufferedImage.TYPE_INT_ARGB)
+        drawImage(image)
+        Imaging.writeImage(
+          image, outputFile, ImageFormats.PNG, new java.util.HashMap[String, Object]())
 
+        val writeTime = System.currentTimeMillis - writeTimeStart
+
+        print("exported " + outputFile.getName + " in " + writeTime + " ms")
       }
     })
 
