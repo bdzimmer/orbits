@@ -85,6 +85,10 @@ class Editor(
   val cameraSettings = Editor.CameraSettingsDefault.copy()
   var prevPos = Vec3(0.0, 0.0, 0.0)
 
+  // for clicking on objects
+  // ugh
+  var selectedObjects = scala.collection.mutable.Map[String, (Vec2, Boolean)]()
+
   // make mutable copy of flights list
   val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
 
@@ -153,6 +157,24 @@ class Editor(
       if (event.getButton == MouseEvent.BUTTON1) {
         cx = cameraSettings.xAngle
         cy = cameraSettings.yAngle
+
+        // look for stuff to click on
+
+        // look for matches in objects and update
+        val tx = x - im.getWidth / 2
+        val ty = (im.getHeight - y) - im.getHeight / 2
+        var found = false
+        selectedObjects.foreach({case (name, (pos, selected)) => {
+          if ((pos.x - tx).abs < 32 && (pos.y - ty).abs < 32) {
+            selectedObjects(name) = (pos, !selected)
+            println(name + " " + !selected)
+            found = true
+          }
+        }})
+        if (found) {
+          redraw()
+        }
+
       } else {
         cx = cameraSettings.xPos
         cy = cameraSettings.yPos
@@ -174,6 +196,7 @@ class Editor(
         updateCameraControls.setYPos(cy + dy * Editor.PanSpeed)
       }
     }
+
   }
 
   viewPanel.addMouseListener(mousePanListener)
@@ -188,14 +211,9 @@ class Editor(
   redraw()
 
   addComponentListener(new ComponentAdapter {
-    // var last = System.currentTimeMillis
     override def componentResized(event: ComponentEvent): Unit = {
-      // val now = System.currentTimeMillis
-      // if (now > last + 250) {
-        rebuildImagePanel()
-        redraw()
-      //   last = now
-      // }
+      rebuildImagePanel()
+      redraw()
     }
   })
 
@@ -209,12 +227,15 @@ class Editor(
 
   def redraw(): Unit = {
     redrawGeneric(im)
+
+
+
     imagePanel.repaint()
     System.out.print(".")
   }
 
 
-  def redrawGeneric(image: BufferedImage): Unit = {
+  def redrawGeneric(image: BufferedImage) = {
     // extra layer of abstraction; while this grabs uses all of the UI options,
     // it allows rendering to an arbitrary image; ie, a much higher resolution
     // image that will be saved to disk.
@@ -237,7 +258,7 @@ class Editor(
 
     val (camTrans, viewPos, fpOption) = getViewInfo(curDateJulian, timelineMode)
 
-    Draw.redraw(
+    val objects = Draw.redraw(
       fpOption,
       curDateJulian,
       planets,
@@ -251,6 +272,41 @@ class Editor(
       viewPos,
       image
     )
+
+    // update available objects to click on
+    val selectedObjectsNew = scala.collection.mutable.Map[String, (Vec2, Boolean)]()
+    objects.foreach({case (name, pos) => {
+      selectedObjectsNew(name) = (pos, selectedObjects.get(name).exists(_._2))
+    }})
+    selectedObjects = selectedObjectsNew
+
+    // ~~~~ draw ephemeral editor stuff
+
+    val view = new Viewer(camTrans, viewPos, Draw.DisplaySettings)
+
+    selectedObjects.foreach({case (name, (_, selected)) => {
+      if (selected) {
+        // is it a planet?
+        MeeusPlanets.Planets.get(name).foreach(x => {
+          RenderFlight.drawOrbitInfo(im, x(curDateJulian), Transformations.IdentityTransformation, view)
+        })
+
+        // is it a moon?
+        Moons.Moons.get(name).foreach(x => {
+          val laplacePlane = x.laplacePlane.map(
+            y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination))
+          RenderFlight.drawOrbitInfo(
+            im,
+            x.moon(curDateJulian),
+            Transformations.transformation(
+              laplacePlane.getOrElse(Transformations.Identity3),
+              Orbits.planetState(x.primary, curDateJulian).position),
+            view)
+        })
+
+        // TODO: is it a flight?
+      }
+    }})
 
   }
 
@@ -1201,7 +1257,7 @@ object Editor {
 
         val outputFile = new java.io.File("orbits_" + formatted + ".png")
 
-        val image = new BufferedImage(1920, 1080, BufferedImage.TYPE_INT_ARGB)
+        val image = new BufferedImage(1280, 720, BufferedImage.TYPE_INT_ARGB)
         drawImage(image)
         Imaging.writeImage(
           image, outputFile, ImageFormats.PNG, new java.util.HashMap[String, Object]())

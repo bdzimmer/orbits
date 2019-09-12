@@ -288,6 +288,11 @@ object Moons {
     Some(new LaplacePlane(316.657, 53.529))
   )
 
+  val Moons = scala.collection.immutable.ListMap(
+    "Luna"   -> Luna,
+    "Phobos" -> Phobos,
+    "Deimos" -> Deimos)
+
   class MoonEclipticEstimator(
       epoch: Double,
       a: Double,

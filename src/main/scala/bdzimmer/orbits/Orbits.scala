@@ -42,6 +42,10 @@ object Conversions {
   val LightToMetersPerSec = 299792458.0
   val GToMetersPerSecond = 9.80665
 
+  // TODO: proper conversion from ICRF to ecliptic coordinate system
+  val ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
+
+
   def julianToCalendarDate(date: Double): CalendarDateTime = {
     // https://en.wikipedia.org/wiki/Julian_day#Converting_Julian_or_Gregorian_calendar_date_to_Julian_day_number
     val y = 4716
@@ -142,15 +146,19 @@ object Orbits {
   }
 
 
-  def laplacePlaneTransformation(rightAscension: Double, declination: Double): Mat33 = {
-    // calculate transformation of laplace plane relative to planet's axis
+  def laplacePlaneICRFTransformation(rightAscension: Double, declination: Double): Mat33 = {
+    // calculate transformation of laplace plane relative to ecliptic
+    // from description of laplace plane relative to ICRF
+
     // TODO: sort of a guess for now
-    // Should be able to double check by seeing if the resulting orbit lies roughly in the same
 
     // first rotate around Z by rightAscension
     // then rotate around X by declination
+    // finally convert to ecliptic coordinate system
+    val planeRelativeToICRF = Transformations.rotX(declination).mul(Transformations.rotZ(rightAscension))
+    val planeRelativeToEcliptic = Conversions.ICRFToEcliptic.mul(planeRelativeToICRF)
 
-    Transformations.rotX(declination).mul(Transformations.rotZ(rightAscension))
+    planeRelativeToEcliptic
 
   }
 

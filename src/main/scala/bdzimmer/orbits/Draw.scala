@@ -41,7 +41,9 @@ object Draw {
       camTrans: Mat44,
       viewPos: Vec3,
 
-      im: BufferedImage): Unit = {
+      im: BufferedImage): scala.collection.mutable.Map[String, Vec2] = {
+
+    val objects: scala.collection.mutable.Map[String, Vec2] = new scala.collection.mutable.HashMap[String, Vec2]()
 
     val view = new Viewer(camTrans, viewPos, DisplaySettings)
 
@@ -90,30 +92,18 @@ object Draw {
     planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view))
     planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.GRAY))
 
+    planetMotions.foreach(x => {
+      objects(x._1) = View.perspective(x._2.last.position, view.camTrans, view.viewPos)
+    })
+
     // ~~~~ ~~~~ Experimentation with moons ~~~~ ~~~~
 
-    // draw Luna
-    if (true) {
-      val lunaOrbitMotion = Orbits.moonMotionPeriod(Moons.Luna.primary, Moons.Luna.moon, None, curDateJulian)
+    val moonsExperiment = true
 
-      RenderFlight.drawOrbit(im, lunaOrbitMotion, view)
-      view.drawPosition(im, lunaOrbitMotion.last.position, "Luna", "", Color.GRAY)
-
-      if (orbitInfo) {
-        RenderFlight.drawOrbitInfo(
-          im,
-          Moons.Luna.moon(curDateJulian),
-          Transformations.transformation(
-            Transformations.Identity3,
-            Orbits.planetState(Moons.Luna.primary, curDateJulian).position),
-          view)
-      }
-    }
-
-    // draw moons of Mars
-    if (true) {
-      List((Moons.Phobos, "Phobos"), (Moons.Deimos, "Deimos")).foreach({case (moon, name) => {
-        val laplacePlane = moon.laplacePlane.map(y => Orbits.laplacePlaneTransformation(y.rightAscension, y.declination))
+    // draw moons
+    if (moonsExperiment) {
+      Moons.Moons.foreach({case (name, moon) => {
+        val laplacePlane = moon.laplacePlane.map(y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination))
         val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
         RenderFlight.drawOrbit(im, motion, view)
         view.drawPosition(im, motion.last.position, name, "", Color.GRAY)
@@ -127,6 +117,9 @@ object Draw {
               Orbits.planetState(moon.primary, curDateJulian).position),
             view)
         }
+
+        objects(name) = View.perspective(motion.last.position, view.camTrans, view.viewPos)
+
       }})
 
     }
@@ -211,7 +204,7 @@ object Draw {
       val (flightFn, ticks) = Editor.paramsToFun(fp)
 
       if (ticks.length < 1) {
-        return
+        return scala.collection.mutable.Map()
       }
 
       val origStates = ticks.map(tick => Orbits.planetState(fp.orig, tick))
@@ -266,6 +259,8 @@ object Draw {
       }
 
     })
+
+    objects
 
   }
 

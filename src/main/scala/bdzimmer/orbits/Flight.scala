@@ -974,6 +974,10 @@ object RenderFlight {
     view.drawLine(im, centerTrans, vPosTrans, color)
     view.drawLabel(im, "", dispAngle(vAngle), vPosTrans, Color.GRAY)
 
+    // TODO: draw inclination
+
+    // TODO: draw local Laplace plane grid
+
   }
 
   private def dispAngle(x: Double): String = {
