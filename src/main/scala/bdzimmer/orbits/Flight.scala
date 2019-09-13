@@ -287,7 +287,7 @@ object RenderFlight {
 
     // draw the background grid
     val gridLim = (planetMax * 4).toInt
-    view.drawGrid(im, gridLim, 1.0, None, new Color(0, 0, 80))
+    view.drawGrid(im, gridLim, gridLim, None, new Color(0, 0, 80))
 
     // draw the full periods of the starting and ending locations
     val origFullPeriod = Orbits.planetMotionPeriod(orig, startDateJulian)
@@ -488,7 +488,7 @@ object RenderFlight {
        gridLim: Int): Unit = {
 
     // draw the grid and the sun
-    view.drawGrid(im, gridLim, 1.0, None, new Color(0, 0, 128))
+    view.drawGrid(im, gridLim, gridLim, None, new Color(0, 0, 128))
     view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
 
     // draw the orbits of planets and their positions
@@ -984,13 +984,13 @@ object RenderFlight {
     // orbital plane
     view.drawGrid(
       im,
-      radiusApoapsis , radiusApoapsis / 4.0,
+      radiusApoapsis, 4,
       Some(transformation.mul(orbitalToIntertial)), new Color(0, 200, 0, 127))
 
     // local laplace plane
     view.drawGrid(
       im,
-      radiusApoapsis, radiusApoapsis / 4.0,
+      radiusApoapsis, 4,
       Some(transformation), new Color(200, 0, 0, 127))
 
     // TODO: draw inclination? need cross product

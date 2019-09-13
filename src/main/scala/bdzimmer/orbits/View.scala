@@ -15,16 +15,13 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
   def drawGrid(
       im: BufferedImage,
       gridLim: Double,
-      spacing: Double,
+      ticks: Int,
       transform: Option[Mat44],
       color: Color): Unit = {
 
-    // val spacing = 1.0
-    // TODO: issue with flickering gridlines
-    val xRange = -gridLim until gridLim by spacing
+    val spacing = gridLim / ticks
+    val xRange = (-ticks to ticks).map(x => x * spacing)
     val yRange = xRange
-
-    println(xRange.length)
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)

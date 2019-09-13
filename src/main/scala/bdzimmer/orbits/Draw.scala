@@ -81,7 +81,7 @@ object Draw {
     // ~~~~
 
     // draw the grid and the sun
-    view.drawGrid(im, GridLim, 1.0, None, new Color(0, 0, 128))
+    view.drawGrid(im, GridLim, GridLim, None, new Color(0, 0, 128))
     val sun = Vec3(0.0, 0.0, 0.0)
     view.drawPosition(im, sun, "Sun", "", Color.YELLOW) // for now
 
