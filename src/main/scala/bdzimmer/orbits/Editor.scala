@@ -289,7 +289,7 @@ class Editor(
       if (selected) {
         // is it a planet?
         MeeusPlanets.Planets.get(name).foreach(x => {
-          RenderFlight.drawOrbitInfo(im, x(curDateJulian), Transformations.IdentityTransformation, view)
+          RenderFlight.drawOrbitInfo(image, x(curDateJulian), Transformations.IdentityTransformation, view)
         })
 
         // is it a moon?
@@ -297,7 +297,7 @@ class Editor(
           val laplacePlane = x.laplacePlane.map(
             y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination))
           RenderFlight.drawOrbitInfo(
-            im,
+            image,
             x.moon(curDateJulian),
             Transformations.transformation(
               laplacePlane.getOrElse(Transformations.Identity3),
