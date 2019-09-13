@@ -226,11 +226,12 @@ class Editor(
 
 
   def redraw(): Unit = {
+    val startTime = System.currentTimeMillis
     redrawGeneric(im)
-
-
-
     imagePanel.repaint()
+    val endTime = System.currentTimeMillis
+    val fps = 1000.0 / (endTime - startTime)
+    // println(fps)
     System.out.print(".")
   }
 

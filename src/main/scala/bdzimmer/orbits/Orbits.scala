@@ -146,6 +146,37 @@ object Orbits {
   }
 
 
+  def transformOrbitalInertial(oe: OrbitalElements): Mat33 = {
+
+    val sinw = math.sin(oe.argPeriapsis)
+    val cosw = math.cos(oe.argPeriapsis)
+
+    val sino = math.sin(oe.longitudeAscending)
+    val coso = math.cos(oe.longitudeAscending)
+
+    val sini = math.sin(oe.inclination)
+    val cosi = math.cos(oe.inclination)
+
+    val xNew = Vec3(
+      cosw * coso - sinw * cosi * sino,
+      cosw * sino + sinw * cosi * coso,
+      sinw * sini)
+
+    val yNew = Vec3(
+      - (sinw * coso + cosw * cosi * sino),
+      cosw * cosi * coso - sinw * sino,
+      cosw * sini)
+
+    Mat33(
+      xNew,
+      yNew,
+      Vec3(0.0, 0.0, 0.0)) // TODO: x cross y
+
+  }
+
+
+
+
   def laplacePlaneICRFTransformation(rightAscension: Double, declination: Double): Mat33 = {
     // calculate transformation of laplace plane relative to ecliptic
     // from description of laplace plane relative to ICRF

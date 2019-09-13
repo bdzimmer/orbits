@@ -81,7 +81,7 @@ object Draw {
     // ~~~~
 
     // draw the grid and the sun
-    view.drawGrid(im, GridLim, new Color(0, 0, 128))
+    view.drawGrid(im, GridLim, 1.0, None, new Color(0, 0, 128))
     val sun = Vec3(0.0, 0.0, 0.0)
     view.drawPosition(im, sun, "Sun", "", Color.YELLOW) // for now
 
@@ -89,8 +89,8 @@ object Draw {
     // the sequence of orbital states for each planet should start from same time
     // as the final state of the flight - this is the time that we are drawing the
     // flight at
-    planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view))
-    planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.GRAY))
+    planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view, Color.LIGHT_GRAY))
+    planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.LIGHT_GRAY))
 
     planetMotions.foreach(x => {
       objects(x._1) = View.perspective(x._2.last.position, view.camTrans, view.viewPos)
@@ -105,8 +105,8 @@ object Draw {
       Moons.Moons.foreach({case (name, moon) => {
         val laplacePlane = moon.laplacePlane.map(y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination))
         val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
-        RenderFlight.drawOrbit(im, motion, view)
-        view.drawPosition(im, motion.last.position, name, "", Color.GRAY)
+        RenderFlight.drawOrbit(im, motion, view, Color.LIGHT_GRAY)
+        view.drawPosition(im, motion.last.position, name, "", Color.LIGHT_GRAY)
 
         if (orbitInfo) {
           RenderFlight.drawOrbitInfo(
@@ -141,13 +141,13 @@ object Draw {
       planets.foreach(p => {
         view.drawPosition(
           im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2), curDateJulian).position,
-          "L3", "", Color.GRAY, fill = false)
+          "L3", "", Color.LIGHT_GRAY, fill = false)
         view.drawPosition(
           im, Orbits.planetState(new MeeusPlanets.L4Estimator(p._2), curDateJulian).position,
-          "L4", "", Color.GRAY, fill = false)
+          "L4", "", Color.LIGHT_GRAY, fill = false)
         view.drawPosition(
           im, Orbits.planetState(new MeeusPlanets.L5Estimator(p._2), curDateJulian).position,
-          "L5", "", Color.GRAY, fill = false)
+          "L5", "", Color.LIGHT_GRAY, fill = false)
       })
     }
 
@@ -163,7 +163,7 @@ object Draw {
     activeFlights.foreach(flight => {
       val (flightFn, ticks) = Editor.paramsToFun(flight)
       val positions = ticks.filter(x => x <= curDateJulian).map(tick => flightFn(tick))
-      val factionColor = factions.getOrElse(flight.faction, Color.GRAY)
+      val factionColor = factions.getOrElse(flight.faction, Color.LIGHT_GRAY)
 
       if (true) {
         val origStates = ticks.map(tick => Orbits.planetState(flight.orig, tick))
@@ -189,7 +189,7 @@ object Draw {
         im,
         flight.ship,
         flight.faction,
-        Color.green,
+        Color.GREEN,
         Conversions.julianToCalendarDate(curDateJulian),
         Vec3.length(Vec3.sub(positions.last, positions.head)),
         vel,

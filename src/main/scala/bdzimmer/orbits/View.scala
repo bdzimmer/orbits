@@ -12,19 +12,30 @@ import java.awt.{Color, Font, RenderingHints, Graphics2D}
 
 class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSettings) {
 
-  def drawGrid(im: BufferedImage, gridLim: Int, color: Color): Unit = {
+  def drawGrid(
+      im: BufferedImage,
+      gridLim: Double,
+      spacing: Double,
+      transform: Option[Mat44],
+      color: Color): Unit = {
 
-    val spacing = 1.0
-    val xRange = (-gridLim.toDouble to gridLim by spacing)
+    // val spacing = 1.0
+    // TODO: issue with flickering gridlines
+    val xRange = -gridLim until gridLim by spacing
     val yRange = xRange
+
+    println(xRange.length)
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(color)
 
     def drawSegment(pt1: Vec3, pt2: Vec3): Unit = {
-      val start = View.perspective(pt1, camTrans, viewPos)
-      val end   = View.perspective(pt2, camTrans, viewPos)
+      val pt1T = transform.map(Transformations.transform(_, pt1)).getOrElse(pt1)
+      val pt2T = transform.map(Transformations.transform(_, pt2)).getOrElse(pt2)
+
+      val start = View.perspective(pt1T, camTrans, viewPos)
+      val end   = View.perspective(pt2T, camTrans, viewPos)
       val x1 = start.x.toInt + im.getWidth / 2
       val y1 = im.getHeight - (start.y.toInt + im.getHeight / 2)
       val x2 = end.x.toInt + im.getWidth / 2

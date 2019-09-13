@@ -24,6 +24,13 @@ object Transformations {
   }
 
 
+  def transform(mat: Mat44, vec: Vec3): Vec3 = {
+    val vecH = new Vec4(vec, 1.0)
+    val pH = mat.mul(vecH)
+    Vec3(pH.x / pH.w, pH.y / pH.w, pH.z / pH.w)
+  }
+
+
   def rotationXYZ(theta: Vec3): Mat33 = {
     rotZ(theta.z).mul(rotY(theta.y)).mul(rotX(theta.x))
   }

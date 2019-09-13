@@ -287,13 +287,13 @@ object RenderFlight {
 
     // draw the background grid
     val gridLim = (planetMax * 4).toInt
-    view.drawGrid(im, gridLim, new Color(0, 0, 80))
+    view.drawGrid(im, gridLim, 1.0, None, new Color(0, 0, 80))
 
     // draw the full periods of the starting and ending locations
     val origFullPeriod = Orbits.planetMotionPeriod(orig, startDateJulian)
     val destFullPeriod = Orbits.planetMotionPeriod(dest, startDateJulian)
-    drawOrbit(im, origFullPeriod, view)
-    drawOrbit(im, destFullPeriod, view)
+    drawOrbit(im, origFullPeriod, view, Color.GRAY)
+    drawOrbit(im, destFullPeriod, view, Color.GRAY)
 
     // draw the positions of the start and ending locations and the flight
     view.drawMotion(im, origStates.map(_.position), Color.GREEN)
@@ -488,14 +488,14 @@ object RenderFlight {
        gridLim: Int): Unit = {
 
     // draw the grid and the sun
-    view.drawGrid(im, gridLim, new Color(0, 0, 128))
+    view.drawGrid(im, gridLim, 1.0, None, new Color(0, 0, 128))
     view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
 
     // draw the orbits of planets and their positions
     // the sequence of orbital states for each planet should start from same time
     // as the final state of the flight - this is the time that we are drawing the
     // flight at
-    planets.foreach(x => drawOrbit(im, x._2, view))
+    planets.foreach(x => drawOrbit(im, x._2, view, Color.GRAY))
     planets.foreach(x => view.drawPosition(im, x._2.head.position, x._1, "", Color.GRAY))
 
     // draw other flights in the background
@@ -590,7 +590,7 @@ object RenderFlight {
       im: BufferedImage,
       fullPeriod: Seq[OrbitalState],
       view: Viewer,
-      color: Color = Color.GRAY,
+      color: Color,
       adjustAlpha: Boolean = true): Unit = {
 
     // draw an orbit using arrows
@@ -938,15 +938,15 @@ object RenderFlight {
     // for use with moons etc.
 
     // ~~~~ draw ascending node
-    val color = new Color(255, 255, 255, 31)
+    val color = new Color(255, 255, 255, 127)
 
-    val centerTrans = transform(transformation, Vec3(0.0, 0.0, 0.0))
+    val centerTrans = Transformations.transform(transformation, Vec3(0.0, 0.0, 0.0))
 
     // argument of periapsis is angle forward from ascending node to periapsis (angle 0.0)
     val nodeAngle = 0.0 - oe.argPeriapsis
     val nodePos = Orbits.transformOrbitalInertial(
       Orbits.positionOrbital(oe, nodeAngle), oe)
-    val nodePosTrans = transform(transformation, nodePos)
+    val nodePosTrans = Transformations.transform(transformation, nodePos)
 
     view.drawLine(im, centerTrans, nodePosTrans, color)
     view.drawLabel(im, "ascending node", dispAngle(nodeAngle), nodePosTrans, Color.GRAY)
@@ -958,7 +958,7 @@ object RenderFlight {
     val periPos = Orbits.transformOrbitalInertial(
       Orbits.positionOrbital(oe, periAngle),
       oe)
-    val periPosTrans = transform(transformation, periPos)
+    val periPosTrans = Transformations.transform(transformation, periPos)
 
     view.drawLine(im, centerTrans, periPosTrans, color)
     view.drawLabel(im, "periapsis", dispAngle(periAngle), periPosTrans, Color.GRAY)
@@ -969,14 +969,31 @@ object RenderFlight {
     val vPos = Orbits.transformOrbitalInertial(
       Orbits.positionOrbital(oe, vAngle),
       oe)
-    val vPosTrans = transform(transformation, vPos)
+    val vPosTrans = Transformations.transform(transformation, vPos)
 
     view.drawLine(im, centerTrans, vPosTrans, color)
     view.drawLabel(im, "", dispAngle(vAngle), vPosTrans, Color.GRAY)
 
-    // TODO: draw inclination
+    // ~~~ draw grids for local Laplace plane and orbital plane
 
-    // TODO: draw local Laplace plane grid
+    // apoapsis at 180.0 degrees
+    val radiusApoapsis = Orbits.radius(oe, math.Pi)
+    val orbitalToIntertial = Transformations.transformation(
+      Orbits.transformOrbitalInertial(oe), Vec3(0.0, 0.0, 0.0))
+
+    // orbital plane
+    view.drawGrid(
+      im,
+      radiusApoapsis , radiusApoapsis / 4.0,
+      Some(transformation.mul(orbitalToIntertial)), new Color(0, 200, 0, 127))
+
+    // local laplace plane
+    view.drawGrid(
+      im,
+      radiusApoapsis, radiusApoapsis / 4.0,
+      Some(transformation), new Color(200, 0, 0, 127))
+
+    // TODO: draw inclination? need cross product
 
   }
 
@@ -986,13 +1003,5 @@ object RenderFlight {
     val angleModRound = math.rint(angleMod * 1000.0) / 1000.0
     angleModRound.toString + "\u03C0"
   }
-
-
-  def transform(mat: Mat44, vec: Vec3): Vec3 = {
-    val vecH = new Vec4(vec, 1.0)
-    val pH = mat.mul(vecH)
-    Vec3(pH.x / pH.w, pH.y / pH.w, pH.z / pH.w)
-  }
-
 
 }
