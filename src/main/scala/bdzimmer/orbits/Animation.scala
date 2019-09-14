@@ -121,6 +121,7 @@ object Animation {
         showSettings.asteroidBelt,
         showSettings.lagrangePoints,
         showSettings.orbitInfo,
+        showSettings.motionVerticals,
         showSettings.flightStatus,
         camTrans,
         initViewPos,

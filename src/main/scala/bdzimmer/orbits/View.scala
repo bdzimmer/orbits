@@ -7,7 +7,7 @@ package bdzimmer.orbits
 import scala.collection.immutable.Seq
 
 import java.awt.image.BufferedImage
-import java.awt.{Color, Font, RenderingHints, Graphics2D}
+import java.awt.{Color, Font, RenderingHints, Graphics2D, Stroke, BasicStroke}
 
 
 class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSettings) {
@@ -26,6 +26,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(color)
+    gr.setStroke(settings.stroke)
 
     def drawSegment(pt1: Vec3, pt2: Vec3): Unit = {
       val pt1T = transform.map(Transformations.transform(_, pt1)).getOrElse(pt1)
@@ -65,8 +66,8 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       im: BufferedImage,
       pos: Seq[Vec3],
       color: Color,
-      lines: Boolean = true,
-      verticals: Boolean = false,
+      lines: Boolean,
+      verticals: Boolean,
       adjustAlpha: Boolean = true): Unit = {
 
     val pos2d = pos.map(p => View.perspective(p, camTrans, viewPos))
@@ -85,6 +86,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       })
     } else {
       gr.setColor(color)
+      gr.setStroke(settings.stroke)
       if (pos2d.length > 1) {
         pos2d.zipWithIndex.dropRight(1).foreach({case (p1, idx) => {
 
@@ -165,6 +167,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(color)
+    gr.setStroke(settings.stroke)
 
     val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)
     val (x2, y2) = cvtPos(im, p2.x.toInt, p2.y.toInt)
@@ -292,6 +295,8 @@ case class ViewerSettings(
     lineHeightSmall: Int,
     columnWidthSmall: Int,
 
+    stroke: Stroke,
+
     circleRadius: Int,
     arrows3D: Boolean,
     arrowLength: Double
@@ -313,6 +318,7 @@ object Viewer {
     lineHeightSmall = 14,
     columnWidthSmall = 100,
 
+    stroke = new BasicStroke(2),
 
     circleRadius = 6,
     arrows3D = false,
@@ -332,6 +338,8 @@ object Viewer {
     displayFontItalicSmall = new Font("Play", Font.PLAIN | Font.ITALIC, 10),
     lineHeightSmall = 11,
     columnWidthSmall = 60,
+
+    stroke = new BasicStroke(2),
 
     circleRadius = 6,
     arrows3D = true,

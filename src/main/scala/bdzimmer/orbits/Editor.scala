@@ -70,6 +70,7 @@ case class ShowSettings(
    var lagrangePoints: Boolean,
    var asteroidBelt: Boolean,
    var orbitInfo: Boolean,
+   var motionVerticals: Boolean,
    var flightStatus: Int      // TODO: enumeration
 )
 
@@ -268,6 +269,7 @@ class Editor(
       showSettings.asteroidBelt,
       showSettings.lagrangePoints,
       showSettings.orbitInfo,
+      showSettings.motionVerticals,
       showSettings.flightStatus,
       camTrans,
       viewPos,
@@ -294,8 +296,14 @@ class Editor(
 
         // is it a moon?
         Moons.Moons.get(name).foreach(x => {
-          val laplacePlane = x.laplacePlane.map(
-            y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination))
+          // val laplacePlane = x.laplacePlane.map(
+          //   y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination))
+
+          // TODO: remove ICRF transformation from calculation
+          val laplacePlane = Some(
+            x.laplacePlane.map(
+              y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
+
           RenderFlight.drawOrbitInfo(
             image,
             x.moon(curDateJulian),
@@ -475,6 +483,7 @@ object Editor {
       lagrangePoints = false,
       asteroidBelt = true,
       orbitInfo = false,
+      motionVerticals = false,
       flightStatus = 1
   )
 
@@ -617,7 +626,6 @@ object Editor {
       }
     })
     viewMenu.add(lagrangePointsCheckBox)
-    viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
     val asteroidBeltCheckBox = new JCheckBoxMenuItem("Asteroid Belt", showSettings.asteroidBelt)
     asteroidBeltCheckBox.addItemListener(new ItemListener {
@@ -627,7 +635,6 @@ object Editor {
       }
     })
     viewMenu.add(asteroidBeltCheckBox)
-    viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
     val orbitInfoCheckBox = new JCheckBoxMenuItem("Orbit Info", showSettings.orbitInfo)
     orbitInfoCheckBox.addItemListener(new ItemListener {
@@ -637,6 +644,16 @@ object Editor {
       }
     })
     viewMenu.add(orbitInfoCheckBox)
+
+    val verticalsCheckBox = new JCheckBoxMenuItem("Verticals", showSettings.motionVerticals)
+    verticalsCheckBox.addItemListener(new ItemListener {
+      override def itemStateChanged(e: ItemEvent): Unit = {
+        showSettings.motionVerticals = verticalsCheckBox.isSelected
+        redraw()
+      }
+    })
+    viewMenu.add(verticalsCheckBox)
+
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
     val flightStatusButtonGroup = new ButtonGroup()

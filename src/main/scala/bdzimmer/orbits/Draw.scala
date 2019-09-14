@@ -35,6 +35,7 @@ object Draw {
       asteroidBelt: Boolean,
       lagrangePoints: Boolean,
       orbitInfo: Boolean,
+      motionVerticals: Boolean,
 
       statusOption: Int,
 
@@ -89,7 +90,7 @@ object Draw {
     // the sequence of orbital states for each planet should start from same time
     // as the final state of the flight - this is the time that we are drawing the
     // flight at
-    planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view, Color.LIGHT_GRAY))
+    planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view, Color.LIGHT_GRAY, motionVerticals))
     planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.LIGHT_GRAY))
 
     planetMotions.foreach(x => {
@@ -103,9 +104,12 @@ object Draw {
     // draw moons
     if (moonsExperiment) {
       Moons.Moons.foreach({case (name, moon) => {
-        val laplacePlane = moon.laplacePlane.map(y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination))
+        // TODO: remove ICRF transformation from calculation
+        val laplacePlane = Some(
+          moon.laplacePlane.map(
+            y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
         val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
-        RenderFlight.drawOrbit(im, motion, view, Color.LIGHT_GRAY)
+        RenderFlight.drawOrbit(im, motion, view, Color.LIGHT_GRAY, motionVerticals)
         view.drawPosition(im, motion.last.position, name, "", Color.LIGHT_GRAY)
 
         if (orbitInfo) {
@@ -168,12 +172,12 @@ object Draw {
       if (true) {
         val origStates = ticks.map(tick => Orbits.planetState(flight.orig, tick))
         val destStates = ticks.map(tick => Orbits.planetState(flight.dest, tick))
-        view.drawMotion(im, origStates.map(_.position), factionColor)
-        view.drawMotion(im, destStates.map(_.position), factionColor)
+        view.drawMotion(im, origStates.map(_.position), factionColor, true, verticals = motionVerticals)
+        view.drawMotion(im, destStates.map(_.position), factionColor, true, verticals = motionVerticals)
       }
 
       // draw motion and velocity arrow
-      view.drawMotion(im, positions, factionColor)
+      view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
       val vel = drawVelocityArrow(flightFn, factionColor)
 
       // draw flight radii

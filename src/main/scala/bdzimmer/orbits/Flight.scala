@@ -292,13 +292,13 @@ object RenderFlight {
     // draw the full periods of the starting and ending locations
     val origFullPeriod = Orbits.planetMotionPeriod(orig, startDateJulian)
     val destFullPeriod = Orbits.planetMotionPeriod(dest, startDateJulian)
-    drawOrbit(im, origFullPeriod, view, Color.GRAY)
-    drawOrbit(im, destFullPeriod, view, Color.GRAY)
+    drawOrbit(im, origFullPeriod, view, Color.GRAY, false)
+    drawOrbit(im, destFullPeriod, view, Color.GRAY, false)
 
     // draw the positions of the start and ending locations and the flight
-    view.drawMotion(im, origStates.map(_.position), Color.GREEN)
-    view.drawMotion(im, destStates.map(_.position), Color.GREEN)
-    view.drawMotion(im, flightStates,               Color.CYAN)
+    view.drawMotion(im, origStates.map(_.position), Color.GREEN, true, false)
+    view.drawMotion(im, destStates.map(_.position), Color.GREEN, true, false)
+    view.drawMotion(im, flightStates,               Color.CYAN, true, false)
 
     // draw the names and dates for start and end
     view.drawPosition(im, origStates.head.position, origName, startDate.dateString, Color.GREEN)
@@ -495,12 +495,12 @@ object RenderFlight {
     // the sequence of orbital states for each planet should start from same time
     // as the final state of the flight - this is the time that we are drawing the
     // flight at
-    planets.foreach(x => drawOrbit(im, x._2, view, Color.GRAY))
+    planets.foreach(x => drawOrbit(im, x._2, view, Color.GRAY, false))
     planets.foreach(x => view.drawPosition(im, x._2.head.position, x._1, "", Color.GRAY))
 
     // draw other flights in the background
     // TODO: optional ship arrows and names
-    otherFlights.foreach(x => view.drawMotion(im, x._1, x._2))
+    otherFlights.foreach(x => view.drawMotion(im, x._1, x._2, true, false))
   }
 
   def highlightFlight(
@@ -538,9 +538,9 @@ object RenderFlight {
        flightColor: Color): Unit = {
 
     // draw the positions of the start and ending locations and the flight up to this point
-    view.drawMotion(im, origStates.map(_.position), flightColor)
-    view.drawMotion(im, destStates.map(_.position), flightColor)
-    view.drawMotion(im, flightStates,               flightColor)
+    view.drawMotion(im, origStates.map(_.position), flightColor, true, false)
+    view.drawMotion(im, destStates.map(_.position), flightColor, true, false)
+    view.drawMotion(im, flightStates,               flightColor, true, false)
 
     // draw the names and dates for the origin and destination
     // view.drawPosition(im, origStates.head.position, origName, origDesc, Color.GREEN)
@@ -591,10 +591,11 @@ object RenderFlight {
       fullPeriod: Seq[OrbitalState],
       view: Viewer,
       color: Color,
+      verticals: Boolean,
       adjustAlpha: Boolean = true): Unit = {
 
     // draw an orbit using arrows
-    view.drawMotion(im, fullPeriod.map(_.position), color, adjustAlpha)
+    view.drawMotion(im, fullPeriod.map(_.position), color, true, verticals, adjustAlpha)
     val arrowIndex = fullPeriod.length / 4
 
     if (!adjustAlpha) {
