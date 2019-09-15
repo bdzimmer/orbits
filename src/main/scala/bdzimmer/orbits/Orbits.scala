@@ -170,7 +170,7 @@ object Orbits {
     Mat33(
       xNew,
       yNew,
-      Vec3(0.0, 0.0, 0.0)) // TODO: x cross y
+      Vec3.cross(xNew, yNew)) // TODO: x cross y
 
   }
 

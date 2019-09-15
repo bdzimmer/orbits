@@ -43,6 +43,12 @@ object Vec3 extends VectorOps[Vec3] {
   def dot(v1: Vec3, v2: Vec3): Double = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
   def sub(v1: Vec3, v2: Vec3): Vec3 = Vec3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z)
   def emul(v1: Vec3, v2: Vec3): Vec3 = Vec3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z)
+
+  def cross(a: Vec3, b: Vec3): Vec3 = Vec3(
+    a.y * b.z - a.z * b.y,
+    a.z * b.x - a.x * b.z,
+    a.x * b.y - a.y * b.x
+  )
 }
 
 

@@ -982,19 +982,40 @@ object RenderFlight {
     val orbitalToIntertial = Transformations.transformation(
       Orbits.transformOrbitalInertial(oe), Vec3(0.0, 0.0, 0.0))
 
-    // orbital plane
+    val colorOrbital = new Color(0, 200, 0, 127)
+    val colorLaplace = new Color(200, 0, 0, 127)
+
+    // orbital plane and axis
+
+    val transOrbital = transformation.mul(orbitalToIntertial)
+
     view.drawGrid(
       im,
       radiusApoapsis, 4,
-      Some(transformation.mul(orbitalToIntertial)), new Color(0, 200, 0, 127))
+      Some(transOrbital),
+      colorOrbital)
 
-    // local laplace plane
+    view.drawLine(
+      im,
+      Transformations.transform(transOrbital, Vec3(0.0, 0.0, 0.0)),
+      Transformations.transform(transOrbital, Vec3(0.0, 0.0, radiusApoapsis)),
+      colorOrbital
+    )
+
+    // local laplace plane and axis
+
     view.drawGrid(
       im,
       radiusApoapsis, 4,
-      Some(transformation), new Color(200, 0, 0, 127))
+      Some(transformation),
+      colorLaplace)
 
-    // TODO: draw inclination? need cross product
+    view.drawLine(
+      im,
+      Transformations.transform(transformation, Vec3(0.0, 0.0, 0.0)),
+      Transformations.transform(transformation, Vec3(0.0, 0.0, radiusApoapsis)),
+      colorLaplace
+    )
 
   }
 
