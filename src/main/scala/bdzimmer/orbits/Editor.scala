@@ -359,6 +359,19 @@ class Editor(
           (camTrans, getViewPos)
         }
 
+        // TODO: remove duplicate code
+        case "Earth" | "Mars" | "Saturn" | "Uranus" => {
+
+          val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth)
+          val curState = Orbits.planetState(planet, curDateJulian).position
+
+          val camPos = getCamPos
+          val camRot = Editor.pointCamera(curState, camPos)
+          val camTrans = View.cameraTransform(camRot, camPos)
+
+          (camTrans, getViewPos)
+        }
+
         case _ =>  (getCamera, getViewPos)
 
       }

@@ -308,10 +308,20 @@ object Moons {
 
     def apply(t: Double): OrbitalElements = {
 
-      // TODO: double check correct implementation of epoch
-      val meanAnomalyDelta = (t - epoch) * n
+      val timeDiff = (t - epoch)
 
-      // TODO: precession of argument of periapsis and precession of longitude of ascending node
+      // TODO: double check correct implementation of epoch
+      val meanAnomalyDelta = timeDiff * n
+
+      // TODO: precession of argument of periapsis
+      // TODO: precession of longitude of ascending node
+      val yearsSinceEpoch = timeDiff / 365.2425
+
+      val periodsPw = yearsSinceEpoch / pw
+      val periodsPnode = yearsSinceEpoch / pnode
+
+      val radiansPw = periodsPw * 2.0 * math.Pi
+      val radiansPnode = periodsPnode * 2.0 * math.Pi
 
       val semiMajorAxis = a * 1000.0 / Conversions.AuToMeters
 
@@ -320,9 +330,9 @@ object Moons {
         semimajorAxis = semiMajorAxis,
         eccentricity = e,
         inclination = i * Conversions.DegToRad,
-        argPeriapsis = w * Conversions.DegToRad,
-        longitudeAscending = node * Conversions.DegToRad,
-        longitudePeriapsis = w * Conversions.DegToRad,
+        argPeriapsis = w * Conversions.DegToRad + radiansPw,
+        longitudeAscending = node * Conversions.DegToRad + radiansPnode,
+        longitudePeriapsis = w * Conversions.DegToRad, // TODO: this is wrong!
         meanAnomaly = (m + meanAnomalyDelta) * Conversions.DegToRad,
         rp = semiMajorAxis * (1 - e),
         ra = semiMajorAxis * (1 + e)
