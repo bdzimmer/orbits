@@ -263,18 +263,18 @@ object Moons {
     val declination = dec * Conversions.DegToRad
   }
 
-  case class Moon(primary: OrbitalElementsEstimator, moon: MoonEclipticEstimator, laplacePlane: Option[LaplacePlane])
+  case class Moon(primary: OrbitalElementsEstimator, moon: MoonICRFEstimator, laplacePlane: Option[LaplacePlane])
 
   val Luna = Moon(
     MeeusPlanets.Earth,
-    new MoonEclipticEstimator(
+    new MoonICRFEstimator(
       J_2000_01_01_12,
       384400.0,	0.0554,	318.15,	135.27,	5.16, 125.08, 13.176358, 27.322, 5.997, 18.600),
     None)
 
   val Phobos = Moon(
     MeeusPlanets.Mars,
-    new MoonEclipticEstimator(
+    new MoonICRFEstimator(
       J_1950_01_01_00,
       9376.0,	0.0151,	150.057,	91.059,	1.075, 207.784, 1128.8447569, 0.3189, 1.1316, 2.2617),
     Some(new LaplacePlane(317.671, 52.893))
@@ -282,7 +282,7 @@ object Moons {
 
   val Deimos = Moon(
     MeeusPlanets.Mars,
-    new MoonEclipticEstimator(
+    new MoonICRFEstimator(
       J_1950_01_01_00,
       23458.0, 0.0002, 260.729, 325.329, 1.788, 24.525, 285.1618790,	1.2624,	27.3703,	54.5367),
     Some(new LaplacePlane(316.657, 53.529))
@@ -293,7 +293,7 @@ object Moons {
     "Phobos" -> Phobos,
     "Deimos" -> Deimos)
 
-  class MoonEclipticEstimator(
+  class MoonICRFEstimator(
       epoch: Double,
       a: Double,
       e: Double,
@@ -303,8 +303,8 @@ object Moons {
       node: Double,
       n: Double,
       val p: Double,
-      pw: Double,
-      pnode: Double) extends OrbitalElementsEstimator {
+      val pw: Double,
+      val pnode: Double) extends OrbitalElementsEstimator {
 
     def apply(t: Double): OrbitalElements = {
 
@@ -315,7 +315,7 @@ object Moons {
 
       // TODO: precession of argument of periapsis
       // TODO: precession of longitude of ascending node
-      val yearsSinceEpoch = timeDiff / 365.2425
+      val yearsSinceEpoch = timeDiff / Conversions.YearToDay
 
       val periodsPw = yearsSinceEpoch / pw
       val periodsPnode = yearsSinceEpoch / pnode

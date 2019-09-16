@@ -9,7 +9,7 @@
 
 package bdzimmer.orbits
 
-import bdzimmer.orbits.Moons.MoonEclipticEstimator
+import bdzimmer.orbits.Moons.{MoonICRFEstimator}
 
 import scala.collection.immutable.Seq
 
@@ -41,6 +41,7 @@ object Conversions {
   val DayToSec = 86400.0
   val LightToMetersPerSec = 299792458.0
   val GToMetersPerSecond = 9.80665
+  val YearToDay = 365.2425
 
   // TODO: proper conversion from ICRF to ecliptic coordinate system
   val ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
@@ -233,13 +234,16 @@ object Orbits {
 
   def moonMotionPeriod(
       primary: OrbitalElementsEstimator,
-      moon: MoonEclipticEstimator,
+      moon: MoonICRFEstimator,
       laplacePlane: Option[Mat33],
       startTime: Double,
-      nPoints: Int = 90): Seq[OrbitalState] = {
+      nPoints: Int = 90
+    ): Seq[OrbitalState] = {
 
     // TODO: is there a way to properly calculate the period instead of using this?
     val period = moon.p
+    // val period = moon.pnode * Conversions.YearToDay
+    // val period = moon.p * 12.0
 
     val moonRelMotion = Orbits.motionPeriod(moon, startTime, period, nPoints)
 

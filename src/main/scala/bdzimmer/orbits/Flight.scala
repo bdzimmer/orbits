@@ -5,14 +5,13 @@
 package bdzimmer.orbits
 
 import scala.collection.immutable.Seq
-
 import scala.sys.process._
 import scala.util.Try
-
 import java.awt.{Color, Graphics2D}
 import java.awt.image.BufferedImage
-import javax.imageio.ImageIO
 
+import bdzimmer.orbits.Moons.{MoonICRFEstimator}
+import javax.imageio.ImageIO
 import bdzimmer.util.StringUtils._
 
 
@@ -229,6 +228,9 @@ object SolveFlight {
 
 
 object RenderFlight {
+
+  val ColorOrbital = new Color(0, 200, 0, 127)
+  val ColorLaplace = new Color(200, 0, 0, 127)
 
   def drawFlight(
       ship: Spacecraft,
@@ -819,6 +821,7 @@ object RenderFlight {
   }
 
 
+  // TODO: proper indentation
   def drawFlightStatus(
     tableStartX: Int,
     tableStartY: Int,
@@ -982,9 +985,6 @@ object RenderFlight {
     val orbitalToIntertial = Transformations.transformation(
       Orbits.transformOrbitalInertial(oe), Vec3(0.0, 0.0, 0.0))
 
-    val colorOrbital = new Color(0, 200, 0, 127)
-    val colorLaplace = new Color(200, 0, 0, 127)
-
     // orbital plane and axis
 
     val transOrbital = transformation.mul(orbitalToIntertial)
@@ -993,14 +993,13 @@ object RenderFlight {
       im,
       radiusApoapsis, 4,
       Some(transOrbital),
-      colorOrbital)
+      ColorOrbital)
 
     view.drawLine(
       im,
       Transformations.transform(transOrbital, Vec3(0.0, 0.0, 0.0)),
       Transformations.transform(transOrbital, Vec3(0.0, 0.0, radiusApoapsis)),
-      colorOrbital
-    )
+      ColorOrbital)
 
     // local laplace plane and axis
 
@@ -1008,14 +1007,42 @@ object RenderFlight {
       im,
       radiusApoapsis, 4,
       Some(transformation),
-      colorLaplace)
+      ColorLaplace)
 
     view.drawLine(
       im,
       Transformations.transform(transformation, Vec3(0.0, 0.0, 0.0)),
       Transformations.transform(transformation, Vec3(0.0, 0.0, radiusApoapsis)),
-      colorLaplace
-    )
+      ColorLaplace)
+
+  }
+
+
+  // TODO: get rid of "transformation argument"
+  def precessionPeriod(
+      oee: MoonICRFEstimator,
+      startTime: Double,
+      transformation: Mat44): Seq[OrbitalState] = {
+
+    val periodPnode = oee.pnode
+    // val periodPw = oee.pw
+    val period = periodPnode * Conversions.YearToDay
+
+    val nPoints = 90
+    val timeInterval = period / nPoints
+    val times = (0 to nPoints).map(t => (startTime - period) + t * timeInterval)
+
+    val positions = times.map(t => {
+      val oe = oee(t)
+      val radiusApoapsis = Orbits.radius(oe, math.Pi)
+      val orbitalToIntertial = Transformations.transformation(
+        Orbits.transformOrbitalInertial(oe), Vec3(0.0, 0.0, 0.0))
+      val transOrbital = transformation.mul(orbitalToIntertial)
+      Transformations.transform(transOrbital, Vec3(0.0, 0.0, radiusApoapsis))
+    })
+
+    // TODO: proper velocity calculation here
+    positions.map(OrbitalState(_, Vec3(0.0, 0.0, 0.0)))
 
   }
 

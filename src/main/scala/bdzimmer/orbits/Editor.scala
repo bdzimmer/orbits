@@ -304,13 +304,20 @@ class Editor(
             x.laplacePlane.map(
               y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
 
+          def preTrans = Transformations.transformation(
+            laplacePlane.getOrElse(Transformations.Identity3),
+            Orbits.planetState(x.primary, curDateJulian).position)
+
           RenderFlight.drawOrbitInfo(
             image,
             x.moon(curDateJulian),
-            Transformations.transformation(
-              laplacePlane.getOrElse(Transformations.Identity3),
-              Orbits.planetState(x.primary, curDateJulian).position),
+            preTrans,
             view)
+
+          val pMotion = RenderFlight.precessionPeriod(x.moon, curDateJulian, preTrans)
+          RenderFlight.drawOrbit(
+            image, pMotion, view,
+            RenderFlight.ColorOrbital, showSettings.motionVerticals, true)
         })
 
         // TODO: is it a flight?
