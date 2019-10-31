@@ -304,7 +304,7 @@ class Editor(
             x.laplacePlane.map(
               y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
 
-          def preTrans = Transformations.transformation(
+          val preTrans = Transformations.transformation(
             laplacePlane.getOrElse(Transformations.Identity3),
             Orbits.planetState(x.primary, curDateJulian).position)
 

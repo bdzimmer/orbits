@@ -113,6 +113,8 @@ object Draw {
         view.drawPosition(im, motion.last.position, name, "", Color.LIGHT_GRAY)
 
         if (orbitInfo) {
+
+          /*
           RenderFlight.drawOrbitInfo(
             im,
             moon.moon(curDateJulian),
@@ -120,6 +122,24 @@ object Draw {
               laplacePlane.getOrElse(Transformations.Identity3),
               Orbits.planetState(moon.primary, curDateJulian).position),
             view)
+
+           */
+
+          val preTrans = Transformations.transformation(
+            laplacePlane.getOrElse(Transformations.Identity3),
+            Orbits.planetState(moon.primary, curDateJulian).position)
+
+          RenderFlight.drawOrbitInfo(
+            im,
+            moon.moon(curDateJulian),
+            preTrans,
+            view)
+
+          val pMotion = RenderFlight.precessionPeriod(moon.moon, curDateJulian, preTrans)
+          RenderFlight.drawOrbit(
+            im, pMotion, view,
+            RenderFlight.ColorOrbital, motionVerticals, true)
+
         }
 
         objects(name) = View.perspective(motion.last.position, view.camTrans, view.viewPos)
