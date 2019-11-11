@@ -99,9 +99,10 @@ object Draw {
       objects(x._1) = View.perspective(x._2.last.position, view.camTrans, view.viewPos)
     })
 
+    view.drawSphere(im, Transformations.IdentityTransformation, Vec3(0.5, 0.5, 0.5), Color.GREEN)
+
     // ~~~~ ~~~~ Experimentation with moons ~~~~ ~~~~
 
-    // draw moons
     if (MoonsExperiment) {
       Moons.Moons.foreach({case (name, moon) => {
         // TODO: remove ICRF transformation from calculation

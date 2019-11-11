@@ -233,16 +233,19 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
   }
 
 
-  def drawPolygon(im: BufferedImage, polygon: Seq[Vec2], color: Color): Unit = {
+  def drawPolygon(im: BufferedImage, polygon: Seq[Vec2], color: Color, fill: Boolean): Unit = {
     val ptsShifted = polygon.map(p => cvtPos(im, p.x.toInt, p.y.toInt))
     if (!ptsShifted.exists(p => p._1.abs > Viewer.DrawMax || p._2.abs > Viewer.DrawMax)) {
+      val xs = ptsShifted.map(_._1).toArray
+      val ys = ptsShifted.map(_._2).toArray
       val gr = im.getGraphics.asInstanceOf[Graphics2D]
       gr.setRenderingHints(Viewer.RenderHints)
       gr.setColor(color)
-      gr.fillPolygon(
-        ptsShifted.map(_._1).toArray,
-        ptsShifted.map(_._2).toArray,
-        polygon.length)
+      if (fill) {
+        gr.fillPolygon(xs, ys, polygon.length)
+      } else {
+        gr.drawPolygon(xs, ys, polygon.length)
+      }
     }
   }
 
@@ -254,12 +257,12 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
         View.perspective(Vec3.add(os.position, Vec3.normalize(os.velocity)), camTrans, viewPos),
         position))
       val arrowPoints = Viewer.arrowPoints(position, direction)
-      drawPolygon(im, arrowPoints, color)
+      drawPolygon(im, arrowPoints, color, true)
     } else {
       val arrowPoints3d = Viewer.arrowPoints3D(
         os.position, Vec3.normalize(os.velocity), settings.arrowLength / viewPos.z)
       val arrowPoints = arrowPoints3d.map(x => View.perspective(x, camTrans, viewPos))
-      drawPolygon(im, arrowPoints, color)
+      drawPolygon(im, arrowPoints, color, true)
     }
 
   }
@@ -275,9 +278,18 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
 
     for (idx <- (1 until r0pts.length)) {
       val tri0 = Seq(r0pts(idx), r1pts(idx), r1pts(idx - 1))
-      drawPolygon(im, tri0.map(View.perspective(_, camTrans, viewPos)), color)
+      drawPolygon(im, tri0.map(View.perspective(_, camTrans, viewPos)), color, true)
       val tri1 = Seq(r0pts(idx), r1pts(idx - 1), r0pts(idx - 1))
-      drawPolygon(im, tri1.map(View.perspective(_, camTrans, viewPos)), color)
+      drawPolygon(im, tri1.map(View.perspective(_, camTrans, viewPos)), color, true)
+    }
+  }
+
+
+  def drawSphere(im: BufferedImage, transform: Mat44, scale: Vec3, color: Color): Unit = {
+    // transform sphere points and draw
+    for (circle <- Primitives.DefaultSphere) {
+      val ct = circle.map(x => Transformations.transform(transform, Vec3.emul(x, scale)))
+      drawPolygon(im, ct.map(View.perspective(_, camTrans, viewPos)), color, false)
     }
   }
 

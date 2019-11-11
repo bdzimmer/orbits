@@ -1018,7 +1018,7 @@ object RenderFlight {
   }
 
 
-  // TODO: get rid of "transformation argument"
+  // TODO: get rid of "transformation" argument
   def precessionPeriod(
       oee: MoonICRFEstimator,
       startTime: Double,
