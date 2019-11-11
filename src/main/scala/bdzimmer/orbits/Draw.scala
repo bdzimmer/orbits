@@ -22,6 +22,8 @@ object Draw {
 
   val DisplaySettings = Viewer.ViewerSettingsArtsy
 
+  val MoonsExperiment = false
+
 
   def redraw(
 
@@ -34,12 +36,17 @@ object Draw {
 
       asteroidBelt: Boolean,
       lagrangePoints: Boolean,
+      orbitInfo: Boolean,
+      motionVerticals: Boolean,
+
       statusOption: Int,
 
       camTrans: Mat44,
       viewPos: Vec3,
 
-      im: BufferedImage): Unit = {
+      im: BufferedImage): scala.collection.mutable.Map[String, Vec2] = {
+
+    val objects: scala.collection.mutable.Map[String, Vec2] = new scala.collection.mutable.HashMap[String, Vec2]()
 
     val view = new Viewer(camTrans, viewPos, DisplaySettings)
 
@@ -68,88 +75,152 @@ object Draw {
     val activeFlights = flights.filter(x =>
       // !x.equals(fp) &&
       x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
-    // val activeFlightFns = activeFlights.map(af => Editor.paramsToFun(af))
-    // val otherFlights = activeFlightFns.map({
-    //   case (afFn, afTicks) => afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
-    // })
 
     // clear the image
     val gr = im.getGraphics
     gr.setColor(Color.BLACK)
     gr.fillRect(0, 0, im.getWidth, im.getHeight)
 
-    val otherFlightsColors = activeFlights.map(x => factions.getOrElse(x.faction, Color.GRAY))
-
-    // RenderFlight.drawStateAtTime(
-    //   view, im, planetMotions, otherFlights.zip(otherFlightsColors).toList, GridLim)
-
-
     // ~~~~
 
     // draw the grid and the sun
-    view.drawGrid(im, GridLim, new Color(0, 0, 128))
-    view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
+    view.drawGrid(im, GridLim, GridLim, None, new Color(0, 0, 128))
+    val sun = Vec3(0.0, 0.0, 0.0)
+    view.drawPosition(im, sun, "Sun", "", Color.YELLOW) // for now
 
     // draw the orbits of planets and their positions
     // the sequence of orbital states for each planet should start from same time
     // as the final state of the flight - this is the time that we are drawing the
     // flight at
-    planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view))
-    planetMotions.foreach(x => view.drawPosition(im, x._2.head.position, x._1, "", Color.GRAY))
+    planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view, Color.LIGHT_GRAY, motionVerticals))
+    planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.LIGHT_GRAY))
 
-    // draw other flights in the background
-    // TODO: optional ship arrows and names?
-    // otherFlights.zip(otherFlightsColors).toList.foreach(x => view.drawMotion(im, x._1, x._2))
-
-    activeFlights.foreach(flight => {
-        val (afFn, afTicks) = Editor.paramsToFun(flight)
-        val positions = afTicks.filter(x => x <= curDateJulian).map(tick => afFn(tick))
-        val factionColor = factions.getOrElse(flight.faction, Color.GRAY)
-
-        // draw motion and velocity arrow
-        view.drawMotion(im, positions, factionColor)
-        val vel = drawVelocityArrow(afFn, factionColor)
-
-        // draw status
-        // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong
-        // TODO: make this optional in ShowSettings
-        val pos2d = View.perspective(afFn(curDateJulian), camTrans, viewPos)
-        val (x, y) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
-        RenderFlight.drawFlightStatus(
-          x, y,
-          im,
-          flight.ship,
-          flight.faction,
-          Color.green,
-          Conversions.julianToCalendarDate(curDateJulian),
-          Vec3.length(Vec3.sub(positions.last, positions.head)),
-          vel,
-          DisplaySettings
-        )
-
+    planetMotions.foreach(x => {
+      objects(x._1) = View.perspective(x._2.last.position, view.camTrans, view.viewPos)
     })
 
+    // ~~~~ ~~~~ Experimentation with moons ~~~~ ~~~~
 
-    // ~~~
+    // draw moons
+    if (MoonsExperiment) {
+      Moons.Moons.foreach({case (name, moon) => {
+        // TODO: remove ICRF transformation from calculation
+        val laplacePlane = Some(
+          moon.laplacePlane.map(
+            y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
+        val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
+        RenderFlight.drawOrbit(im, motion, view, Color.LIGHT_GRAY, motionVerticals)
+        view.drawPosition(im, motion.last.position, name, "", Color.LIGHT_GRAY)
 
-    if (asteroidBelt) {
-      view.drawRing(im, BeltR0, BeltR1, new Color(64, 64, 64, 128))
+        if (orbitInfo) {
+
+          /*
+          RenderFlight.drawOrbitInfo(
+            im,
+            moon.moon(curDateJulian),
+            Transformations.transformation(
+              laplacePlane.getOrElse(Transformations.Identity3),
+              Orbits.planetState(moon.primary, curDateJulian).position),
+            view)
+
+           */
+
+          val preTrans = Transformations.transformation(
+            laplacePlane.getOrElse(Transformations.Identity3),
+            Orbits.planetState(moon.primary, curDateJulian).position)
+
+          RenderFlight.drawOrbitInfo(
+            im,
+            moon.moon(curDateJulian),
+            preTrans,
+            view)
+
+          val pMotion = RenderFlight.precessionPeriod(moon.moon, curDateJulian, preTrans)
+          RenderFlight.drawOrbit(
+            im, pMotion, view,
+            RenderFlight.ColorOrbital, motionVerticals, true)
+
+        }
+
+        objects(name) = View.perspective(motion.last.position, view.camTrans, view.viewPos)
+
+      }})
+
     }
+
+    // ~~~~ ~~~~ ~~~~ ~~~~
+
+    // draw orbit info
+    if (orbitInfo) {
+      planets.foreach(x => {
+        val oe = x._2(curDateJulian)
+        RenderFlight.drawOrbitInfo(
+          im, oe, Transformations.IdentityTransformation, view)
+      })
+    }
+
 
     // draw L3, L4 and L5 points of visible planets
     if (lagrangePoints) {
       planets.foreach(p => {
         view.drawPosition(
           im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2), curDateJulian).position,
-          "L3", "", Color.GRAY, fill = false)
+          "L3", "", Color.LIGHT_GRAY, fill = false)
         view.drawPosition(
           im, Orbits.planetState(new MeeusPlanets.L4Estimator(p._2), curDateJulian).position,
-          "L4", "", Color.GRAY, fill = false)
+          "L4", "", Color.LIGHT_GRAY, fill = false)
         view.drawPosition(
           im, Orbits.planetState(new MeeusPlanets.L5Estimator(p._2), curDateJulian).position,
-          "L5", "", Color.GRAY, fill = false)
+          "L5", "", Color.LIGHT_GRAY, fill = false)
       })
     }
+
+    // draw the asteroid belt
+    if (asteroidBelt) {
+      view.drawRing(im, BeltR0, BeltR1, new Color(64, 64, 64, 128))
+    }
+
+    // draw other flights in the background
+    // TODO: optional ship arrows and names?
+    // otherFlights.zip(otherFlightsColors).toList.foreach(x => view.drawMotion(im, x._1, x._2))
+
+    activeFlights.foreach(flight => {
+      val (flightFn, ticks) = Editor.paramsToFun(flight)
+      val positions = ticks.filter(x => x <= curDateJulian).map(tick => flightFn(tick))
+      val factionColor = factions.getOrElse(flight.faction, Color.LIGHT_GRAY)
+
+      if (true) {
+        val origStates = ticks.map(tick => Orbits.planetState(flight.orig, tick))
+        val destStates = ticks.map(tick => Orbits.planetState(flight.dest, tick))
+        view.drawMotion(im, origStates.map(_.position), factionColor, true, verticals = motionVerticals)
+        view.drawMotion(im, destStates.map(_.position), factionColor, true, verticals = motionVerticals)
+      }
+
+      // draw motion and velocity arrow
+      view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
+      val vel = drawVelocityArrow(flightFn, factionColor)
+
+      // draw flight radii
+      RenderFlight.drawFlightRadii(im, flight, curDateJulian, view)
+
+      // draw status
+      // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong
+      // TODO: make this optional in ShowSettings
+      val pos2d = View.perspective(flightFn(curDateJulian), camTrans, viewPos)
+      val (x, y) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
+      RenderFlight.drawFlightStatus(
+        x, y,
+        im,
+        flight.ship,
+        flight.faction,
+        Color.GREEN,
+        Conversions.julianToCalendarDate(curDateJulian),
+        Vec3.length(Vec3.sub(positions.last, positions.head)),
+        vel,
+        DisplaySettings
+      )
+
+    })
 
 
     fpOption.foreach(fp => {
@@ -157,45 +228,28 @@ object Draw {
       val (flightFn, ticks) = Editor.paramsToFun(fp)
 
       if (ticks.length < 1) {
-        return
+        return scala.collection.mutable.Map()
       }
 
-      // to plot how the origin and desination change curing the flight
       val origStates = ticks.map(tick => Orbits.planetState(fp.orig, tick))
       val destStates = ticks.map(tick => Orbits.planetState(fp.dest, tick))
       val ticksSubset = ticks.takeWhile(x => x < curDateJulian)
       val flightStates = ticksSubset.map(tick => flightFn(tick))
-      val flightColor = factions.getOrElse(fp.faction, Color.GREEN)
 
-      RenderFlight.drawHighlightedFlightAtTime(
-        view, im, fp.origName, fp.destName, fp.startDate.dateString, fp.endDate.dateString,
-        origStates, destStates, flightStates, flightColor)
+      val factionColor = factions.getOrElse(fp.faction, Color.GREEN)
+
+      // RenderFlight.highlightFlight(
+      //   view, im, fp, factions,
+      //   origStates, destStates, flightStates, flightColor)
 
       // prepare summary or description
-
       val distance = Vec3.length(
         Vec3.sub(destStates.last.position, origStates.head.position))
 
       // average velocity
       val vel = distance / (fp.endDate.julian - fp.startDate.julian)
 
-      val curVel = drawVelocityArrow(
-        flightFn, flightColor)
-
-      /*
-      // draw status
-      val pos2d = View.perspective(flightStates.last, camTrans, viewPos)
-      RenderFlight.drawFlightStatus(
-        pos2d.x.toInt, pos2d.y.toInt,
-        im,
-        fp.ship,
-        fp.faction,
-        Conversions.julianToCalendarDate(curDateJulian),
-        Vec3.length(Vec3.sub(flightStates.last, flightStates.head)),
-        vel,
-        DisplaySettings
-      )
-      */
+      val curVel = drawVelocityArrow(flightFn, factionColor)
 
       if (statusOption == 0) {
         // draw flight status with current datetime, distance, and velocity
@@ -229,6 +283,8 @@ object Draw {
       }
 
     })
+
+    objects
 
   }
 

@@ -16,6 +16,7 @@ import bdzimmer.util.StringUtils._
 case class AnimationSettings(
   width: Int,
   height: Int,
+  camType: String,    // follow, planet, etc
   camPos: Vec3,
   zViewPos: Double,
   fps: Int,
@@ -37,7 +38,7 @@ object Animation {
       outputDirname: String): Unit = {
 
     def getActiveFlights(tick: Double): List[FlightParams] = {
-      flights.filter(x => tick > x.startDate.julian && tick < x.endDate.julian)
+      flights.filter(x => tick >= x.startDate.julian && tick < x.endDate.julian)
     }
 
     val im = new BufferedImage(
@@ -55,39 +56,66 @@ object Animation {
     val initCamPos = animationSettings.camPos
     val initViewPos = Vec3(0, 0, animationSettings.zViewPos)
 
-    // calculate initial state: mean of all active flights
-    // this doesn't include damping
-    val initActiveFlights = getActiveFlights(startDateJulian)
+    var prevState = if (animationSettings.camType.equals("follow")) {
+      // calculate initial state: mean of all active flights
+      // this doesn't include damping
+      val initActiveFlights = getActiveFlights(startDateJulian)
 
-    var prevState = if (initActiveFlights.length > 0.0) {
-      Vec3.mul(
-        sumStates(initActiveFlights, startDateJulian),
-        1.0 / initActiveFlights.length)
+      if (initActiveFlights.nonEmpty) {
+        // average flight position at start date
+        Vec3.mul(
+          sumStates(initActiveFlights, startDateJulian),
+          1.0 / initActiveFlights.length)
+      } else {
+        // anticipate average position of first flight(s)
+        // TODO: this might not be safe for empty list of flights
+        val firstFlightDateJulian = flights.map(_.startDate.julian).min
+        // TODO: may have to advance this by a small fraction of a day or something
+        val firstActiveFlights = getActiveFlights(firstFlightDateJulian)
+        println(firstActiveFlights.length)
+        Vec3.mul(
+          sumStates(firstActiveFlights, firstFlightDateJulian),
+          1.0 / firstActiveFlights.length)
+        // Vec3(0.0, 0.0, 0.0)
+      }
+
     } else {
-      Vec3(0.0, 0.0, 0.0)
+      val planet = MeeusPlanets.Planets.getOrElse(animationSettings.camType, MeeusPlanets.Earth)
+      Orbits.planetState(planet, startDateJulian).position
     }
 
     val ticks = (startDateJulian to endDateJulian by animationSettings.interval).toList.toIndexedSeq
 
+    // TODO: multithread this
     ticks.zipWithIndex.foreach({case (tick, idx) => {
 
       val initTimeStart = System.currentTimeMillis
 
       val activeFlights = getActiveFlights(tick)
+      // TODO: may not want to highlight a particular flight
+      // in that case fpOption should be None
+      val fpOption = if (animationSettings.camType.equals("follow")) {
+        activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
+      } else {
+        None // for now
+      }
 
       val activeFlightsTime = System.currentTimeMillis - initTimeStart // interested in how much time this is
 
-      // TODO: may not want to highlight a particular flight
-      // in that case fpOption should be None
-      val fpOption = activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
+      val curState = if (animationSettings.camType.equals("follow")) {
 
-      val dampedComponent = Vec3.mul(prevState, Editor.Damping)
-      val sumComponent = sumStates(activeFlights, tick)
+        val dampedComponent = Vec3.mul(prevState, Editor.Damping)
+        val sumComponent = sumStates(activeFlights, tick)
 
-      // weighted average of active flights and previous position
-      val curState = Vec3.mul(
-        Vec3.add(dampedComponent, sumComponent),
-        1.0 / (activeFlights.length + Editor.Damping))
+        // weighted average of active flights and previous position
+        Vec3.mul(
+          Vec3.add(dampedComponent, sumComponent),
+          1.0 / (activeFlights.length + Editor.Damping))
+
+      } else {
+        val planet = MeeusPlanets.Planets.getOrElse(animationSettings.camType, MeeusPlanets.Earth)
+        Orbits.planetState(planet, tick).position
+      }
 
       // update previous position
       prevState = curState
@@ -108,6 +136,8 @@ object Animation {
         factions,
         showSettings.asteroidBelt,
         showSettings.lagrangePoints,
+        showSettings.orbitInfo,
+        showSettings.motionVerticals,
         showSettings.flightStatus,
         camTrans,
         initViewPos,

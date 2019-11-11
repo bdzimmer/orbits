@@ -5,14 +5,13 @@
 package bdzimmer.orbits
 
 import scala.collection.immutable.Seq
-
 import scala.sys.process._
 import scala.util.Try
-
 import java.awt.{Color, Graphics2D}
 import java.awt.image.BufferedImage
-import javax.imageio.ImageIO
 
+import bdzimmer.orbits.Moons.{MoonICRFEstimator}
+import javax.imageio.ImageIO
 import bdzimmer.util.StringUtils._
 
 
@@ -230,6 +229,9 @@ object SolveFlight {
 
 object RenderFlight {
 
+  val ColorOrbital = new Color(0, 200, 0, 127)
+  val ColorLaplace = new Color(200, 0, 0, 127)
+
   def drawFlight(
       ship: Spacecraft,
       faction: String,
@@ -287,18 +289,18 @@ object RenderFlight {
 
     // draw the background grid
     val gridLim = (planetMax * 4).toInt
-    view.drawGrid(im, gridLim, new Color(0, 0, 80))
+    view.drawGrid(im, gridLim, gridLim, None, new Color(0, 0, 80))
 
     // draw the full periods of the starting and ending locations
     val origFullPeriod = Orbits.planetMotionPeriod(orig, startDateJulian)
     val destFullPeriod = Orbits.planetMotionPeriod(dest, startDateJulian)
-    drawOrbit(im, origFullPeriod, view)
-    drawOrbit(im, destFullPeriod, view)
+    drawOrbit(im, origFullPeriod, view, Color.GRAY, false)
+    drawOrbit(im, destFullPeriod, view, Color.GRAY, false)
 
     // draw the positions of the start and ending locations and the flight
-    view.drawMotion(im, origStates.map(_.position), Color.GREEN)
-    view.drawMotion(im, destStates.map(_.position), Color.GREEN)
-    view.drawMotion(im, flightStates,               Color.CYAN)
+    view.drawMotion(im, origStates.map(_.position), Color.GREEN, true, false)
+    view.drawMotion(im, destStates.map(_.position), Color.GREEN, true, false)
+    view.drawMotion(im, flightStates,               Color.CYAN, true, false)
 
     // draw the names and dates for start and end
     view.drawPosition(im, origStates.head.position, origName, startDate.dateString, Color.GREEN)
@@ -403,7 +405,7 @@ object RenderFlight {
       val camAngleZ = math.atan2(camToShip.x, camToShip.y)
 
       val camOrient = Vec3(-math.Pi * 0.5 - camAngleX, 0.0, math.Pi - camAngleZ)
-      val camRot = View.rotationZYX(camOrient)
+      val camRot = Transformations.rotationZYX(camOrient)
 
       val camTrans = View.cameraTransform(camRot, camPos)
       val xshiftAmount =  -imWidth * 0.1
@@ -488,19 +490,40 @@ object RenderFlight {
        gridLim: Int): Unit = {
 
     // draw the grid and the sun
-    view.drawGrid(im, gridLim, new Color(0, 0, 128))
+    view.drawGrid(im, gridLim, gridLim, None, new Color(0, 0, 128))
     view.drawPosition(im, Vec3(0.0, 0.0, 0.0), "Sun", "", Color.YELLOW) // for now
 
     // draw the orbits of planets and their positions
     // the sequence of orbital states for each planet should start from same time
     // as the final state of the flight - this is the time that we are drawing the
     // flight at
-    planets.foreach(x => drawOrbit(im, x._2, view))
+    planets.foreach(x => drawOrbit(im, x._2, view, Color.GRAY, false))
     planets.foreach(x => view.drawPosition(im, x._2.head.position, x._1, "", Color.GRAY))
 
     // draw other flights in the background
     // TODO: optional ship arrows and names
-    otherFlights.foreach(x => view.drawMotion(im, x._1, x._2))
+    otherFlights.foreach(x => view.drawMotion(im, x._1, x._2, true, false))
+  }
+
+  def highlightFlight(
+      view: Viewer,
+      im: BufferedImage,
+      flight: FlightParams,
+      factions: Map[String, Color],
+
+      origStates: Seq[OrbitalState],
+      destStates: Seq[OrbitalState],
+      flightStates: Seq[Vec3],
+      flightColor: Color): Unit = {
+
+    // to plot how the origin and desination change curing the flight
+
+    RenderFlight.drawHighlightedFlightAtTime(
+      view, im,
+      flight.origName, flight.destName,
+      flight.startDate.dateString, flight.endDate.dateString,
+      origStates, destStates, flightStates, flightColor)
+
   }
 
 
@@ -517,18 +540,18 @@ object RenderFlight {
        flightColor: Color): Unit = {
 
     // draw the positions of the start and ending locations and the flight up to this point
-    view.drawMotion(im, origStates.map(_.position), Color.GREEN)
-    view.drawMotion(im, destStates.map(_.position), Color.GREEN)
-    view.drawMotion(im, flightStates,               flightColor)
+    view.drawMotion(im, origStates.map(_.position), flightColor, true, false)
+    view.drawMotion(im, destStates.map(_.position), flightColor, true, false)
+    view.drawMotion(im, flightStates,               flightColor, true, false)
 
     // draw the names and dates for the origin and destination
-    view.drawPosition(im, origStates.head.position, origName, origDesc, Color.GREEN)
-    view.drawPosition(im, destStates.last.position, destName, destDesc, Color.GREEN)
+    // view.drawPosition(im, origStates.head.position, origName, origDesc, Color.GREEN)
+    // view.drawPosition(im, destStates.last.position, destName, destDesc, Color.GREEN)
   }
 
 
   def imagesToVideo(inputDir: String, outputFile: String, width: Int, height: Int, fps: Int): Unit = {
-    val command = s"ffmpeg -y -r $fps -f image2 -s ${width}x$height -i $inputDir/%05d.png -vcodec libx264 -crf 25 -pix_fmt yuv420p $outputFile"
+    val command = s"ffmpeg -y -r $fps -f image2 -s ${width}x$height -i $inputDir/%05d.png -threads 2 -vcodec libx264 -crf 25 -pix_fmt yuv420p $outputFile"
     println(command)
     Try(command.!!)
   }
@@ -547,7 +570,7 @@ object RenderFlight {
 
     val camOrient = Vec3(-math.Pi * 0.25, 0, math.Pi)
     val camPos = Vec3(0, -planetMax * 2.25, planetMax * 2.25)
-    val camTrans = View.cameraTransform(View.rotationZYX(camOrient), camPos)
+    val camTrans = View.cameraTransform(Transformations.rotationZYX(camOrient), camPos)
     val xshiftAmount = if (xshift) {
       -imWidth * 0.1
     } else {
@@ -566,16 +589,30 @@ object RenderFlight {
 
 
   def drawOrbit(
-      im: BufferedImage, fullPeriod: Seq[OrbitalState],
-      view: Viewer, color: Color = Color.GRAY): Unit = {
+      im: BufferedImage,
+      fullPeriod: Seq[OrbitalState],
+      view: Viewer,
+      color: Color,
+      verticals: Boolean,
+      adjustAlpha: Boolean = true): Unit = {
 
     // draw an orbit using arrows
-
-    view.drawMotion(im, fullPeriod.map(_.position), Color.GRAY)
-
+    view.drawMotion(im, fullPeriod.map(_.position), color, true, verticals, adjustAlpha)
     val arrowIndex = fullPeriod.length / 4
-    view.drawArrow(im, fullPeriod(arrowIndex), Color.GRAY)
-    view.drawArrow(im, fullPeriod(arrowIndex * 3), Color.GRAY)
+
+    if (!adjustAlpha) {
+      view.drawArrow(im, fullPeriod(arrowIndex), color)
+      view.drawArrow(im, fullPeriod(arrowIndex * 3), color)
+    } else {
+      val qColor = new Color(
+        color.getRed, color.getGreen, color.getBlue,
+        (255.0 * 0.25).toInt)
+      val tqColor = new Color(
+        color.getRed, color.getGreen, color.getBlue,
+        (255.0 * 0.75).toInt)
+      view.drawArrow(im, fullPeriod(arrowIndex), qColor)
+      view.drawArrow(im, fullPeriod(arrowIndex * 3), tqColor)
+    }
 
   }
 
@@ -784,6 +821,7 @@ object RenderFlight {
   }
 
 
+  // TODO: proper indentation
   def drawFlightStatus(
     tableStartX: Int,
     tableStartY: Int,
@@ -857,6 +895,162 @@ object RenderFlight {
                                 // f"$velC%.4f C"),
                                2,
                                factionColor)
+  }
+
+
+  def drawFlightRadii(
+      im: BufferedImage,
+      flight: FlightParams,
+      curDateJulian: Double,
+      view: Viewer): Unit = {
+
+    // draw start, end, and current radius lines to start and end destinations
+
+    val sun = Vec3(0.0, 0.0, 0.0)
+
+    val startDateJulian = flight.startDate.julian
+    val endDateJulian = flight.endDate.julian
+
+    val origStart = Orbits.planetState(flight.orig, startDateJulian)
+    // val origEnd = Orbits.planetState(flight.orig, endDateJulian)
+    val origCur = Orbits.planetState(flight.orig, curDateJulian)
+
+    // val destStart = Orbits.planetState(flight.dest, startDateJulian)
+    val destEnd = Orbits.planetState(flight.dest, endDateJulian)
+    val destCur = Orbits.planetState(flight.dest, curDateJulian)
+
+    val color = new Color(255, 255, 255, 31)
+
+    view.drawLine(im, sun, origStart.position, color)
+    // view.drawLine(im, sun, origEnd.position, color)
+    view.drawLine(im, sun, origCur.position, color)
+
+    view.drawLine(im, sun, destCur.position, color)
+    // view.drawLine(im, sun, destStart.position, color)
+    view.drawLine(im, sun, destEnd.position, color)
+
+  }
+
+
+  def drawOrbitInfo(
+      im: BufferedImage,
+      oe: OrbitalElements,
+      transformation: Mat44,
+      view: Viewer): Unit = {
+
+    // transformation is an additional transformation to be applied
+    // for use with moons etc.
+
+    // ~~~~ draw ascending node
+    val color = new Color(255, 255, 255, 127)
+
+    val centerTrans = Transformations.transform(transformation, Vec3(0.0, 0.0, 0.0))
+
+    // argument of periapsis is angle forward from ascending node to periapsis (angle 0.0)
+    val nodeAngle = 0.0 - oe.argPeriapsis
+    val nodePos = Orbits.transformOrbitalInertial(
+      Orbits.positionOrbital(oe, nodeAngle), oe)
+    val nodePosTrans = Transformations.transform(transformation, nodePos)
+
+    view.drawLine(im, centerTrans, nodePosTrans, color)
+    view.drawLabel(im, "ascending node", dispAngle(nodeAngle), nodePosTrans, Color.GRAY)
+
+    // ~~~ draw periapsis
+
+    // periapsis is at angle 0.0
+    val periAngle = 0.0
+    val periPos = Orbits.transformOrbitalInertial(
+      Orbits.positionOrbital(oe, periAngle),
+      oe)
+    val periPosTrans = Transformations.transform(transformation, periPos)
+
+    view.drawLine(im, centerTrans, periPosTrans, color)
+    view.drawLabel(im, "periapsis", dispAngle(periAngle), periPosTrans, Color.GRAY)
+
+    // ~~~~ draw true anomaly
+
+    val vAngle = Orbits.trueAnomaly(oe)
+    val vPos = Orbits.transformOrbitalInertial(
+      Orbits.positionOrbital(oe, vAngle),
+      oe)
+    val vPosTrans = Transformations.transform(transformation, vPos)
+
+    view.drawLine(im, centerTrans, vPosTrans, color)
+    view.drawLabel(im, "", dispAngle(vAngle), vPosTrans, Color.GRAY)
+
+    // ~~~ draw grids for local Laplace plane and orbital plane
+
+    // apoapsis at 180.0 degrees
+    val radiusApoapsis = Orbits.radius(oe, math.Pi)
+    val orbitalToIntertial = Transformations.transformation(
+      Orbits.transformOrbitalInertial(oe), Vec3(0.0, 0.0, 0.0))
+
+    // orbital plane and axis
+
+    val transOrbital = transformation.mul(orbitalToIntertial)
+
+    view.drawGrid(
+      im,
+      radiusApoapsis, 4,
+      Some(transOrbital),
+      ColorOrbital)
+
+    view.drawLine(
+      im,
+      Transformations.transform(transOrbital, Vec3(0.0, 0.0, 0.0)),
+      Transformations.transform(transOrbital, Vec3(0.0, 0.0, radiusApoapsis)),
+      ColorOrbital)
+
+    // local laplace plane and axis
+
+    view.drawGrid(
+      im,
+      radiusApoapsis, 4,
+      Some(transformation),
+      ColorLaplace)
+
+    view.drawLine(
+      im,
+      Transformations.transform(transformation, Vec3(0.0, 0.0, 0.0)),
+      Transformations.transform(transformation, Vec3(0.0, 0.0, radiusApoapsis)),
+      ColorLaplace)
+
+  }
+
+
+  // TODO: get rid of "transformation argument"
+  def precessionPeriod(
+      oee: MoonICRFEstimator,
+      startTime: Double,
+      transformation: Mat44): Seq[OrbitalState] = {
+
+    val periodPnode = oee.pnode
+    // val periodPw = oee.pw
+    val period = periodPnode * Conversions.YearToDay
+
+    val nPoints = 90
+    val timeInterval = period / nPoints
+    val times = (0 to nPoints).map(t => (startTime - period) + t * timeInterval)
+
+    val positions = times.map(t => {
+      val oe = oee(t)
+      val radiusApoapsis = Orbits.radius(oe, math.Pi)
+      val orbitalToIntertial = Transformations.transformation(
+        Orbits.transformOrbitalInertial(oe), Vec3(0.0, 0.0, 0.0))
+      val transOrbital = transformation.mul(orbitalToIntertial)
+      Transformations.transform(transOrbital, Vec3(0.0, 0.0, radiusApoapsis))
+    })
+
+    // TODO: proper velocity calculation here
+    positions.map(OrbitalState(_, Vec3(0.0, 0.0, 0.0)))
+
+  }
+
+  private def dispAngle(x: Double): String = {
+    val angle = x / math.Pi
+    val angleMod = angle % 2.0
+    val angleModRound = math.rint(angleMod * 1000.0) / 1000.0
+    angleModRound.toString + "\u03C0"
   }
 
 }

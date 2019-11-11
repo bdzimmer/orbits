@@ -7,31 +7,40 @@ package bdzimmer.orbits
 import scala.collection.immutable.Seq
 
 import java.awt.image.BufferedImage
-import java.awt.{Color, Font, RenderingHints, Graphics2D}
+import java.awt.{Color, Font, RenderingHints, Graphics2D, Stroke, BasicStroke}
 
 
 class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSettings) {
 
-  def drawGrid(im: BufferedImage, gridLim: Int, color: Color): Unit = {
+  def drawGrid(
+      im: BufferedImage,
+      gridLim: Double,
+      ticks: Int,
+      transform: Option[Mat44],
+      color: Color): Unit = {
 
-    val spacing = 1.0
-    val xRange = (-gridLim.toDouble to gridLim by spacing)
+    val spacing = gridLim / ticks
+    val xRange = (-ticks to ticks).map(x => x * spacing)
     val yRange = xRange
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(color)
+    gr.setStroke(settings.stroke)
 
     def drawSegment(pt1: Vec3, pt2: Vec3): Unit = {
-      val start = View.perspective(pt1, camTrans, viewPos)
-      val end   = View.perspective(pt2, camTrans, viewPos)
+      val pt1T = transform.map(Transformations.transform(_, pt1)).getOrElse(pt1)
+      val pt2T = transform.map(Transformations.transform(_, pt2)).getOrElse(pt2)
+
+      val start = View.perspective(pt1T, camTrans, viewPos)
+      val end   = View.perspective(pt2T, camTrans, viewPos)
       val x1 = start.x.toInt + im.getWidth / 2
       val y1 = im.getHeight - (start.y.toInt + im.getHeight / 2)
       val x2 = end.x.toInt + im.getWidth / 2
       val y2 = im.getHeight - (end.y.toInt + im.getHeight / 2)
       // println(x1 + " " + y1 + " " + x2 + " " + y2)
       // don't draw wildly inappropriate values
-      if (x1.abs < 32768 && y1.abs < 32768 && x2.abs < 32768 && y2.abs < 32768) {
+      if (x1.abs < Viewer.DrawMax && y1.abs < Viewer.DrawMax && x2.abs < Viewer.DrawMax  && y2.abs < Viewer.DrawMax) {
         gr.drawLine(x1, y1, x2, y2)
       }
     }
@@ -57,12 +66,14 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       im: BufferedImage,
       pos: Seq[Vec3],
       color: Color,
-      lines: Boolean = true,
-      verticals: Boolean = false): Unit = {
+      lines: Boolean,
+      verticals: Boolean,
+      adjustAlpha: Boolean = true): Unit = {
 
     val pos2d = pos.map(p => View.perspective(p, camTrans, viewPos))
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
 
     if (!lines) {
       val colInt = color.getRGB
@@ -75,12 +86,26 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       })
     } else {
       gr.setColor(color)
+      gr.setStroke(settings.stroke)
       if (pos2d.length > 1) {
         pos2d.zipWithIndex.dropRight(1).foreach({case (p1, idx) => {
+
+          if (adjustAlpha) {
+            // experiment with transparency
+            val fraction = 1.0 * idx / pos2d.length
+            val alpha = 255.0 * fraction
+            // val alpha = if (1.0 * idx / pos2d.length > 0.5) { 255.0 } else { 127.0 }
+            val artsyColor = new Color(
+              color.getRed, color.getGreen, color.getBlue, alpha.toInt)
+            gr.setColor(artsyColor)
+          }
+
           val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)  // TODO: experiment with round
           val p2 = pos2d(idx + 1)
           val (x2, y2) = cvtPos(im, p2.x.toInt, p2.y.toInt)
-          gr.drawLine(x1, y1, x2, y2)
+          if (x1.abs < Viewer.DrawMax && y1.abs < Viewer.DrawMax && x2.abs < Viewer.DrawMax && y2.abs < Viewer.DrawMax) {
+            gr.drawLine(x1, y1, x2, y2)
+          }
         }})
       }
     }
@@ -136,9 +161,27 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
   }
 
 
+  def drawLine(im: BufferedImage, v1: Vec3, v2: Vec3, color: Color): Unit = {
+    val p1 = View.perspective(v1, camTrans, viewPos)
+    val p2 = View.perspective(v2, camTrans, viewPos)
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
+    gr.setColor(color)
+    gr.setStroke(settings.stroke)
+
+    val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)
+    val (x2, y2) = cvtPos(im, p2.x.toInt, p2.y.toInt)
+    if (x1.abs < Viewer.DrawMax && y1.abs < Viewer.DrawMax && x2.abs < Viewer.DrawMax && y2.abs < Viewer.DrawMax) {
+      gr.drawLine(x1, y1, x2, y2)
+    }
+
+  }
+
+
   def cvtPos(im: BufferedImage, x: Int, y: Int): (Int, Int) = {
     (x + im.getWidth / 2, im.getHeight - (y + im.getHeight / 2))
   }
+
 
   def drawPosition(
       im: BufferedImage, pos: Vec3, name: String, desc: String,
@@ -149,6 +192,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     gr.setRenderingHints(Viewer.RenderHints)
     gr.setColor(color)
 
+    // TODO: use cvtPos
     val x = pos2d.x.toInt + im.getWidth / 2
     val y = im.getHeight - (pos2d.y.toInt + im.getHeight / 2)
 
@@ -158,15 +202,40 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     } else {
       gr.drawOval(x - rad, y - rad, rad * 2, rad * 2)
     }
+
     gr.setFont(settings.displayFont)
-    gr.drawString(name, x + rad, y + settings.lineHeight)
-    gr.drawString(desc, x + rad, y + settings.lineHeight * 2)
+    if (name.length > 0) {
+      gr.drawString(name, x + rad, y + settings.lineHeight)
+    }
+    if (desc.length > 0) {
+      gr.drawString(desc, x + rad, y + settings.lineHeight * 2)
+    }
+  }
+
+
+  def drawLabel(im: BufferedImage, label: String, desc: String, pos: Vec3, color: Color): Unit = {
+
+    val pos2d = View.perspective(pos, camTrans, viewPos)
+    val (x, y) = cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
+
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
+    gr.setColor(color)
+
+    gr.setFont(settings.displayFont)
+    if (label.length > 0) {
+      gr.drawString(label, x, y + settings.lineHeight)
+    }
+    if (desc.length > 0) {
+      gr.drawString(desc, x, y + settings.lineHeight * 2)
+    }
+
   }
 
 
   def drawPolygon(im: BufferedImage, polygon: Seq[Vec2], color: Color): Unit = {
     val ptsShifted = polygon.map(p => cvtPos(im, p.x.toInt, p.y.toInt))
-    if (!ptsShifted.exists(p => (math.abs(p._1) > 32768) || (math.abs(p._2) > 32768))) {
+    if (!ptsShifted.exists(p => p._1.abs > Viewer.DrawMax || p._2.abs > Viewer.DrawMax)) {
       val gr = im.getGraphics.asInstanceOf[Graphics2D]
       gr.setRenderingHints(Viewer.RenderHints)
       gr.setColor(color)
@@ -226,6 +295,8 @@ case class ViewerSettings(
     lineHeightSmall: Int,
     columnWidthSmall: Int,
 
+    stroke: Stroke,
+
     circleRadius: Int,
     arrows3D: Boolean,
     arrowLength: Double
@@ -233,6 +304,8 @@ case class ViewerSettings(
 
 
 object Viewer {
+
+  val DrawMax = 32768
 
   val ViewerSettingsDefault = ViewerSettings(
     displayFont = new Font("Monospace", Font.BOLD, 12),
@@ -245,6 +318,7 @@ object Viewer {
     lineHeightSmall = 14,
     columnWidthSmall = 100,
 
+    stroke = new BasicStroke(2),
 
     circleRadius = 6,
     arrows3D = false,
@@ -264,6 +338,8 @@ object Viewer {
     displayFontItalicSmall = new Font("Play", Font.PLAIN | Font.ITALIC, 10),
     lineHeightSmall = 11,
     columnWidthSmall = 60,
+
+    stroke = new BasicStroke(2),
 
     circleRadius = 6,
     arrows3D = true,
@@ -324,71 +400,17 @@ object Viewer {
 
 object View {
 
-  val UnitX = Vec3(1.0, 0.0, 0.0)
-  val UnitY = Vec3(0.0, 1.0, 0.0)
-  val UnitZ = Vec3(0.0, 0.0, 1.0)
-
-  val Vec3Zero = Vec3(0.0, 0.0, 0.0)
-
-  val Identity3 = Mat33(UnitX, UnitY, UnitZ)
-  val IdentityTransformation = transformation(Identity3, Vec3Zero)
-
-
-  def transformation(rot: Mat33, trans: Vec3): Mat44 = {
-     Mat44(
-      new Vec4(rot.c0, 0.0),
-      new Vec4(rot.c1, 0.0),
-      new Vec4(rot.c2, 0.0),
-      new Vec4(trans,  1.0)
-    )
-  }
-
-
   // perspective transformation calculations
   // https://en.wikipedia.org/wiki/3D_projection#Perspective_projection
 
   def cameraTransform(rot: Mat33, pos: Vec3): Mat44 = {
 
-    val translation = transformation(Identity3, Vec3(-pos.x, -pos.y, -pos.z))
-    val rotation = transformation(rot, Vec3Zero)
+    val translation = Transformations.transformation(Transformations.Identity3, Vec3(-pos.x, -pos.y, -pos.z))
+    val rotation = Transformations.transformation(rot, Transformations.Vec3Zero)
     // interesting to experiment with this
     // translation.mul(rotation)
     rotation.mul(translation)
   }
-
-
-  def rotationXYZ(theta: Vec3): Mat33 = {
-    rotZ(theta.z).mul(rotY(theta.y)).mul(rotX(theta.x))
-  }
-
-  def rotationZYX(theta: Vec3): Mat33 = {
-    rotX(theta.x).mul(rotY(theta.y)).mul(rotZ(theta.z))
-  }
-
-
-  def rotX(theta: Double): Mat33 = {
-    Mat33(
-      UnitX,
-      Vec3(0.0, math.cos(theta), -math.sin(theta)),
-      Vec3(0.0, math.sin(theta),  math.cos(theta)))
-  }
-
-
-  def rotY(theta: Double): Mat33 = {
-    Mat33(
-      Vec3( math.cos(theta), 0.0, math.sin(theta)),
-      UnitY,
-      Vec3(-math.sin(theta), 0.0, math.cos(theta)))
-  }
-
-
-  def rotZ(theta: Double): Mat33 = {
-    Mat33(
-      Vec3(math.cos(theta), -math.sin(theta), 0.0),
-      Vec3(math.sin(theta),  math.cos(theta), 0.0),
-      UnitZ)
-  }
-
 
   def perspective(point: Vec3, camTrans: Mat44, viewPos: Vec3): Vec2 = {
     val ph = new Vec4(point, 1.0)

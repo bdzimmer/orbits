@@ -9,9 +9,9 @@
 
 package bdzimmer.orbits
 
+import bdzimmer.orbits.Moons.{MoonICRFEstimator}
+
 import scala.collection.immutable.Seq
-import scala.sys.process._
-import scala.util.Try
 
 
 sealed abstract class Spacecraft {
@@ -36,10 +36,16 @@ case class ConstVelCraft (
 
 object Conversions {
 
+  val DegToRad = math.Pi / 180
   val AuToMeters = 1.49597870700e11
   val DayToSec = 86400.0
   val LightToMetersPerSec = 299792458.0
   val GToMetersPerSecond = 9.80665
+  val YearToDay = 365.2425
+
+  // TODO: proper conversion from ICRF to ecliptic coordinate system
+  val ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
+
 
   def julianToCalendarDate(date: Double): CalendarDateTime = {
     // https://en.wikipedia.org/wiki/Julian_day#Converting_Julian_or_Gregorian_calendar_date_to_Julian_day_number
@@ -97,41 +103,21 @@ object Orbits {
   }
 
 
-  def radius(oe: OrbitalElements, trueAnomaly: Double): Double = {
+  def radius(oe: OrbitalElements, angle: Double): Double = {
     val e = oe.eccentricity
     val e2 = e * e
-    oe.semimajorAxis * (1 - e2) / (1 + e * math.cos(trueAnomaly))
+    oe.semimajorAxis * (1 - e2) / (1 + e * math.cos(angle))
   }
-
-
-  // these functions work, but I'm not currently using them
-  /*
-  def planetXYZ(oee: OrbitalElementsEstimator, t: Double): Vec3d = {
-    val oe = oee(t)
-    val v  = trueAnomaly(oe)
-    val r  = radius(oe, v)
-    cartesianCoords(oe, v, r)
-  }
-
-
-  def cartesianCoords(oe: OrbitalElements, v: Double, r: Double): Vec3d = {
-
-    val i = oe.inclination
-    val o = oe.longitudeAscending  // uppercase omega
-    val p = oe.longitudePeriapsis  // pi
-
-    val x = r * (math.cos(o) * math.cos(v + p - o) - math.sin(o) * math.sin(v + p - o) * math.cos(i))
-    val y = r * (math.sin(o) * math.cos(v + p - o) + math.cos(o) * math.sin(v + p - o) * math.cos(i))
-    val z = r * (math.sin(v + p - o) * math.sin(i))
-
-    Vec3d(x, y, z)
-  }
-  *
-  */
 
 
   def positionOrbital(oe: OrbitalElements, v: Double, r: Double): Vec3 = {
     Vec3(r * math.cos(v), r * math.sin(v), 0.0)
+  }
+
+
+  def positionOrbital(oe: OrbitalElements, v: Double): Vec3 = {
+    val r = radius(oe, v)
+    positionOrbital(oe, v, r)
   }
 
 
@@ -161,6 +147,54 @@ object Orbits {
   }
 
 
+  def transformOrbitalInertial(oe: OrbitalElements): Mat33 = {
+
+    val sinw = math.sin(oe.argPeriapsis)
+    val cosw = math.cos(oe.argPeriapsis)
+
+    val sino = math.sin(oe.longitudeAscending)
+    val coso = math.cos(oe.longitudeAscending)
+
+    val sini = math.sin(oe.inclination)
+    val cosi = math.cos(oe.inclination)
+
+    val xNew = Vec3(
+      cosw * coso - sinw * cosi * sino,
+      cosw * sino + sinw * cosi * coso,
+      sinw * sini)
+
+    val yNew = Vec3(
+      - (sinw * coso + cosw * cosi * sino),
+      cosw * cosi * coso - sinw * sino,
+      cosw * sini)
+
+    Mat33(
+      xNew,
+      yNew,
+      Vec3.cross(xNew, yNew)) // TODO: x cross y
+
+  }
+
+
+
+
+  def laplacePlaneICRFTransformation(rightAscension: Double, declination: Double): Mat33 = {
+    // calculate transformation of laplace plane relative to ecliptic
+    // from description of laplace plane relative to ICRF
+
+    // TODO: sort of a guess for now
+
+    // first rotate around Z by rightAscension
+    // then rotate around X by declination
+    // finally convert to ecliptic coordinate system
+    val planeRelativeToICRF = Transformations.rotX(declination).mul(Transformations.rotZ(rightAscension))
+    val planeRelativeToEcliptic = Conversions.ICRFToEcliptic.mul(planeRelativeToICRF)
+
+    planeRelativeToEcliptic
+
+  }
+
+
   def planetState(oee: OrbitalElementsEstimator, t: Double, dt: Double = 0.0001): OrbitalState = {
     val oeT1 = oee(t)
     val posOrbT1 = positionOrbital(oeT1)
@@ -180,18 +214,72 @@ object Orbits {
   }
 
 
-  def planetMotionPeriod(oee: OrbitalElementsEstimator, startTime: Double, nPoints: Int = 365): Seq[OrbitalState] = {
+  def planetMotionPeriod(
+      oee: OrbitalElementsEstimator,
+      startTime: Double,
+      nPoints: Int = 365): Seq[OrbitalState] = {
+
     val oeStartTime = oee(startTime)
-    // val r3 = oeStartTime.semimajorAxis * oeStartTime.semimajorAxis * oeStartTime.semimajorAxis
-    // val period = math.sqrt(365.0 * 365.0 * r3)
     val period = planetPeriod(oeStartTime.semimajorAxis)
+    motionPeriod(oee, startTime, period, nPoints)
+
+    // val timeInterval = period / nPoints
+    // // calculate the period BEFORE the start date
+    // val times = (0 to nPoints).map(t => (startTime - period) + t * timeInterval)
+    // // confirm that the LAST tick is identical to the start date
+    // // println(startTime + " " + times.last)
+    // times.map(t => planetState(oee, t))
+  }
+
+
+  def moonMotionPeriod(
+      primary: OrbitalElementsEstimator,
+      moon: MoonICRFEstimator,
+      laplacePlane: Option[Mat33],
+      startTime: Double,
+      nPoints: Int = 90
+    ): Seq[OrbitalState] = {
+
+    // TODO: is there a way to properly calculate the period instead of using this?
+    val period = moon.p
+    // val period = moon.pnode * Conversions.YearToDay
+    // val period = moon.p * 12.0
+
+    val moonRelMotion = Orbits.motionPeriod(moon, startTime, period, nPoints)
+
+    // TODO: apply laplace plane transformation
+    val moonRelMotionRot = laplacePlane.map(mat => {
+      moonRelMotion.map(x =>  {
+        OrbitalState(mat.mul(x.position), mat.mul(x.velocity))
+      })
+    }).getOrElse(moonRelMotion)
+
+    // use this method if we want to plot the absolute position
+    // of the moon over time below
+    // val primaryMotion = Orbits.motionPeriod(primary, startTime, period, nPoints)
+    // val earthState = primaryMotion.last
+
+    val primaryState = planetState(primary, startTime)
+
+    moonRelMotionRot.map(x => OrbitalState(
+      Vec3.add(x.position, primaryState.position),
+      x.velocity))
+
+  }
+
+
+  def motionPeriod(oee: OrbitalElementsEstimator, startTime: Double, period: Double, nPoints: Int = 365): Seq[OrbitalState] = {
     val timeInterval = period / nPoints
-    val times = (0 to nPoints).map(t => startTime + t * timeInterval)
+    // calculate the period BEFORE the start date
+    val times = (0 to nPoints).map(t => (startTime - period) + t * timeInterval)
+    // confirm that the LAST tick is identical to the start date
+    // println(startTime + " " + times.last)
     times.map(t => planetState(oee, t))
   }
 
+
   def planetPeriod(semimajorAxis: Double): Double = {
-    // Apply Kepler's Third Law to find the full period of a planet.
+    // Apply Kepler's Third Law to find (approximately) the full period of a planet.
     // Assumes the planet is orbiting the sun.
     val periodOfEarth = 365.25
     val r3 = semimajorAxis * semimajorAxis * semimajorAxis
