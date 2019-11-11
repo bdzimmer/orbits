@@ -22,6 +22,8 @@ object Draw {
 
   val DisplaySettings = Viewer.ViewerSettingsArtsy
 
+  val MoonsExperiment = false
+
 
   def redraw(
 
@@ -99,10 +101,8 @@ object Draw {
 
     // ~~~~ ~~~~ Experimentation with moons ~~~~ ~~~~
 
-    val moonsExperiment = true
-
     // draw moons
-    if (moonsExperiment) {
+    if (MoonsExperiment) {
       Moons.Moons.foreach({case (name, moon) => {
         // TODO: remove ICRF transformation from calculation
         val laplacePlane = Some(
