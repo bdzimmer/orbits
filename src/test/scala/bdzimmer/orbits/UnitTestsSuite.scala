@@ -16,8 +16,8 @@ class UnitTestsSuite extends FunSuite {
     val startDate = CalendarDateTime(2018, 5, 7)
     val endDate = CalendarDateTime(2018, 5, 12)
 
-    val startPlanet = MeeusPlanets.Earth
-    val endPlanet = MeeusPlanets.Mars
+    val startPlanet = MeeusPlanets.Earth.planet
+    val endPlanet = MeeusPlanets.Mars.planet
 
     // solve in one guessDelta
 

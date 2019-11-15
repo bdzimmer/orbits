@@ -80,7 +80,7 @@ object Animation {
       }
 
     } else {
-      val planet = MeeusPlanets.Planets.getOrElse(animationSettings.camType, MeeusPlanets.Earth)
+      val planet = MeeusPlanets.Planets.getOrElse(animationSettings.camType, MeeusPlanets.Earth).planet
       Orbits.planetState(planet, startDateJulian).position
     }
 
@@ -113,7 +113,7 @@ object Animation {
           1.0 / (activeFlights.length + Editor.Damping))
 
       } else {
-        val planet = MeeusPlanets.Planets.getOrElse(animationSettings.camType, MeeusPlanets.Earth)
+        val planet = MeeusPlanets.Planets.getOrElse(animationSettings.camType, MeeusPlanets.Earth).planet
         Orbits.planetState(planet, tick).position
       }
 
