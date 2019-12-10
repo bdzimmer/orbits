@@ -125,6 +125,11 @@ object Draw {
           println(view.settings.displayFont.getSize)
           gr.setFont(view.settings.displayFont.deriveFont(view.settings.displayFont.getSize * 4.0f))
           gr.drawString(name, ptx + rad, pty)
+
+//          val font = view.settings.displayFont.deriveFont(view.settings.displayFont.getSize * 4.0f)
+//          gr.setFont(font)
+//          val lineHeight = gr.getFontMetrics(font).getHeight
+//          gr.drawString(name.toUpperCase, 0, im.getHeight - lineHeight - view.settings.lineHeight)
         }
 
       }})
