@@ -6,7 +6,21 @@
 
 package bdzimmer.orbits
 
+
 case class OrbitalState(position: Vec3, velocity: Vec3)
+
+
+case class Planet(
+  planet: OrbitalElementsEstimator,
+  axialTilt: LaplacePlane,
+  radiusKm: Double
+)
+
+
+class LaplacePlane(ra: Double, dec: Double) {
+  val rightAscension: Double = ra * Conversions.DegToRad
+  val declination: Double = dec * Conversions.DegToRad
+}
 
 
 case class OrbitalElements(
@@ -54,74 +68,107 @@ sealed abstract class OrbitalElementsEstimator {
 // http://www.braeunig.us/space/plntpos.htm
 // Attributed to Jean Meeus' book Astronomical Formulae for Calculators, 4th ed.
 
+// Axial tilts from IAU section of https://en.wikipedia.org/wiki/Axial_tilt
+
 object MeeusPlanets {
 
   // 0 January 1900 12h
   val J1900 = 2415020.0
 
-  val Mercury = new NonEarthPolynomialEstimator(
+  val Mercury = Planet(
+    new NonEarthPolynomialEstimator(
       Polynomial4(178.179078, 149474.07078, 0.0003011),
       0.3870986,
       Polynomial4(0.20561421, 0.00002046, -0.000000030),
       Polynomial4(7.002881,   0.0018608,  -0.0000183),
       Polynomial4(28.753753,  0.3702806,   0.0001208),
-      Polynomial4(47.145944,  1.1852083,   0.0001739))
+      Polynomial4(47.145944,  1.1852083,   0.0001739)),
+    new LaplacePlane(281.01, 61.45),
+    2439.7
+  )
 
-  val Venus = new NonEarthPolynomialEstimator(
+  val Venus = Planet(
+    new NonEarthPolynomialEstimator(
       Polynomial4(342.767053,	58519.21191,	0.0003097),
      0.7233316,
       Polynomial4(0.00682069, -0.00004774, 0.000000091),
       Polynomial4(3.393631,	0.0010058, -0.0000010),
       Polynomial4(54.384186,	0.5081861, -0.0013864),
-      Polynomial4(75.779647,	0.8998500,	0.0004100)
+      Polynomial4(75.779647,	0.8998500,	0.0004100)),
+    new LaplacePlane(272.76,	67.16),
+    6051.8
   )
 
-  val Earth = new EarthPolynomialEstimator(
+  val Earth = Planet(
+    new EarthPolynomialEstimator(
       Polynomial4(99.69668,    36000.76892,  0.0003025),
       1.0000002,
       Polynomial4(0.01675104, -0.0000418,   -0.000000126),
       0.0,
-      Polynomial4(358.47583,   35999.04975, -0.000150, -0.0000033))
+      Polynomial4(358.47583,   35999.04975, -0.000150, -0.0000033)),
+    new LaplacePlane(0.0, 90.0),
+    6378.0
+  )
 
-  val Mars = new NonEarthPolynomialEstimator(
+  val Mars = Planet(
+    new NonEarthPolynomialEstimator(
       Polynomial4(293.737334, 19141.69551,  0.0003107),
       1.5236883,
       Polynomial4(0.09331290, 0.000092064, -0.000000077),
       Polynomial4(1.850333,  -0.0006750,    0.0000126),
       Polynomial4(285.431761, 1.0697667,    0.0001313,  0.00000414),
-      Polynomial4(48.786442,  0.7709917,    0.0000014, -0.000005330))
+      Polynomial4(48.786442,  0.7709917,    0.0000014, -0.000005330)),
+    new LaplacePlane(317.67,	52.88),
+    3389.5
+  )
 
-  val Jupiter = new NonEarthPolynomialEstimator(
+  val Jupiter = Planet(
+    new NonEarthPolynomialEstimator(
       Polynomial4(238.049257, 3036.301986,	0.0003347, -0.00000165),
       5.202561,
       Polynomial4(0.04833475, 0.000164180, 	-0.0000004676, -0.0000000017),
       Polynomial4(1.308736, -0.0056961, 0.0000039),
       Polynomial4(273.277558, 0.5594317, 0.00070405, 0.00000508),
-      Polynomial4(99.443414, 1.0105300, 0.00035222, -0.00000851))
+      Polynomial4(99.443414, 1.0105300, 0.00035222, -0.00000851)),
+    new LaplacePlane(268.06,	64.50),
+    69911.0
+  )
 
-  val Saturn = new NonEarthPolynomialEstimator(
+  val Saturn = Planet(
+    new NonEarthPolynomialEstimator(
       Polynomial4(266.564377,  1223.509884,  0.0003245, -0.0000058),
       9.554747,
       Polynomial4(0.05589232, -0.00034550, -0.000000728, 0.00000000074),
       Polynomial4(2.492519,   -0.0039189,  -0.00001549,  0.00000004),
       Polynomial4(338.307800,  1.0852207,   0.00097854,  0.00000992),
-      Polynomial4(112.790414,  0.8731951,  -0.00015218, -0.00000531))
+      Polynomial4(112.790414,  0.8731951,  -0.00015218, -0.00000531)),
+    new LaplacePlane(40.59,83.54),
+    58232.0
+  )
 
-  val Uranus = new NonEarthPolynomialEstimator(
+  val Uranus = Planet(
+    new NonEarthPolynomialEstimator(
       Polynomial4(244.197470, 429.863546, 0.0003160, -0.00000060),
       19.21814,
       Polynomial4(0.0463444, -0.00002658, 0.000000077),
       Polynomial4(0.772464,   0.0006253,  0.0000395),
       Polynomial4(98.071581,  0.9857650,  0.0010745, -0.00000061),
-      Polynomial4(73.477111,  0.4986678,  0.0013117))
+      Polynomial4(73.477111,  0.4986678,  0.0013117)),
+    new LaplacePlane(257.31,-15.18),
+    25362.0
+  )
 
-  val Neptune = new NonEarthPolynomialEstimator(
+  val Neptune = Planet(
+    new NonEarthPolynomialEstimator(
       Polynomial4(84.457994, 219.885914, 0.0003205, -0.00000060),
       30.10957,
       Polynomial4(0.00899704, 0.000006330, -0.000000002),
       Polynomial4(1.779242,	-0.0095436, -0.0000091),
       Polynomial4(276.045975, 0.3256394, 0.00014095, 0.000004113),
-      Polynomial4(130.681389,	1.0989350,	0.00024987,	-0.000004718))
+      Polynomial4(130.681389,	1.0989350,	0.00024987,	-0.000004718)),
+    new LaplacePlane(299.40,42.95),
+    24622.0
+  )
 
   val Planets = scala.collection.immutable.ListMap(
       "Mercury" -> Mercury,
@@ -252,46 +299,61 @@ object Moons {
 
   // http://extras.springer.com/2009/978-3-540-88054-7/16_vi4b_422.pdf
 
+  case class Moon(
+    primary: OrbitalElementsEstimator,
+    moon: MoonICRFEstimator,
+    laplacePlane: Option[LaplacePlane],
+    radiusKm: Double
+  )
+
   // Epoch 2000 Jan. 1.50 TT
   val J_2000_01_01_12 = 2451545.0
 
   // Epoch 1950 Jan. 1.0 TT
   val J_1950_01_01_00 = 2433282.5
 
-  class LaplacePlane(ra: Double, dec: Double) {
-    val rightAscension = ra * Conversions.DegToRad
-    val declination = dec * Conversions.DegToRad
-  }
-
-  case class Moon(primary: OrbitalElementsEstimator, moon: MoonICRFEstimator, laplacePlane: Option[LaplacePlane])
-
   val Luna = Moon(
-    MeeusPlanets.Earth,
+    MeeusPlanets.Earth.planet,
     new MoonICRFEstimator(
       J_2000_01_01_12,
       384400.0,	0.0554,	318.15,	135.27,	5.16, 125.08, 13.176358, 27.322, 5.997, 18.600),
-    None)
+    None,
+    1737.4
+  )
 
   val Phobos = Moon(
-    MeeusPlanets.Mars,
+    MeeusPlanets.Mars.planet,
     new MoonICRFEstimator(
       J_1950_01_01_00,
       9376.0,	0.0151,	150.057,	91.059,	1.075, 207.784, 1128.8447569, 0.3189, 1.1316, 2.2617),
-    Some(new LaplacePlane(317.671, 52.893))
+    Some(new LaplacePlane(317.671, 52.893)),
+    11.2667
   )
 
   val Deimos = Moon(
-    MeeusPlanets.Mars,
+    MeeusPlanets.Mars.planet,
     new MoonICRFEstimator(
       J_1950_01_01_00,
       23458.0, 0.0002, 260.729, 325.329, 1.788, 24.525, 285.1618790,	1.2624,	27.3703,	54.5367),
-    Some(new LaplacePlane(316.657, 53.529))
+    Some(new LaplacePlane(316.657, 53.529)),
+    6.2
+  )
+
+  val Tethys = Moon(
+    MeeusPlanets.Saturn.planet,
+    new MoonICRFEstimator(
+      J_2000_01_01_12,
+      294672.0,	0.0001, 45.202,	243.367, 1.091,259.842,	190.6979109,	1.888,	2.490,	4.982),
+    Some(new LaplacePlane(40.578, 83.537)),
+    531.0
   )
 
   val Moons = scala.collection.immutable.ListMap(
     "Luna"   -> Luna,
     "Phobos" -> Phobos,
-    "Deimos" -> Deimos)
+    "Deimos" -> Deimos,
+    "Tethys" -> Tethys
+  )
 
   class MoonICRFEstimator(
       epoch: Double,

@@ -44,6 +44,8 @@ object Conversions {
   val YearToDay = 365.2425
 
   // TODO: proper conversion from ICRF to ecliptic coordinate system
+  // Note: I'm changing these to use rotation around the Y axis instead of X axis.
+
   val ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
 
 
@@ -187,10 +189,20 @@ object Orbits {
     // first rotate around Z by rightAscension
     // then rotate around X by declination
     // finally convert to ecliptic coordinate system
-    val planeRelativeToICRF = Transformations.rotX(declination).mul(Transformations.rotZ(rightAscension))
+    val planeRelativeToICRF = radRotation(rightAscension, declination)
     val planeRelativeToEcliptic = Conversions.ICRFToEcliptic.mul(planeRelativeToICRF)
 
     planeRelativeToEcliptic
+
+  }
+
+  def radRotation(rightAscension: Double, declination: Double): Mat33 = {
+    // convert right ascention and declination of an axis orthogonal to a plane
+    // to a transformation of the XY plane
+
+    // Note: this is incorrect currently.
+
+    Transformations.rotX(declination).mul(Transformations.rotZ(rightAscension))
 
   }
 

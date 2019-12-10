@@ -17,9 +17,9 @@ class IntegrationSuite extends FunSuite with TempDirectory {
   val startDate = CalendarDateTime(2016, 7, 27, 0)
   val endDate   = CalendarDateTime(2016, 7, 31, 0)
 
-  val startPlanet = MeeusPlanets.Mars
+  val startPlanet = MeeusPlanets.Mars.planet
   val startPlanetName = "Mars"
-  val endPlanet = MeeusPlanets.Earth
+  val endPlanet = MeeusPlanets.Earth.planet
   val endPlanetName = "Earth"
 
 

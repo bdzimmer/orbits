@@ -291,7 +291,7 @@ class Editor(
       if (selected) {
         // is it a planet?
         MeeusPlanets.Planets.get(name).foreach(x => {
-          RenderFlight.drawOrbitInfo(image, x(curDateJulian), Transformations.IdentityTransformation, view)
+          RenderFlight.drawOrbitInfo(image, x.planet(curDateJulian), Transformations.IdentityTransformation, view)
         })
 
         // is it a moon?
@@ -369,7 +369,7 @@ class Editor(
         // TODO: remove duplicate code
         case "Earth" | "Mars" | "Saturn" | "Uranus" => {
 
-          val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth)
+          val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth).planet
           val curState = Orbits.planetState(planet, curDateJulian).position
 
           val camPos = getCamPos
@@ -410,7 +410,7 @@ class Editor(
         // TODO: handle in a more general way
         case "Earth" | "Mars" | "Saturn" | "Uranus" => {
 
-          val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth)
+          val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth).planet
           val curState = Orbits.planetState(planet, curDateJulian).position
 
           val camPos = getCamPos
@@ -757,8 +757,8 @@ object Editor {
           ship = ships(shipsComboBox.getSelectedIndex),
           origName = origName,
           destName = destName,
-          orig = MeeusPlanets.Planets.getOrElse(origName, MeeusPlanets.Earth),
-          dest = MeeusPlanets.Planets.getOrElse(destName, MeeusPlanets.Earth),
+          orig = MeeusPlanets.Planets.getOrElse(origName, MeeusPlanets.Earth).planet,
+          dest = MeeusPlanets.Planets.getOrElse(destName, MeeusPlanets.Earth).planet,
           startDate = startDate,
           endDate = endDate,
           passengers = List()

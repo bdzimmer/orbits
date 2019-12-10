@@ -4,7 +4,7 @@
 
 package bdzimmer.orbits
 
-import java.awt.Color
+import java.awt.{Color, Graphics2D}
 import java.awt.image.BufferedImage
 
 import scala.collection.immutable.Seq
@@ -22,7 +22,7 @@ object Draw {
 
   val DisplaySettings = Viewer.ViewerSettingsArtsy
 
-  val MoonsExperiment = false
+  val MoonsExperiment = true
 
 
   def redraw(
@@ -30,7 +30,7 @@ object Draw {
       fpOption: Option[FlightParams],       // flight to highlight with status
       curDateJulian: Double,
 
-      planets: Seq[(String, OrbitalElementsEstimator)],
+      planets: Seq[(String, Planet)],
       flights: Seq[FlightParams],
       factions: Map[String, Color],
 
@@ -68,7 +68,7 @@ object Draw {
     }
 
     val planetMotions = planets.map(x => {
-      (x._1, Orbits.planetMotionPeriod(x._2, curDateJulian))
+      (x._1, Orbits.planetMotionPeriod(x._2.planet, curDateJulian))
     })
 
     // find other flights that are active at the same time as the current one
@@ -93,15 +93,53 @@ object Draw {
     // as the final state of the flight - this is the time that we are drawing the
     // flight at
     planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view, Color.LIGHT_GRAY, motionVerticals))
-    planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.LIGHT_GRAY))
+
+    if (viewPos.z > 100000.0) {
+      planets.zip(planetMotions).foreach({case (x, y) => {
+        val pos = y._2.last.position
+        val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
+        val scale = Vec3(radiusAu, radiusAu, radiusAu)
+        val name = x._1
+        val rad = view.settings.circleRadius * 4
+        val rotation = Orbits.laplacePlaneICRFTransformation(
+          x._2.axialTilt.rightAscension, x._2.axialTilt.declination)
+
+        view.drawSphere(
+          im,
+          Transformations.transformation(rotation, y._2.last.position),
+          scale,
+          Color.LIGHT_GRAY)
+
+        // TODO: draw axis
+
+        val pos2d = View.perspective(pos, camTrans, viewPos)
+        val gr = im.getGraphics.asInstanceOf[Graphics2D]
+        gr.setRenderingHints(Viewer.RenderHints)
+        gr.setColor(Color.LIGHT_GRAY)
+
+        // TODO: use cvtPos
+        val ptx = pos2d.x.toInt + im.getWidth / 2
+        val pty = im.getHeight - (pos2d.y.toInt + im.getHeight / 2)
+
+        if (name.length > 0) {
+          println(view.settings.displayFont.getSize)
+          gr.setFont(view.settings.displayFont.deriveFont(view.settings.displayFont.getSize * 4.0f))
+          gr.drawString(name, ptx + rad, pty)
+        }
+
+      }})
+    } else {
+      planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.LIGHT_GRAY))
+    }
 
     planetMotions.foreach(x => {
       objects(x._1) = View.perspective(x._2.last.position, view.camTrans, view.viewPos)
     })
 
+    // view.drawSphere(im, Transformations.IdentityTransformation, Vec3(0.5, 0.5, 0.5), Color.GREEN)
+
     // ~~~~ ~~~~ Experimentation with moons ~~~~ ~~~~
 
-    // draw moons
     if (MoonsExperiment) {
       Moons.Moons.foreach({case (name, moon) => {
         // TODO: remove ICRF transformation from calculation
@@ -153,7 +191,7 @@ object Draw {
     // draw orbit info
     if (orbitInfo) {
       planets.foreach(x => {
-        val oe = x._2(curDateJulian)
+        val oe = x._2.planet(curDateJulian)
         RenderFlight.drawOrbitInfo(
           im, oe, Transformations.IdentityTransformation, view)
       })
@@ -164,13 +202,13 @@ object Draw {
     if (lagrangePoints) {
       planets.foreach(p => {
         view.drawPosition(
-          im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2), curDateJulian).position,
+          im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2.planet), curDateJulian).position,
           "L3", "", Color.LIGHT_GRAY, fill = false)
         view.drawPosition(
-          im, Orbits.planetState(new MeeusPlanets.L4Estimator(p._2), curDateJulian).position,
+          im, Orbits.planetState(new MeeusPlanets.L4Estimator(p._2.planet), curDateJulian).position,
           "L4", "", Color.LIGHT_GRAY, fill = false)
         view.drawPosition(
-          im, Orbits.planetState(new MeeusPlanets.L5Estimator(p._2), curDateJulian).position,
+          im, Orbits.planetState(new MeeusPlanets.L5Estimator(p._2.planet), curDateJulian).position,
           "L5", "", Color.LIGHT_GRAY, fill = false)
       })
     }
