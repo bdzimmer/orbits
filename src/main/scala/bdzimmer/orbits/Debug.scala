@@ -16,7 +16,7 @@ object Debug {
 }
 
 
-object DebugValues {
+object DebugDisplay {
 
   val FieldWidth = 20
   val FieldFont = new Font("Monospace", Font.PLAIN, 16)
@@ -108,5 +108,20 @@ object DebugValues {
 
   }
 
+
+}
+
+
+object DebugInput {
+
+  val store = scala.collection.mutable.LinkedHashMap[String, Double]()
+
+  var window: Option[JFrame] = None
+  var contents = new JPanel(new BorderLayout())
+  var callback: Option[Unit => Unit] = None
+
+  def setCallback(callback: Unit => Unit): Unit = {
+    DebugInput.callback = Some(callback)
+  }
 
 }

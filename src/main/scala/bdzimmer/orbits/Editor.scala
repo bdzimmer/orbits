@@ -224,7 +224,7 @@ class Editor(
   setVisible(true)
 
   if (Debug.ENABLED) {
-    DebugValues.show()
+    DebugDisplay.show()
   }
 
   /// ///
@@ -337,17 +337,17 @@ class Editor(
 
     if (Debug.ENABLED) {
 
-      DebugValues.set(
+      DebugDisplay.set(
         "Earth - Inc to Eclip",
         MeeusPlanets.Earth.planet(curDateJulian).inclination / Conversions.DegToRad)
-      DebugValues.set(
+      DebugDisplay.set(
         "Mars - Inc to Eclip",
         MeeusPlanets.Mars.planet(curDateJulian).inclination / Conversions.DegToRad)
-      DebugValues.set(
+      DebugDisplay.set(
         "Saturn - Inc to Eclip",
         MeeusPlanets.Saturn.planet(curDateJulian).inclination / Conversions.DegToRad)
 
-      DebugValues.update()
+      DebugDisplay.update()
 
     }
 

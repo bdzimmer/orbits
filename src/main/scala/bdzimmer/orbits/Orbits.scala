@@ -46,7 +46,11 @@ object Conversions {
   // TODO: proper conversion from ICRF to ecliptic coordinate system
   // Note: I'm changing these to use rotation around the Y axis instead of X axis.
 
-  val ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
+  // val ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
+
+  // def ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
+  def ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
+
 
 
   def julianToCalendarDate(date: Double): CalendarDateTime = {
