@@ -223,16 +223,24 @@ class Editor(
   setResizable(true)
   setVisible(true)
 
+  if (Debug.ENABLED) {
+    DebugValues.show()
+  }
+
   /// ///
 
 
   def redraw(): Unit = {
+
     val startTime = System.currentTimeMillis
     redrawGeneric(im)
     imagePanel.repaint()
+
     val endTime = System.currentTimeMillis
+
     val fps = 1000.0 / (endTime - startTime)
     // println(fps)
+
     System.out.print(".")
   }
 
@@ -284,6 +292,7 @@ class Editor(
     selectedObjects = selectedObjectsNew
 
     // ~~~~ draw ephemeral editor stuff
+    // some of this could be before Draw.redraw if it didn't clear the image...food for thought
 
     val view = new Viewer(camTrans, viewPos, Draw.DisplaySettings)
 
@@ -323,6 +332,25 @@ class Editor(
         // TODO: is it a flight?
       }
     }})
+
+    // DEBUG CALCULATIONS
+
+    if (Debug.ENABLED) {
+
+      DebugValues.set(
+        "Earth - Inc to Eclip",
+        MeeusPlanets.Earth.planet(curDateJulian).inclination / Conversions.DegToRad)
+      DebugValues.set(
+        "Mars - Inc to Eclip",
+        MeeusPlanets.Mars.planet(curDateJulian).inclination / Conversions.DegToRad)
+      DebugValues.set(
+        "Saturn - Inc to Eclip",
+        MeeusPlanets.Saturn.planet(curDateJulian).inclination / Conversions.DegToRad)
+
+      DebugValues.update()
+
+    }
+
 
   }
 
