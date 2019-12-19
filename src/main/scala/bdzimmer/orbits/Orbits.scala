@@ -48,13 +48,19 @@ object Conversions {
   // val ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad) // original
   // def ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
 
-  val correction = 3.0 * DegToRad
+//  val correction = 3.0 * DegToRad
+//
+//  val ICRFToEcliptic =
+//      Transformations.rotZ(-correction).mul(
+//      Transformations.rotX(-23.4392811 * DegToRad).mul(
+//      Transformations.rotZ(correction)))
 
-  val ICRFToEcliptic = (
-      Transformations.rotZ(-correction).mul(
-      Transformations.rotX(-23.4392811 * DegToRad).mul(
-      Transformations.rotZ(correction))))
+  def correction = DebugInput.get("correction", (3.0, 0.0, 180.0)) * DegToRad
 
+  def ICRFToEcliptic =
+    Transformations.rotZ(-correction).mul(
+    Transformations.rotX(-23.4392811 * DegToRad).mul(
+    Transformations.rotZ(correction)))
 
 
   def julianToCalendarDate(date: Double): CalendarDateTime = {

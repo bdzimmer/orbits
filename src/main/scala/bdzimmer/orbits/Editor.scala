@@ -225,6 +225,8 @@ class Editor(
 
   if (Debug.ENABLED) {
     DebugDisplay.show()
+    DebugInput.setCallback(redraw)
+    DebugInput.show()
   }
 
   /// ///

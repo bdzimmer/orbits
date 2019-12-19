@@ -4,10 +4,13 @@
 
 package bdzimmer.orbits
 
-import java.awt.Font                    // scalastyle:ignore illegal.imports
-import java.awt.{GridLayout, BorderLayout}
-import javax.swing.{JFrame, JLabel, JTextField, JPanel, SwingConstants}
+import java.awt.Font
+import java.awt.{BorderLayout, GridLayout}
+
+import bdzimmer.orbits.DebugDisplay.{FieldFont, FieldWidth, contents, fields, rebuild, store, window}
+import javax.swing.{JFrame, JLabel, JPanel, JSlider, JTextField, SwingConstants}
 import javax.swing.border.EmptyBorder
+import javax.swing.event.{ChangeEvent, ChangeListener}
 
 
 
@@ -114,14 +117,118 @@ object DebugDisplay {
 
 object DebugInput {
 
-  val store = scala.collection.mutable.LinkedHashMap[String, Double]()
+  val store = scala.collection.mutable.LinkedHashMap[String, (Double, Double, Double)]()
 
   var window: Option[JFrame] = None
   var contents = new JPanel(new BorderLayout())
-  var callback: Option[Unit => Unit] = None
+  var callback: Option[() => Unit] = None
 
-  def setCallback(callback: Unit => Unit): Unit = {
+
+  def setCallback(callback: () => Unit): Unit = {
     DebugInput.callback = Some(callback)
+  }
+
+
+  def show(): Unit = {
+    rebuild()
+    val jframe = new JFrame("Debug Values")
+    jframe.add(contents, BorderLayout.CENTER)
+    jframe.pack()
+    jframe.setVisible(true)
+    jframe.setDefaultCloseOperation(0) // TODO: find actual constant
+    window = Some(jframe)
+  }
+
+
+  def get(key: String, range: (Double, Double, Double)): Double = {
+
+    store.get(key).map(_._1).getOrElse({
+      println("new DebugInput key: " + key)
+      store(key) = range
+      window.foreach(jframe => {
+        rebuild()
+        jframe.pack()
+      })
+      range._1
+    })
+
+  }
+
+
+  def rebuild(): Unit = {
+
+    println("rebuilding DebugInputs panel")
+
+    val emptyborder = new EmptyBorder(10, 10, 10, 10)
+
+    // ditch all objects in the frame and rebuild
+
+    contents.removeAll()
+
+    // create UI using fields map to ensure that we are looking at
+    // what we think we are
+
+    // labels
+    contents.add({
+      val res = new JPanel(new GridLayout(store.size, 1))
+      res.setBorder(emptyborder)
+      store.foreach({case (key, _) => {
+        val label = new JLabel(key)
+        label.setHorizontalAlignment(SwingConstants.LEFT)
+        res.add(label)
+      }})
+      res
+    }, BorderLayout.WEST)
+
+
+    // controls
+    val controls = store.map({case (key, range) => {
+      val field = new JTextField(range._1.toString, FieldWidth)
+      field.setFont(FieldFont)
+      val slider = new JSlider(
+        SwingConstants.HORIZONTAL,
+        (range._2 * 100.0).toInt,
+        (range._3 * 100.0).toInt,
+        (range._1 * 100.0).toInt)
+
+      slider.addChangeListener(new ChangeListener {
+        override def stateChanged(e: ChangeEvent): Unit = {
+          val newVal: Double = slider.getValue / 100.0
+          field.setText(newVal.toString)
+          val storeVal = store(key)
+          store(key) = (newVal, storeVal._2, storeVal._3)
+        }
+      })
+
+      slider.addChangeListener(new ChangeListener {
+        override def stateChanged(e: ChangeEvent): Unit = {
+          // TODO: update slider? not urgent
+          callback.foreach(_.apply())  // SOON
+        }
+      })
+
+      // TODO: wire stuff together
+
+      (field, slider)
+
+    }})
+
+    // fields
+    contents.add({
+      val res = new JPanel(new GridLayout(store.size, 1))
+      res.setBorder(emptyborder)
+      controls.foreach(x => res.add(x._1))
+      res
+    }, BorderLayout.CENTER)
+
+    // sliders
+    contents.add({
+      val res = new JPanel(new GridLayout(store.size, 1))
+      res.setBorder(emptyborder)
+      controls.foreach(x => res.add(x._2))
+      res
+    }, BorderLayout.EAST)
+
   }
 
 }
