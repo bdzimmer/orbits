@@ -55,7 +55,7 @@ object Conversions {
 //      Transformations.rotX(-23.4392811 * DegToRad).mul(
 //      Transformations.rotZ(correction)))
 
-  def correction = DebugInput.get("correction", (3.0, 0.0, 180.0)) * DegToRad
+  def correction = DebugInput.get("correction", (3.0, -180.0, 180.0)) * DegToRad
 
   def ICRFToEcliptic =
     Transformations.rotZ(-correction).mul(

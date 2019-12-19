@@ -339,6 +339,7 @@ class Editor(
 
     if (Debug.ENABLED) {
 
+      /*
       DebugDisplay.set(
         "Earth - Inc to Eclip",
         MeeusPlanets.Earth.planet(curDateJulian).inclination / Conversions.DegToRad)
@@ -348,6 +349,39 @@ class Editor(
       DebugDisplay.set(
         "Saturn - Inc to Eclip",
         MeeusPlanets.Saturn.planet(curDateJulian).inclination / Conversions.DegToRad)
+      */
+
+      def angleDegrees(a: Vec3, b: Vec3): Double = {
+        val res = math.acos(Vec3.dot(a, b)) / Conversions.DegToRad
+        math.rint(res * 1000.0) / 1000.0
+      }
+
+      def axisInfo(planet: Planet): String = {
+
+        val zAxis = Transformations.UnitZ
+        val oe = planet.planet(curDateJulian)
+
+        val orbitalToIntertial = Orbits.transformOrbitalInertial(oe)
+
+        val axisOrbital = orbitalToIntertial.mul(zAxis)
+
+        val planetAxis = Orbits.laplacePlaneICRFTransformation(
+          planet.axialTilt.rightAscension, planet.axialTilt.declination).mul(zAxis)
+
+        val axialTiltOrbit =  angleDegrees(planetAxis, axisOrbital)
+        val axialTiltEcliptic = angleDegrees(planetAxis, zAxis)
+
+        axialTiltOrbit.toString + " " + axialTiltEcliptic.toString
+      }
+
+      DebugDisplay.set("Mercury", axisInfo(MeeusPlanets.Mercury))
+      DebugDisplay.set("Venus", axisInfo(MeeusPlanets.Venus))
+      DebugDisplay.set("Earth", axisInfo(MeeusPlanets.Earth))
+      DebugDisplay.set("Mars", axisInfo(MeeusPlanets.Mars))
+      DebugDisplay.set("Jupiter", axisInfo(MeeusPlanets.Jupiter))
+      DebugDisplay.set("Saturn", axisInfo(MeeusPlanets.Saturn))
+      DebugDisplay.set("Uranus", axisInfo(MeeusPlanets.Uranus))
+      DebugDisplay.set("Neptune", axisInfo(MeeusPlanets.Neptune))
 
       DebugDisplay.update()
 

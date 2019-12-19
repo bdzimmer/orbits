@@ -4,8 +4,7 @@
 
 package bdzimmer.orbits
 
-import java.awt.Font
-import java.awt.{BorderLayout, GridLayout}
+import java.awt.{BorderLayout, Dimension, Font, GridLayout}
 
 import bdzimmer.orbits.DebugDisplay.{FieldFont, FieldWidth, contents, fields, rebuild, store, window}
 import javax.swing.{JFrame, JLabel, JPanel, JSlider, JTextField, SwingConstants}
@@ -41,6 +40,7 @@ object DebugDisplay {
     val jframe = new JFrame("Debug Values")
     jframe.add(contents, BorderLayout.CENTER)
     jframe.pack()
+    jframe.setResizable(false)
     jframe.setVisible(true)
     jframe.setDefaultCloseOperation(0) // TODO: find actual constant
     window = Some(jframe)
@@ -134,6 +134,7 @@ object DebugInput {
     val jframe = new JFrame("Debug Values")
     jframe.add(contents, BorderLayout.CENTER)
     jframe.pack()
+    jframe.setResizable(false)
     jframe.setVisible(true)
     jframe.setDefaultCloseOperation(0) // TODO: find actual constant
     window = Some(jframe)
@@ -190,6 +191,7 @@ object DebugInput {
         (range._2 * 100.0).toInt,
         (range._3 * 100.0).toInt,
         (range._1 * 100.0).toInt)
+      slider.setPreferredSize(new Dimension(480, 32))
 
       slider.addChangeListener(new ChangeListener {
         override def stateChanged(e: ChangeEvent): Unit = {
