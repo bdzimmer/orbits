@@ -368,10 +368,12 @@ class Editor(
         val planetAxis = Orbits.laplacePlaneICRFTransformation(
           planet.axialTilt.rightAscension, planet.axialTilt.declination).mul(zAxis)
 
+        val orbitEcliptic = angleDegrees(zAxis, axisOrbital)
         val axialTiltOrbit =  angleDegrees(planetAxis, axisOrbital)
         val axialTiltEcliptic = angleDegrees(planetAxis, zAxis)
 
-        axialTiltOrbit.toString + " " + axialTiltEcliptic.toString
+        // axialTiltOrbit.toString + " " + axialTiltEcliptic.toString + " " + orbitEcliptic
+        Vec3.length(zAxis).toString + " " + Vec3.length(axisOrbital).toString + " " + Vec3.length(planetAxis).toString
       }
 
       DebugDisplay.set("Mercury", axisInfo(MeeusPlanets.Mercury))

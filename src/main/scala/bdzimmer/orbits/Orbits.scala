@@ -55,12 +55,24 @@ object Conversions {
 //      Transformations.rotX(-23.4392811 * DegToRad).mul(
 //      Transformations.rotZ(correction)))
 
-  def correction = DebugInput.get("correction", (3.0, -180.0, 180.0)) * DegToRad
+  def correction = DebugInput.get("correction", (0.0, -180.0, 180.0)) * DegToRad
+  def spin = DebugInput.get("spin", (0.0, -180.0, 180.0)) * DegToRad
+  def whatever = DebugInput.get("whatever", (0.0, -180.0, 180.0)) * DegToRad
+
+
+//  def ICRFToEcliptic =
+//    Transformations.rotZ(-correction).mul(
+//    Transformations.rotY(-23.4392811 * DegToRad).mul(
+//    Transformations.rotZ(correction)))
+
+//  def ICRFToEcliptic =
+//      Transformations.rotY(-23.4392811 * DegToRad).mul(
+//        Transformations.rotZ(correction))
 
   def ICRFToEcliptic =
-    Transformations.rotZ(-correction).mul(
-    Transformations.rotX(-23.4392811 * DegToRad).mul(
-    Transformations.rotZ(correction)))
+    Transformations.rotX(correction).mul(
+      Transformations.rotY(spin).mul(
+        Transformations.rotZ(whatever)))
 
 
   def julianToCalendarDate(date: Double): CalendarDateTime = {
@@ -208,6 +220,8 @@ object Orbits {
     val planeRelativeToEcliptic = Conversions.ICRFToEcliptic.mul(planeRelativeToICRF)
     // val planeRelativeToEcliptic = planeRelativeToICRF.mul(Conversions.ICRFToEcliptic)
 
+    // val planeRelativeToEcliptic = planeRelativeToICRF
+
     planeRelativeToEcliptic
 
   }
@@ -220,7 +234,8 @@ object Orbits {
     // Transformations.rotX(declination).mul(Transformations.rotZ(rightAscension))
 
     // new behavior
-    Transformations.rotZ(rightAscension).mul(Transformations.rotY(declination - 0.5 *  math.Pi))
+    Transformations.rotZ(rightAscension).mul(
+      Transformations.rotY(declination - 0.5 *  math.Pi))
 
   }
 
