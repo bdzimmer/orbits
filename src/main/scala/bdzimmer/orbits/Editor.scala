@@ -188,15 +188,15 @@ class Editor(
       // println(dx + " " + dy)
       // TODO: adjust and rotate direction based on camera angle
       if ((event.getModifiersEx & InputEvent.BUTTON1_DOWN_MASK) != 0) {
-        println("changing angles")
+        // println("changing angles")
         updateCameraControls.setXAngle(cx + dy * Editor.RotateSpeed)
         updateCameraControls.setYAngle(cy + dx * Editor.RotateSpeed)
-        println("done")
+        // println("done")
       } else {
-        println("changing pan")
+        // println("changing pan")
         updateCameraControls.setXPos(cx - dx * Editor.PanSpeed)
         updateCameraControls.setYPos(cy + dy * Editor.PanSpeed)
-        println("done")
+        // println("done")
       }
     }
 
@@ -1316,11 +1316,21 @@ object Editor {
     zPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     zViewPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
 
+    val zoomSlider = new JSlider(
+      SwingConstants.HORIZONTAL, 0, 100, 0)
+    zoomSlider.addChangeListener(new ChangeListener {
+      def stateChanged(event: ChangeEvent): Unit = {
+        val scale = zoomSlider.getValue / 100.0
+        zViewPosField.setValue(
+          cameraSettingsOrg.zViewPos + math.pow(scale * 7000.0, 2))
+      }
+    })
+
     val resetButton = new JButton("Reset")
     resetButton.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
         // update stuff
-        println("resetting camera")
+        // println("resetting camera")
         xAngleField.setValue(cameraSettingsOrg.xAngle)
         yAngleField.setValue(cameraSettingsOrg.yAngle)
         zAngleField.setValue(cameraSettingsOrg.zAngle)
@@ -1328,7 +1338,7 @@ object Editor {
         yPosField.setValue(cameraSettingsOrg.yPos)
         zPosField.setValue(cameraSettingsOrg.zPos)
         zViewPosField.setValue(cameraSettingsOrg.zViewPos)
-        print("done")
+        // println("done")
       }
     })
 
@@ -1344,6 +1354,7 @@ object Editor {
     toolbar.add(zPosField)
     toolbar.add(zViewPosField)
     toolbar.add(new JSeparator(SwingConstants.VERTICAL))
+    toolbar.add(zoomSlider)
     toolbar.add(resetButton)
 
     val updateCameraControls = UpdateCameraControls(
