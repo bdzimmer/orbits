@@ -65,14 +65,14 @@ object Conversions {
 //    Transformations.rotY(-23.4392811 * DegToRad).mul(
 //    Transformations.rotZ(correction)))
 
-//  def ICRFToEcliptic =
-//      Transformations.rotY(-23.4392811 * DegToRad).mul(
-//        Transformations.rotZ(correction))
-
   def ICRFToEcliptic =
-    Transformations.rotX(correction).mul(
-      Transformations.rotY(spin).mul(
-        Transformations.rotZ(whatever)))
+      Transformations.rotY(-23.4392811 * DegToRad).mul(
+        Transformations.rotZ(correction))
+
+//  def ICRFToEcliptic =
+//    Transformations.rotX(correction).mul(
+//      Transformations.rotY(spin).mul(
+//        Transformations.rotZ(whatever)))
 
 
   def julianToCalendarDate(date: Double): CalendarDateTime = {

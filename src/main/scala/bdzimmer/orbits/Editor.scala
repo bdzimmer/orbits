@@ -188,13 +188,15 @@ class Editor(
       // println(dx + " " + dy)
       // TODO: adjust and rotate direction based on camera angle
       if ((event.getModifiersEx & InputEvent.BUTTON1_DOWN_MASK) != 0) {
-        // println("changing angles")
+        println("changing angles")
         updateCameraControls.setXAngle(cx + dy * Editor.RotateSpeed)
         updateCameraControls.setYAngle(cy + dx * Editor.RotateSpeed)
+        println("done")
       } else {
-        // println("changing pan")
+        println("changing pan")
         updateCameraControls.setXPos(cx - dx * Editor.PanSpeed)
         updateCameraControls.setYPos(cy + dy * Editor.PanSpeed)
+        println("done")
       }
     }
 
@@ -372,8 +374,8 @@ class Editor(
         val axialTiltOrbit =  angleDegrees(planetAxis, axisOrbital)
         val axialTiltEcliptic = angleDegrees(planetAxis, zAxis)
 
-        // axialTiltOrbit.toString + " " + axialTiltEcliptic.toString + " " + orbitEcliptic
-        Vec3.length(zAxis).toString + " " + Vec3.length(axisOrbital).toString + " " + Vec3.length(planetAxis).toString
+        axialTiltOrbit.toString + " " + axialTiltEcliptic.toString + " " + orbitEcliptic
+        // Vec3.length(zAxis).toString + " " + Vec3.length(axisOrbital).toString + " " + Vec3.length(planetAxis).toString
       }
 
       DebugDisplay.set("Mercury", axisInfo(MeeusPlanets.Mercury))
@@ -1230,6 +1232,8 @@ object Editor {
   def buildCameraToolbar(
       cameraSettings: CameraSettings, redraw: () => Unit): (JToolBar, UpdateCameraControls) = {
 
+    val cameraSettingsOrg = cameraSettings.copy()
+
     val spinnerWidth = 3
 
     val toolbar = new JToolBar()
@@ -1312,6 +1316,22 @@ object Editor {
     zPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
     zViewPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
 
+    val resetButton = new JButton("Reset")
+    resetButton.addActionListener(new ActionListener {
+      override def actionPerformed(e: ActionEvent): Unit = {
+        // update stuff
+        println("resetting camera")
+        xAngleField.setValue(cameraSettingsOrg.xAngle)
+        yAngleField.setValue(cameraSettingsOrg.yAngle)
+        zAngleField.setValue(cameraSettingsOrg.zAngle)
+        xPosField.setValue(cameraSettingsOrg.xPos)
+        yPosField.setValue(cameraSettingsOrg.yPos)
+        zPosField.setValue(cameraSettingsOrg.zPos)
+        zViewPosField.setValue(cameraSettingsOrg.zViewPos)
+        print("done")
+      }
+    })
+
     toolbar.add(cameraType)
     toolbar.add(new JSeparator(SwingConstants.VERTICAL))
     toolbar.add(xAngleField)
@@ -1323,6 +1343,8 @@ object Editor {
     toolbar.add(yPosField)
     toolbar.add(zPosField)
     toolbar.add(zViewPosField)
+    toolbar.add(new JSeparator(SwingConstants.VERTICAL))
+    toolbar.add(resetButton)
 
     val updateCameraControls = UpdateCameraControls(
       setXAngle = x => xAngleField.setValue(x),

@@ -5,9 +5,8 @@
 package bdzimmer.orbits
 
 import scala.collection.immutable.Seq
-
 import java.awt.image.BufferedImage
-import java.awt.{Color, Font, RenderingHints, Graphics2D, Stroke, BasicStroke}
+import java.awt.{BasicStroke, Color, Font, FontMetrics, Graphics2D, RenderingHints, Stroke}
 
 
 class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSettings) {
@@ -177,9 +176,17 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
 
   }
 
-
+  // TODO: this can be a static method
   def cvtPos(im: BufferedImage, x: Int, y: Int): (Int, Int) = {
     (x + im.getWidth / 2, im.getHeight - (y + im.getHeight / 2))
+  }
+
+
+  // TODO: this can be a static method
+  // TODO: something like this that takes the size of the object into account
+  // estimate whether object at coordinates should be drawn
+  def inView(im: BufferedImage, x: Int, y: Int): Boolean = {
+    x > -im.getWidth() && x < 2 * im.getWidth && y > -im.getHeight && y < 2 * im.getHeight
   }
 
 
@@ -307,6 +314,9 @@ case class ViewerSettings(
     lineHeightSmall: Int,
     columnWidthSmall: Int,
 
+    displayFontLarge: Font,
+    lineHeightLarge: Int,
+
     stroke: Stroke,
 
     circleRadius: Int,
@@ -330,6 +340,9 @@ object Viewer {
     lineHeightSmall = 14,
     columnWidthSmall = 100,
 
+    displayFontLarge = new Font("Monospace", Font.BOLD, 48),
+    lineHeightLarge = 56,
+
     stroke = new BasicStroke(2),
 
     circleRadius = 6,
@@ -341,6 +354,7 @@ object Viewer {
     // displayFont = new Font("Orbitron", Font.BOLD, 16),
     // displayFontItalic = new Font("Orbitron", Font.BOLD | Font.ITALIC, 16),
 
+
     displayFont = new Font("Play", Font.PLAIN, 16),
     displayFontItalic = new Font("Play", Font.PLAIN | Font.ITALIC, 16),
     lineHeight = 18,
@@ -350,6 +364,9 @@ object Viewer {
     displayFontItalicSmall = new Font("Play", Font.PLAIN | Font.ITALIC, 10),
     lineHeightSmall = 11,
     columnWidthSmall = 60,
+
+    displayFontLarge = new Font("Orbitron", Font.BOLD, 64),
+    lineHeightLarge = 72,
 
     stroke = new BasicStroke(2),
 

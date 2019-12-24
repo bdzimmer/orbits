@@ -94,13 +94,19 @@ object Draw {
     // flight at
     planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view, Color.LIGHT_GRAY, motionVerticals))
 
-    if (viewPos.z > 100000.0) {
+    // draw more detailed stuff if zoomed in far enough
+
+    val detailMin =  100000.0
+    val detailMax = 5000000.0
+
+    if (viewPos.z > detailMin) {
+      // TODO: better logic than the above
+
       planets.zip(planetMotions).foreach({case (x, y) => {
         val pos = y._2.last.position
         val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
         val scale = Vec3(radiusAu, radiusAu, radiusAu)
         val name = x._1
-        val rad = view.settings.circleRadius * 4
         val rotation = Orbits.laplacePlaneICRFTransformation(
           x._2.axialTilt.rightAscension, x._2.axialTilt.declination)
 
@@ -115,20 +121,35 @@ object Draw {
         val pos2d = View.perspective(pos, camTrans, viewPos)
         val gr = im.getGraphics.asInstanceOf[Graphics2D]
         gr.setRenderingHints(Viewer.RenderHints)
-        gr.setColor(Color.LIGHT_GRAY)
+        val titleColor = Color.LIGHT_GRAY
 
-        // TODO: use cvtPos
-        val ptx = pos2d.x.toInt + im.getWidth / 2
-        val pty = im.getHeight - (pos2d.y.toInt + im.getHeight / 2)
+        // coordinates in the viewer image
+        val (ptx, pty) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
 
-        if (name.length > 0) {
-          println(view.settings.displayFont.getSize)
-          gr.setFont(view.settings.displayFont.deriveFont(view.settings.displayFont.getSize * 4.0f))
-          gr.drawString(name, ptx + rad, pty)
-//          val font = view.settings.displayFont.deriveFont(view.settings.displayFont.getSize * 4.0f)
-//          gr.setFont(font)
-//          val lineHeight = gr.getFontMetrics(font).getHeight
-//          gr.drawString(name.toUpperCase, 0, im.getHeight - lineHeight - view.settings.lineHeight)
+        if (name.length > 0 && view.inView(im, ptx, pty)) {
+          // TODO: move sphere rendering in here
+
+          gr.setFont(view.settings.displayFontLarge)
+
+          // put the name of the planet near the planet
+          // gr.drawString(name, ptx + rad, pty)
+
+          // put the name of the planet dramatically near the bottom of the screen
+          // TODO: this width could be cached
+          val lineWidth = gr.getFontMetrics(view.settings.displayFontLarge).stringWidth(name)
+
+          // fade the color in dramatically as a function of zoom
+          val fade = math.min(((viewPos.z - detailMin) / (detailMax - detailMin)).toFloat, 1.0f)
+          println(fade)
+          gr.setColor(new Color(
+            (titleColor.getRed * fade).toInt,
+            (titleColor.getGreen * fade).toInt,
+            (titleColor.getBlue * fade).toInt))
+
+          gr.drawString(
+            name.toUpperCase, im.getWidth / 2 - lineWidth / 2,
+            im.getHeight - view.settings.lineHeightLarge)
+
         }
 
       }})
@@ -155,17 +176,6 @@ object Draw {
         view.drawPosition(im, motion.last.position, name, "", Color.LIGHT_GRAY)
 
         if (orbitInfo) {
-
-          /*
-          RenderFlight.drawOrbitInfo(
-            im,
-            moon.moon(curDateJulian),
-            Transformations.transformation(
-              laplacePlane.getOrElse(Transformations.Identity3),
-              Orbits.planetState(moon.primary, curDateJulian).position),
-            view)
-
-           */
 
           val preTrans = Transformations.transformation(
             laplacePlane.getOrElse(Transformations.Identity3),
