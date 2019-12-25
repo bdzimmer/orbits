@@ -107,12 +107,15 @@ object Draw {
         val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
         val scale = Vec3(radiusAu, radiusAu, radiusAu)
         val name = x._1
-        val rotation = Orbits.laplacePlaneICRFTransformation(
+        val tilt = Orbits.laplacePlaneICRFTransformation(
           x._2.axialTilt.rightAscension, x._2.axialTilt.declination)
+        val rotationAngle = (x._2.rotDegPerDay  * curDateJulian) % 360.0
+        val rotation = Transformations.rotZ(rotationAngle * Conversions.DegToRad)
+        // println(curDateJulian + " " + x._1 + " " + rotationAngle)
 
         view.drawSphere(
           im,
-          Transformations.transformation(rotation, y._2.last.position),
+          Transformations.transformation(tilt.mul(rotation), y._2.last.position),
           scale,
           Color.LIGHT_GRAY)
 

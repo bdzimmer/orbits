@@ -121,4 +121,11 @@ class UnitTestsSuite extends FunSuite {
 
   }
 
+  test("matrix multiplication") {
+    val rotZ = Transformations.rotZ(45.0 * Conversions.DegToRad)
+    println(rotZ.mul(Transformations.UnitX))
+    println(rotZ.mul(Transformations.UnitY))
+    println(rotZ.mul(Transformations.UnitZ))
+  }
+
 }

@@ -7,7 +7,7 @@ import scala.collection.immutable.Seq
 
 object Primitives {
 
-  val DefaultSphere = sphere(16)
+  val DefaultSphere = sphere(32)
 
   def sphere(resolution: Int): Seq[Seq[Vec3]] = {
     val thetas = 0.0 to 2.0 * math.Pi by (2.0 * math.Pi / resolution)

@@ -13,7 +13,8 @@ case class OrbitalState(position: Vec3, velocity: Vec3)
 case class Planet(
   planet: OrbitalElementsEstimator,
   axialTilt: LaplacePlane,
-  radiusKm: Double
+  radiusKm: Double,
+  rotDegPerDay: Double
 )
 
 
@@ -84,7 +85,8 @@ object MeeusPlanets {
       Polynomial4(28.753753,  0.3702806,   0.0001208),
       Polynomial4(47.145944,  1.1852083,   0.0001739)),
     new LaplacePlane(281.01, 61.45),
-    2439.7
+    2439.7,
+    6.14
   )
 
   val Venus = Planet(
@@ -96,7 +98,8 @@ object MeeusPlanets {
       Polynomial4(54.384186,	0.5081861, -0.0013864),
       Polynomial4(75.779647,	0.8998500,	0.0004100)),
     new LaplacePlane(272.76,	67.16),
-    6051.8
+    6051.8,
+    -1.48
   )
 
   val Earth = Planet(
@@ -107,7 +110,8 @@ object MeeusPlanets {
       0.0,
       Polynomial4(358.47583,   35999.04975, -0.000150, -0.0000033)),
     new LaplacePlane(0.0, 90.0),
-    6378.0
+    6378.0,
+    360.99
   )
 
   val Mars = Planet(
@@ -119,7 +123,8 @@ object MeeusPlanets {
       Polynomial4(285.431761, 1.0697667,    0.0001313,  0.00000414),
       Polynomial4(48.786442,  0.7709917,    0.0000014, -0.000005330)),
     new LaplacePlane(317.67,	52.88),
-    3389.5
+    3389.5,
+    350.89
   )
 
   val Jupiter = Planet(
@@ -131,7 +136,8 @@ object MeeusPlanets {
       Polynomial4(273.277558, 0.5594317, 0.00070405, 0.00000508),
       Polynomial4(99.443414, 1.0105300, 0.00035222, -0.00000851)),
     new LaplacePlane(268.06,	64.50),
-    69911.0
+    69911.0,
+    870.54
   )
 
   val Saturn = Planet(
@@ -143,7 +149,8 @@ object MeeusPlanets {
       Polynomial4(338.307800,  1.0852207,   0.00097854,  0.00000992),
       Polynomial4(112.790414,  0.8731951,  -0.00015218, -0.00000531)),
     new LaplacePlane(40.59,83.54),
-    58232.0
+    58232.0,
+    810.79
   )
 
   val Uranus = Planet(
@@ -155,7 +162,8 @@ object MeeusPlanets {
       Polynomial4(98.071581,  0.9857650,  0.0010745, -0.00000061),
       Polynomial4(73.477111,  0.4986678,  0.0013117)),
     new LaplacePlane(257.31,-15.18),
-    25362.0
+    25362.0,
+    -501.16
   )
 
   val Neptune = Planet(
@@ -167,7 +175,8 @@ object MeeusPlanets {
       Polynomial4(276.045975, 0.3256394, 0.00014095, 0.000004113),
       Polynomial4(130.681389,	1.0989350,	0.00024987,	-0.000004718)),
     new LaplacePlane(299.40,42.95),
-    24622.0
+    24622.0,
+    536.31
   )
 
   val Planets = scala.collection.immutable.ListMap(

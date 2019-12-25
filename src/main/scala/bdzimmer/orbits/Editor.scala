@@ -518,10 +518,10 @@ class Editor(
     val zAngle = cameraSettings.zAngle * math.Pi / 180
     val theta = Vec3(xAngle, yAngle, zAngle)
 
-    val camRotation = if (!cameraSettings.isIntrinsic) {
-      Transformations.rotationXYZ(theta)
-    } else {
+    val camRotation = if (cameraSettings.isIntrinsic) {
       Transformations.rotationZYX(theta)
+    } else {
+      Transformations.rotationXYZ(theta)
     }
 
     View.cameraTransform(camRotation, getCamPos)
@@ -553,7 +553,7 @@ object Editor {
      xAngle = 45.0,
      yAngle = 0.0,
      zAngle = 180.0,
-     isIntrinsic = false,
+     isIntrinsic = true,
      xPos = 0.0,
      yPos = -5.0,
      zPos = 5.0,
@@ -623,7 +623,11 @@ object Editor {
     val camToPoint = Vec2(point.x - camPos.x, point.y - camPos.y)
     val camAngleX = math.atan2(point.z - camPos.z, Vec2.length(camToPoint))
     val camAngleZ = math.atan2(camToPoint.x, camToPoint.y)
-    val camOrient = Vec3(-math.Pi * 0.5 - camAngleX, 0.0, math.Pi - camAngleZ)
+    val camOrient = Vec3(math.Pi * 0.5 + camAngleX, 0.0, math.Pi + camAngleZ)
+//    println(
+//      camOrient.x / Conversions.DegToRad,
+//      camOrient.y / Conversions.DegToRad,
+//      camOrient.z / Conversions.DegToRad)
     Transformations.rotationZYX(camOrient)
   }
 
