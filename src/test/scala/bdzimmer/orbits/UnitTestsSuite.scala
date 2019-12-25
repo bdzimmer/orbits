@@ -103,4 +103,22 @@ class UnitTestsSuite extends FunSuite {
 
   }
 
+
+  test("orbital elements of mercury") {
+
+    // Mercury's orbital elements are evaluated at this date
+    // as an example in *Astronomical Formulae for Calculators*
+
+    val date = 2443683.5
+    val elements = MeeusPlanets.Mercury.planet(date)
+
+    println(elements.longitudeMean / Conversions.DegToRad)
+    println(elements.semimajorAxis)
+    println(elements.eccentricity)
+    println(elements.inclination / Conversions.DegToRad)
+    println(elements.argPeriapsis / Conversions.DegToRad)
+    println(elements.longitudeAscending / Conversions.DegToRad)
+
+  }
+
 }
