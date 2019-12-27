@@ -24,6 +24,9 @@ object Draw {
 
   val MoonsExperiment = true
 
+  val DetailMin =  100000.0
+  val DetailMax = 5000000.0
+
 
   def redraw(
 
@@ -96,10 +99,7 @@ object Draw {
 
     // draw more detailed stuff if zoomed in far enough
 
-    val detailMin =  100000.0
-    val detailMax = 5000000.0
-
-    if (viewPos.z > detailMin) {
+    if (viewPos.z > DetailMin) {
       // TODO: better logic than the above
 
       planets.zip(planetMotions).foreach({case (x, y) => {
@@ -142,7 +142,7 @@ object Draw {
           val lineWidth = gr.getFontMetrics(view.settings.displayFontLarge).stringWidth(name)
 
           // fade the color in dramatically as a function of zoom
-          val fade = math.min(((viewPos.z - detailMin) / (detailMax - detailMin)).toFloat, 1.0f)
+          val fade = math.min(((viewPos.z - DetailMin) / (DetailMax - DetailMin)).toFloat, 1.0f)
           println(fade)
           gr.setColor(new Color(
             (titleColor.getRed * fade).toInt,
