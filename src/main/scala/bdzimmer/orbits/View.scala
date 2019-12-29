@@ -332,6 +332,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
             // drawLine(im, pt0, pt1, color)
 
             // shade with sunlight!
+
             val shade = 0.0 - Vec3.dot(sunToPlanet, Vec3.normalize(ptUndoTranslation))
             if (shade > 0.0) {
               val shadeColor = new Color(

@@ -24,9 +24,7 @@ object Draw {
 
   val MoonsExperiment = true
 
-  val DetailMin =  100000.0
-  val DetailMax = 5000000.0
-
+  val DetailMin =  12.0
 
   def redraw(
 
@@ -106,15 +104,28 @@ object Draw {
 
     // draw more detailed stuff if zoomed in far enough
 
-    if (viewPos.z > DetailMin) {
-      // TODO: better logic than the above...ie test radius or something
+    planets.zip(planetMotions).foreach({case (x, y) => {
 
-      planets.zip(planetMotions).foreach({case (x, y) => {
-        val pos = y._2.last.position
+      val pos = y._2.last.position
+
+      // TODO: calculate viewport diameter of planet
+
+      val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
+
+      // TODO: this could be cached for the planet
+      val tilt = Orbits.laplacePlaneICRFTransformation(
+        x._2.axialTilt.rightAscension, x._2.axialTilt.declination)
+
+      val rotationAngle = (x._2.rotDegPerDay * curDateJulian) % 360.0
+      val rotation = Transformations.rotZ(rotationAngle * Conversions.DegToRad)
+      val sphereTrans = Transformations.transformation(tilt.mul(rotation), pos)
+      val (_, _, _, _, diameterView) = sphereInfo(radiusAu, sphereTrans, camTrans, viewPos)
+
+      if (diameterView > DetailMin) {
         val name = x._1
-        val pos2d = View.perspective(pos, camTrans, viewPos)
 
         // coordinates in the viewer image
+        val pos2d = View.perspective(pos, camTrans, viewPos)
         val (ptx, pty) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
 
         // TODO: don't draw a sphere if the camera position is right on top of it
@@ -122,33 +133,8 @@ object Draw {
         val camToPlanetThresh = 1.0e-6
 
         if (view.inView(im, ptx, pty) && camToPlanet > camToPlanetThresh) {
-          // TODO: move sphere rendering in here
 
-          val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
           val scale = Vec3(radiusAu, radiusAu, radiusAu)
-
-          // TODO: this could be cached
-          val tilt = Orbits.laplacePlaneICRFTransformation(
-            x._2.axialTilt.rightAscension, x._2.axialTilt.declination)
-
-          // println(curDateJulian + " " + x._1 + " " + rotationAngle)
-
-          val rotationAngle = (x._2.rotDegPerDay  * curDateJulian) % 360.0
-          val rotation = Transformations.rotZ(rotationAngle * Conversions.DegToRad)
-          val sphereTrans = Transformations.transformation(tilt.mul(rotation), y._2.last.position)
-
-          // how big is the sphere in the viewport?
-          // note that this could be calculated from a transformation without rotation
-
-          val northPole = Transformations.transform(sphereTrans, Vec3(0.0, 0.0, radiusAu))
-          val southPole = Transformations.transform(sphereTrans, Vec3(0.0, 0.0, -radiusAu))
-
-          // draw axis
-          // view.drawLine(im, northPole, southPole, Color.LIGHT_GRAY)
-
-          val northPoleView = View.perspective(northPole, camTrans, viewPos)
-          val southPoleView = View.perspective(southPole, camTrans, viewPos)
-          val diameterView = Vec2.length(Vec2.sub(northPoleView, southPoleView))
 
           view.drawSphere(
             im,
@@ -167,12 +153,13 @@ object Draw {
           // gr.drawString(name, ptx + rad, pty)
 
           // put the name of the planet dramatically near the bottom of the screen
-          // TODO: this width could be cached
+          // TODO: this width could be cached for each planet
           val lineWidth = gr.getFontMetrics(view.settings.displayFontLarge).stringWidth(name)
 
           // fade the color in dramatically as a function of zoom
           // val fade = math.min(((viewPos.z - DetailMin) / (DetailMax - DetailMin)).toFloat, 1.0f)
-          val fade = math.min((diameterView / (im.getHeight * 0.25)).toFloat, 1.0f)
+          val detailMax = im.getHeight * 0.25
+          val fade = math.min(((diameterView - DetailMin) / (detailMax - DetailMin)).toFloat, 1.0f)
 
           gr.setColor(new Color(
             (titleColor.getRed * fade).toInt,
@@ -184,12 +171,14 @@ object Draw {
             im.getHeight - view.settings.lineHeightLarge)
 
         }
+      } else {
+        view.drawPosition(im, y._2.last.position, x._1, "", Color.LIGHT_GRAY)
+      }
 
-      }})
-    } else {
-      planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.LIGHT_GRAY))
-    }
+    }})
 
+
+    // update record of viewport positions of objects
     planetMotions.foreach(x => {
       objects(x._1) = View.perspective(x._2.last.position, view.camTrans, view.viewPos)
     })
@@ -372,5 +361,34 @@ object Draw {
     objects
 
   }
+
+
+  // get info used for rendering spheres
+  def sphereInfo(
+      radiusZ: Double,
+      trans: Mat44,
+      camTrans: Mat44,
+      viewPos: Vec3): (Vec3, Vec3, Vec2, Vec2, Double) = {
+
+    // how big is the sphere in the viewport?
+    // note that this could be calculated from a transformation without rotation
+
+    val northPole = Transformations.transform(trans, Vec3(0.0, 0.0, radiusZ))
+    val southPole = Transformations.transform(trans, Vec3(0.0, 0.0, -radiusZ))
+
+    // draw axis
+    // view.drawLine(im, northPole, southPole, Color.LIGHT_GRAY)
+
+    val northPoleView = View.perspective(northPole, camTrans, viewPos)
+    val southPoleView = View.perspective(southPole, camTrans, viewPos)
+    val diameterView = Vec2.length(Vec2.sub(northPoleView, southPoleView))
+
+    (northPole, southPole, northPoleView, southPoleView, diameterView)
+
+  }
+
+
+
+
 
 }
