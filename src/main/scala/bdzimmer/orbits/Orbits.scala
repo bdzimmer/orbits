@@ -217,6 +217,7 @@ object Orbits {
     // finally convert to ecliptic coordinate system
     val planeRelativeToICRF = radRotation(rightAscension, declination)
 
+    // TODO: remove ICRF conversion
     val planeRelativeToEcliptic = Conversions.ICRFToEcliptic.mul(planeRelativeToICRF)
     // val planeRelativeToEcliptic = planeRelativeToICRF.mul(Conversions.ICRFToEcliptic)
 

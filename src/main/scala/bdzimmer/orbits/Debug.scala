@@ -14,7 +14,7 @@ import javax.swing.event.{ChangeEvent, ChangeListener}
 
 
 object Debug {
-  val ENABLED = true
+  val ENABLED = false
 }
 
 

@@ -41,7 +41,8 @@ case class FlightParams(
 
 
 case class CameraSettings(
-    var cameraType: String,
+    var cameraPosType: String,
+    var cameraPointType: String,
     var xAngle: Double,
     var yAngle: Double,
     var zAngle: Double,
@@ -251,8 +252,8 @@ class Editor(
 
   def redrawGeneric(image: BufferedImage) = {
     // extra layer of abstraction; while this grabs uses all of the UI options,
-    // it allows rendering to an arbitrary image; ie, a much higher resolution
-    // image that will be saved to disk.
+    // it allows rendering to an arbitrary image; ie, an image of known
+    // resolution that will be saved to disk
 
     // find selected planets
     val planets = showSettings.planets.filter(_._2).flatMap(
@@ -395,24 +396,33 @@ class Editor(
   }
 
 
+  // Get view information (camera position and rotation) at active time given camera settings
   def getViewInfo(
       curDateJulian: Double,
       timelineMode: Boolean): (Mat44, Vec3, Option[FlightParams]) = {
 
+    // TODO: separate logic for optional returning active flight...that makes this too complex
+
     // TODO: combine timeline / non-timeline type logic if possible; it will get more complicated
     // TODO: separate manual from both modes would be a start
+
+    val camPos = cameraSettings.cameraPosType match {
+      case "Manual" => getManualCamPos
+      case _ => Editor.findPosition(cameraSettings.cameraPosType, curDateJulian)
+    }
 
     if (timelineMode) {
 
       val activeFlights = flights.filter(x => curDateJulian > x.startDate.julian && curDateJulian < x.endDate.julian)
       val fpOption = activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
 
-      val camPos = getCamPos
+      val camRot = cameraSettings.cameraPointType match {
 
-      val camRot = cameraSettings.cameraType match {
-        case "Follow Active"        => {
+        case "Manual"        => getManualCamRot
 
-          // TODO: extract damping logic
+        case "Follow Active" => {
+
+          // TODO: extract damping logic?
 
           val initial = Vec3.mul(prevPos, Editor.Damping)
 
@@ -431,58 +441,33 @@ class Editor(
           Editor.pointCamera(curState, camPos)
         }
 
-        // TODO: remove duplicate code
-        case "Earth" | "Mars" | "Saturn" | "Uranus" => {
-
-          val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth).planet
-          val curState = Orbits.planetState(planet, curDateJulian).position
-
-          Editor.pointCamera(curState, camPos)
-        }
-
-        case _ =>  getCamRot
+        case _ => Editor.pointCamera(Editor.findPosition(cameraSettings.cameraPointType, curDateJulian), camPos)
 
       }
 
-      val camTrans =  View.cameraTransform(camRot, getCamPos)
+      val camTrans =  View.cameraTransform(camRot, camPos)
 
-      (camTrans, getViewPos, fpOption)
+      (camTrans, getManualViewPos, fpOption)
 
     } else {
 
       // individual flight mode
 
-      val idx = flightsComboBox.getSelectedIndex
-      val fp = flights(idx)
+      val fp = flights(flightsComboBox.getSelectedIndex)
+      val (flightFn, _) = Editor.paramsToFun(fp)
 
-      val camPos = getCamPos
-
-      // get camera and viewer position
-      val camRot = cameraSettings.cameraType match {
-
-        case "Follow Active"        => {
-
-          val (flightFn, _) = Editor.paramsToFun(fp)
-          val curState = flightFn(curDateJulian)
-
-          Editor.pointCamera(curState, camPos)
+      val camRot = cameraSettings.cameraPointType match {
+        case "Manual"        => getManualCamRot
+        case "Follow Active" => Editor.pointCamera(flightFn(curDateJulian), camPos)
+        case _               => {
+          Editor.pointCamera(Editor.findPosition(cameraSettings.cameraPointType, curDateJulian), camPos)
         }
 
-        // TODO: handle in a more general way
-        case "Earth" | "Mars" | "Saturn" | "Uranus" => {
-
-          val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth).planet
-          val curState = Orbits.planetState(planet, curDateJulian).position
-
-          Editor.pointCamera(curState, camPos)
-        }
-
-        case "Manual" => getCamRot
       }
 
       val camTrans =  View.cameraTransform(camRot, camPos)
 
-      (camTrans, getViewPos, Some(fp))
+      (camTrans, getManualViewPos, Some(fp))
 
     }
 
@@ -501,13 +486,13 @@ class Editor(
   }
 
 
-  // get camera matrix from UI
-  private def getCamera: Mat44 = {
-    View.cameraTransform(getCamRot, getCamPos)
-  }
+//  // get camera matrix from UI
+//  private def getCamera: Mat44 = {
+//    View.cameraTransform(getCamRot, getCamPos)
+//  }
 
 
-  private def getCamRot: Mat33 = {
+  private def getManualCamRot: Mat33 = {
     val xAngle = cameraSettings.xAngle * math.Pi / 180
     val yAngle = cameraSettings.yAngle * math.Pi / 180
     val zAngle = cameraSettings.zAngle * math.Pi / 180
@@ -521,13 +506,13 @@ class Editor(
   }
 
 
-  private def getCamPos: Vec3 = {
+  private def getManualCamPos: Vec3 = {
     Vec3(cameraSettings.xPos, cameraSettings.yPos, cameraSettings.zPos)
   }
 
 
   // get viewer position from UI
-  private def getViewPos: Vec3 = {
+  private def getManualViewPos: Vec3 = {
     Vec3(0, 0, cameraSettings.zViewPos)
   }
 
@@ -542,15 +527,16 @@ object Editor {
   // so secondary isn't taking the orbits editor as a dep
 
   val CameraSettingsDefault = CameraSettings(
-     cameraType = "Manual",
-     xAngle = 45.0,
-     yAngle = 0.0,
-     zAngle = 180.0,
-     isIntrinsic = true,
-     xPos = 0.0,
-     yPos = -5.0,
-     zPos = 5.0,
-     zViewPos = 800.0
+    cameraPosType = "Manual",
+    cameraPointType = "Manual",
+    xAngle = 45.0,
+    yAngle = 0.0,
+    zAngle = 180.0,
+    isIntrinsic = true,
+    xPos = 0.0,
+    yPos = -5.0,
+    zPos = 5.0,
+    zViewPos = 800.0
   )
 
   // TODO: damping becomes a part of CameraSettings
@@ -580,6 +566,42 @@ object Editor {
   val FactionsFilename = "factions.txt"
   val ExportFilename = "flights_export"
 
+
+
+  // find position of a celestial body by name at a certain date
+  def findPosition(
+      name: String,
+      curDateJulian: Double): Vec3 = {
+
+    if (MeeusPlanets.Planets.keySet.contains(name)) {
+      // is it a planet?
+
+      val planet = MeeusPlanets.Planets.getOrElse(name, MeeusPlanets.Earth).planet
+      Orbits.planetState(planet, curDateJulian).position
+
+    } else if (Moons.Moons.keySet.contains(name)) {
+      // is it a moon?
+
+      val moon = Moons.Moons.getOrElse(name, Moons.Luna)
+      val primaryPos = Orbits.planetState(moon.primary, curDateJulian).position
+
+      // TODO: this is awkward
+      val laplacePlane = moon.laplacePlane.map(
+        y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
+      ).getOrElse(Conversions.ICRFToEcliptic)
+
+      val moonRelativePos = laplacePlane.mul(
+        Orbits.planetState(moon.moon, curDateJulian).position)
+
+      Vec3.add(primaryPos, moonRelativePos)
+
+    } else {
+      println("Unknown body '" + name + "' in findPosition")
+      Vec3(0.0, 0.0, 0.0)
+    }
+
+
+  }
 
   def paramsToFun(fp: FlightParams): (FlightFn, scala.collection.immutable.Seq[Double]) = {
 
@@ -611,6 +633,7 @@ object Editor {
 
     (flightFn, ticks)
   }
+
 
   def pointCamera(point: Vec3, camPos: Vec3): Mat33 = {
     val camToPoint = Vec2(point.x - camPos.x, point.y - camPos.y)
@@ -1237,10 +1260,21 @@ object Editor {
     toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Camera"))
 
     // TODO: better programatic creation of camera types
-    val cameraType = new JComboBox[String](List("Manual", "Follow Active", "Earth", "Mars", "Saturn", "Uranus").toArray)
-    cameraType.addActionListener(new ActionListener {
+
+    val bodies = (MeeusPlanets.Planets.keysIterator ++ Moons.Moons.keysIterator).toList
+
+    val cameraPosType = new JComboBox[String]((List("Manual") ++ bodies).toArray)
+    cameraPosType.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
-          cameraSettings.cameraType = cameraType.getSelectedItem.asInstanceOf[String]
+        cameraSettings.cameraPosType = cameraPosType.getSelectedItem.asInstanceOf[String]
+        redraw()
+      }
+    })
+
+    val cameraPointType = new JComboBox[String]((List("Manual", "Follow Active") ++ bodies).toArray)
+    cameraPointType.addActionListener(new ActionListener {
+      override def actionPerformed(e: ActionEvent): Unit = {
+          cameraSettings.cameraPointType = cameraPointType.getSelectedItem.asInstanceOf[String]
           redraw()
       }
     })
@@ -1339,7 +1373,8 @@ object Editor {
       }
     })
 
-    toolbar.add(cameraType)
+    toolbar.add(cameraPosType)
+    toolbar.add(cameraPointType)
     toolbar.add(new JSeparator(SwingConstants.VERTICAL))
     toolbar.add(xAngleField)
     toolbar.add(yAngleField)

@@ -144,7 +144,6 @@ object Draw {
 
           // fade the color in dramatically as a function of zoom
           val fade = math.min(((viewPos.z - DetailMin) / (DetailMax - DetailMin)).toFloat, 1.0f)
-          println(fade)
           gr.setColor(new Color(
             (titleColor.getRed * fade).toInt,
             (titleColor.getGreen * fade).toInt,
