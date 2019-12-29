@@ -117,7 +117,8 @@ object Draw {
           im,
           Transformations.transformation(tilt.mul(rotation), y._2.last.position),
           scale,
-          Color.LIGHT_GRAY)
+          Color.LIGHT_GRAY,
+          true)
 
         // TODO: draw axis
 

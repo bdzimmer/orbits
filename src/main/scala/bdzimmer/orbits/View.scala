@@ -292,11 +292,66 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
   }
 
 
-  def drawSphere(im: BufferedImage, transform: Mat44, scale: Vec3, color: Color): Unit = {
-    // transform sphere points and draw
-    for (circle <- Primitives.DefaultSphere) {
-      val ct = circle.map(x => Transformations.transform(transform, Vec3.emul(x, scale)))
-      drawPolygon(im, ct.map(View.perspective(_, camTrans, viewPos)), color, false)
+  def drawSphere(
+      im: BufferedImage, transform: Mat44, scale: Vec3, color: Color,
+      backfaceCulling: Boolean): Unit = {
+
+    if (backfaceCulling) {
+      // transform sphere points and draw individual lines
+
+      val camTranslation = Vec3(camTrans.c3.x, camTrans.c3.y, camTrans.c3.z)  // technically negative of camera translation
+      val transTranslation = Vec3(transform.c3.x, transform.c3.y, transform.c3.z)
+      val sunToPlanet = Vec3.normalize(transTranslation)
+
+      for (circle <- Primitives.DefaultSphere) {
+
+        val ct = circle.map(x => Transformations.transform(transform, Vec3.emul(x, scale)))
+        val linePoints = (ct :+ ct.head).sliding(2)
+
+        for (line <- linePoints) {
+          val pt0 = line(0)  // unsafe but whatever
+          val pt1 = line(1)  //
+
+          // examine the average of the two points of the line
+          // with only rotations applied.
+
+          val ptMean = Vec3.mul(Vec3.add(pt0, pt1), 0.5)
+
+          // undo first translation
+          val ptUndoTranslation = Vec3.sub(ptMean, transTranslation)
+
+          // apply the camera rotation only
+          val ptFinal = Vec3.normalize(
+            Vec3.sub(Transformations.transform(camTrans, ptUndoTranslation), camTranslation))
+
+          // if it points in the same direction as camera coordinate system Z axis
+          // (unit Z), show it
+          if (Vec3.dot(ptFinal, Transformations.UnitZ) > 0.0) {
+
+            // shade all the same color
+            // drawLine(im, pt0, pt1, color)
+
+            // shade with sunlight!
+            val shade = 0.0 - Vec3.dot(sunToPlanet, Vec3.normalize(ptUndoTranslation))
+            if (shade > 0.0) {
+              val shadeColor = new Color(
+                (color.getRed * shade).toInt,
+                (color.getGreen * shade).toInt,
+                (color.getBlue * shade).toInt)
+              drawLine(im, pt0, pt1, shadeColor)
+            }
+
+          }
+        }
+      }
+
+
+    } else {
+      // transform sphere points and draw
+      for (circle <- Primitives.DefaultSphere) {
+        val ct = circle.map(x => Transformations.transform(transform, Vec3.emul(x, scale)))
+        drawPolygon(im, ct.map(View.perspective(_, camTrans, viewPos)), color, false)
+      }
     }
   }
 
