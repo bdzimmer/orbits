@@ -592,6 +592,11 @@ object Editor {
 
       Vec3.add(primaryPos, moonRelativePos)
 
+    } else if (name.equals("Sun")) {
+
+      // sun is always at the origin
+      Vec3(0.0, 0.0, 0.0)
+
     } else {
       println("Unknown body '" + name + "' in findPosition")
       Vec3(0.0, 0.0, 0.0)
@@ -1258,7 +1263,7 @@ object Editor {
 
     // TODO: better programatic creation of camera types
 
-    val bodies = (MeeusPlanets.Planets.keysIterator ++ Moons.Moons.keysIterator).toList
+    val bodies = (List("Sun") ++ MeeusPlanets.Planets.keysIterator ++ Moons.Moons.keysIterator).toList
 
     val cameraPosType = new JComboBox[String]((List("Manual") ++ bodies).toArray)
     cameraPosType.addActionListener(new ActionListener {

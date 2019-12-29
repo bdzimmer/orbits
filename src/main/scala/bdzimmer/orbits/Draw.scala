@@ -102,14 +102,11 @@ object Draw {
     // flight at
     planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view, Color.LIGHT_GRAY, motionVerticals))
 
-    // draw more detailed stuff if zoomed in far enough
-
+    // draw the position of each planet
     planets.zip(planetMotions).foreach({case (x, y) => {
 
+      // calculate viewport diameter of planet
       val pos = y._2.last.position
-
-      // TODO: calculate viewport diameter of planet
-
       val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
 
       // TODO: this could be cached for the planet
@@ -121,6 +118,7 @@ object Draw {
       val sphereTrans = Transformations.transformation(tilt.mul(rotation), pos)
       val (_, _, _, _, diameterView) = sphereInfo(radiusAu, sphereTrans, camTrans, viewPos)
 
+      // if zoomed in far enough to see it, draw detailed view
       if (diameterView > DetailMin) {
         val name = x._1
 

@@ -266,8 +266,14 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
       val arrowPoints = Viewer.arrowPoints(position, direction)
       drawPolygon(im, arrowPoints, color, true)
     } else {
+
+      // val arrowScale = settings.arrowLength / viewPos.z
+      val arrowPointCamera = Transformations.transform(camTrans, os.position)
+      val arrowCameraDist = Vec3.length(arrowPointCamera)
+      val arrowScale = settings.arrowLength / viewPos.z * arrowCameraDist * 0.15
+
       val arrowPoints3d = Viewer.arrowPoints3D(
-        os.position, Vec3.normalize(os.velocity), settings.arrowLength / viewPos.z)
+        os.position, Vec3.normalize(os.velocity), arrowScale)
       val arrowPoints = arrowPoints3d.map(x => View.perspective(x, camTrans, viewPos))
       drawPolygon(im, arrowPoints, color, true)
     }
