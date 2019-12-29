@@ -407,8 +407,9 @@ class Editor(
       val activeFlights = flights.filter(x => curDateJulian > x.startDate.julian && curDateJulian < x.endDate.julian)
       val fpOption = activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
 
-      // get camera and viewer position
-      val (camTrans, viewPos) = cameraSettings.cameraType match {
+      val camPos = getCamPos
+
+      val camRot = cameraSettings.cameraType match {
         case "Follow Active"        => {
 
           // TODO: extract damping logic
@@ -427,11 +428,7 @@ class Editor(
           // update previous position
           prevPos = curState
 
-          val camPos = getCamPos
-          val camRot = Editor.pointCamera(curState, camPos)
-          val camTrans = View.cameraTransform(camRot, camPos)
-
-          (camTrans, getViewPos)
+          Editor.pointCamera(curState, camPos)
         }
 
         // TODO: remove duplicate code
@@ -440,18 +437,16 @@ class Editor(
           val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth).planet
           val curState = Orbits.planetState(planet, curDateJulian).position
 
-          val camPos = getCamPos
-          val camRot = Editor.pointCamera(curState, camPos)
-          val camTrans = View.cameraTransform(camRot, camPos)
-
-          (camTrans, getViewPos)
+          Editor.pointCamera(curState, camPos)
         }
 
-        case _ =>  (getCamera, getViewPos)
+        case _ =>  getCamRot
 
       }
 
-      (camTrans, viewPos, fpOption)
+      val camTrans =  View.cameraTransform(camRot, getCamPos)
+
+      (camTrans, getViewPos, fpOption)
 
     } else {
 
@@ -460,19 +455,17 @@ class Editor(
       val idx = flightsComboBox.getSelectedIndex
       val fp = flights(idx)
 
+      val camPos = getCamPos
+
       // get camera and viewer position
-      val (camTrans, viewPos) = cameraSettings.cameraType match {
+      val camRot = cameraSettings.cameraType match {
 
         case "Follow Active"        => {
 
           val (flightFn, _) = Editor.paramsToFun(fp)
           val curState = flightFn(curDateJulian)
 
-          val camPos = getCamPos
-          val camRot = Editor.pointCamera(curState, camPos)
-          val camTrans = View.cameraTransform(camRot, camPos)
-
-          (camTrans, getViewPos)
+          Editor.pointCamera(curState, camPos)
         }
 
         // TODO: handle in a more general way
@@ -481,17 +474,15 @@ class Editor(
           val planet = MeeusPlanets.Planets.getOrElse(cameraSettings.cameraType, MeeusPlanets.Earth).planet
           val curState = Orbits.planetState(planet, curDateJulian).position
 
-          val camPos = getCamPos
-          val camRot = Editor.pointCamera(curState, camPos)
-          val camTrans = View.cameraTransform(camRot, camPos)
-
-          (camTrans, getViewPos)
+          Editor.pointCamera(curState, camPos)
         }
 
-        case "Manual" => (getCamera, getViewPos)
+        case "Manual" => getCamRot
       }
 
-      (camTrans, viewPos, Some(fp))
+      val camTrans =  View.cameraTransform(camRot, camPos)
+
+      (camTrans, getViewPos, Some(fp))
 
     }
 
@@ -512,21 +503,23 @@ class Editor(
 
   // get camera matrix from UI
   private def getCamera: Mat44 = {
+    View.cameraTransform(getCamRot, getCamPos)
+  }
 
+
+  private def getCamRot: Mat33 = {
     val xAngle = cameraSettings.xAngle * math.Pi / 180
     val yAngle = cameraSettings.yAngle * math.Pi / 180
     val zAngle = cameraSettings.zAngle * math.Pi / 180
     val theta = Vec3(xAngle, yAngle, zAngle)
 
-    val camRotation = if (cameraSettings.isIntrinsic) {
+    if (cameraSettings.isIntrinsic) {
       Transformations.rotationZYX(theta)
     } else {
       Transformations.rotationXYZ(theta)
     }
-
-    View.cameraTransform(camRotation, getCamPos)
-
   }
+
 
   private def getCamPos: Vec3 = {
     Vec3(cameraSettings.xPos, cameraSettings.yPos, cameraSettings.zPos)
