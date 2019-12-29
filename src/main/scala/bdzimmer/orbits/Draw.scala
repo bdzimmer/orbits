@@ -44,10 +44,17 @@ object Draw {
 
       statusOption: Int,
 
-      camTrans: Mat44,
+      // camTrans: Mat44,
+      camInfo: (Mat33, Vec3),
+
       viewPos: Vec3,
 
       im: BufferedImage): scala.collection.mutable.Map[String, Vec2] = {
+
+
+    // camera prep
+    val (camRot, camPos) = camInfo
+    val camTrans = View.cameraTransform(camRot, camPos)
 
     val objects: scala.collection.mutable.Map[String, Vec2] = new scala.collection.mutable.HashMap[String, Vec2]()
 
@@ -100,38 +107,59 @@ object Draw {
     // draw more detailed stuff if zoomed in far enough
 
     if (viewPos.z > DetailMin) {
-      // TODO: better logic than the above
+      // TODO: better logic than the above...ie test radius or something
 
       planets.zip(planetMotions).foreach({case (x, y) => {
         val pos = y._2.last.position
-        val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
-        val scale = Vec3(radiusAu, radiusAu, radiusAu)
         val name = x._1
-        val tilt = Orbits.laplacePlaneICRFTransformation(
-          x._2.axialTilt.rightAscension, x._2.axialTilt.declination)
-        val rotationAngle = (x._2.rotDegPerDay  * curDateJulian) % 360.0
-        val rotation = Transformations.rotZ(rotationAngle * Conversions.DegToRad)
-        // println(curDateJulian + " " + x._1 + " " + rotationAngle)
-
-        view.drawSphere(
-          im,
-          Transformations.transformation(tilt.mul(rotation), y._2.last.position),
-          scale,
-          Color.LIGHT_GRAY,
-          true)
-
-        // TODO: draw axis
-
         val pos2d = View.perspective(pos, camTrans, viewPos)
-        val gr = im.getGraphics.asInstanceOf[Graphics2D]
-        gr.setRenderingHints(Viewer.RenderHints)
-        val titleColor = Color.LIGHT_GRAY
 
         // coordinates in the viewer image
         val (ptx, pty) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
 
-        if (name.length > 0 && view.inView(im, ptx, pty)) {
+        // TODO: don't draw a sphere if the camera position is right on top of it
+        val camToPlanet = Vec3.length(Vec3.sub(camPos, pos))
+        val camToPlanetThresh = 1.0e-6
+
+        if (view.inView(im, ptx, pty) && camToPlanet > camToPlanetThresh) {
           // TODO: move sphere rendering in here
+
+          val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
+          val scale = Vec3(radiusAu, radiusAu, radiusAu)
+
+          // TODO: this could be cached
+          val tilt = Orbits.laplacePlaneICRFTransformation(
+            x._2.axialTilt.rightAscension, x._2.axialTilt.declination)
+
+          // println(curDateJulian + " " + x._1 + " " + rotationAngle)
+
+          val rotationAngle = (x._2.rotDegPerDay  * curDateJulian) % 360.0
+          val rotation = Transformations.rotZ(rotationAngle * Conversions.DegToRad)
+          val sphereTrans = Transformations.transformation(tilt.mul(rotation), y._2.last.position)
+
+          // how big is the sphere in the viewport?
+          // note that this could be calculated from a transformation without rotation
+
+          val northPole = Transformations.transform(sphereTrans, Vec3(0.0, 0.0, radiusAu))
+          val southPole = Transformations.transform(sphereTrans, Vec3(0.0, 0.0, -radiusAu))
+
+          // draw axis
+          // view.drawLine(im, northPole, southPole, Color.LIGHT_GRAY)
+
+          val northPoleView = View.perspective(northPole, camTrans, viewPos)
+          val southPoleView = View.perspective(southPole, camTrans, viewPos)
+          val diameterView = Vec2.length(Vec2.sub(northPoleView, southPoleView))
+
+          view.drawSphere(
+            im,
+            sphereTrans,
+            scale,
+            Color.LIGHT_GRAY,
+            true)
+
+          val gr = im.getGraphics.asInstanceOf[Graphics2D]
+          gr.setRenderingHints(Viewer.RenderHints)
+          val titleColor = Color.LIGHT_GRAY
 
           gr.setFont(view.settings.displayFontLarge)
 
@@ -143,7 +171,9 @@ object Draw {
           val lineWidth = gr.getFontMetrics(view.settings.displayFontLarge).stringWidth(name)
 
           // fade the color in dramatically as a function of zoom
-          val fade = math.min(((viewPos.z - DetailMin) / (DetailMax - DetailMin)).toFloat, 1.0f)
+          // val fade = math.min(((viewPos.z - DetailMin) / (DetailMax - DetailMin)).toFloat, 1.0f)
+          val fade = math.min((diameterView / (im.getHeight * 0.25)).toFloat, 1.0f)
+
           gr.setColor(new Color(
             (titleColor.getRed * fade).toInt,
             (titleColor.getGreen * fade).toInt,

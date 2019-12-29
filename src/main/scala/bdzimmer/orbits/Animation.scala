@@ -120,7 +120,7 @@ object Animation {
       // update previous position
       prevState = curState
       val camRot = Editor.pointCamera(curState, initCamPos)
-      val camTrans = View.cameraTransform(camRot, initCamPos)
+      // val camTrans = View.cameraTransform(camRot, initCamPos)
 
       val initTime = System.currentTimeMillis - initTimeStart
 
@@ -139,7 +139,7 @@ object Animation {
         showSettings.orbitInfo,
         showSettings.motionVerticals,
         showSettings.flightStatus,
-        camTrans,
+        (camRot, initCamPos),
         initViewPos,
         im
       )

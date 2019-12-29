@@ -271,7 +271,7 @@ class Editor(
       fp.startDate.julian + (fp.endDate.julian - fp.startDate.julian) * flightPercent
     }
 
-    val (camTrans, viewPos, fpOption) = getViewInfo(curDateJulian, timelineMode)
+    val (camRot, camPos, viewPos, fpOption) = getViewInfo(curDateJulian, timelineMode)
 
     val objects = Draw.redraw(
       fpOption,
@@ -284,7 +284,7 @@ class Editor(
       showSettings.orbitInfo,
       showSettings.motionVerticals,
       showSettings.flightStatus,
-      camTrans,
+      (camRot, camPos),
       viewPos,
       image
     )
@@ -299,6 +299,7 @@ class Editor(
     // ~~~~ draw ephemeral editor stuff
     // some of this could be before Draw.redraw if it didn't clear the image...food for thought
 
+    val camTrans = View.cameraTransform(camRot, camPos)
     val view = new Viewer(camTrans, viewPos, Draw.DisplaySettings)
 
     selectedObjects.foreach({case (name, (_, selected)) => {
@@ -399,7 +400,7 @@ class Editor(
   // Get view information (camera position and rotation) at active time given camera settings
   def getViewInfo(
       curDateJulian: Double,
-      timelineMode: Boolean): (Mat44, Vec3, Option[FlightParams]) = {
+      timelineMode: Boolean): (Mat33, Vec3, Vec3, Option[FlightParams]) = {
 
     // TODO: separate logic for optional returning active flight...that makes this too complex
 
@@ -445,9 +446,7 @@ class Editor(
 
       }
 
-      val camTrans =  View.cameraTransform(camRot, camPos)
-
-      (camTrans, getManualViewPos, fpOption)
+      (camRot, camPos, getManualViewPos, fpOption)
 
     } else {
 
@@ -465,9 +464,7 @@ class Editor(
 
       }
 
-      val camTrans =  View.cameraTransform(camRot, camPos)
-
-      (camTrans, getManualViewPos, Some(fp))
+      (camRot, camPos, getManualViewPos, Some(fp))
 
     }
 
