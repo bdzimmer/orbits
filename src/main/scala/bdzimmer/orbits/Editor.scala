@@ -110,7 +110,7 @@ class Editor(
   val toolbarRow0 = new JPanel(new FlowLayout(FlowLayout.LEFT))
   val (
       flightsToolbar, flightsComboBox,
-      flightsSlider, getTimelineTime, timelineButton, rebuildFlights) = Editor.buildFlightsToolbar(
+      flightsSlider, getTimelineTime, timelineButton, skipButtons, rebuildFlights) = Editor.buildFlightsToolbar(
       flights, ships, redraw)
   toolbarRow0.add(flightsToolbar)
   toolbarRow0.add(
@@ -118,7 +118,9 @@ class Editor(
   toolbarsPanel.add(toolbarRow0, BorderLayout.NORTH)
 
   val toolbarRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT))
-  val (cameraToolbar, updateCameraControls) = Editor.buildCameraToolbar(cameraSettings, redraw)
+
+  val (cameraToolbar, updateCameraControls) = Editor.buildCameraToolbar(
+    cameraSettings, () => if (!timelineButton.isSelected || skipButtons.getSelection() == null) redraw())
 
   toolbarRow1.add(cameraToolbar)
   // toolbarRow1.add(Editor.buildUnitConverterToolbar())
@@ -788,7 +790,8 @@ object Editor {
   def buildFlightsToolbar(
       flights: scala.collection.mutable.Buffer[FlightParams],
       ships: List[Spacecraft],
-      redraw: () => Unit): (JToolBar, JComboBox[String], JSlider, () => Double, JToggleButton, () => Unit) = {
+      redraw: () => Unit): (JToolBar, JComboBox[String], JSlider, () => Double,
+      JToggleButton, ClearableButtonGroup, () => Unit) = {
 
     val toolbar = new JToolBar()
     toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
@@ -1182,7 +1185,7 @@ object Editor {
 
     /// ///
 
-    (toolbar, flightsComboBox, flightsSlider, () => timelineTime, timelineButton, rebuildFlights)
+    (toolbar, flightsComboBox, flightsSlider, () => timelineTime, timelineButton, skipButtons, rebuildFlights)
 
   }
 
@@ -1378,14 +1381,14 @@ object Editor {
     toolbar.add(cameraPosType)
     toolbar.add(cameraPointType)
     toolbar.add(new JSeparator(SwingConstants.VERTICAL))
+    toolbar.add(xPosField)
+    toolbar.add(yPosField)
+    toolbar.add(zPosField)
+    toolbar.add(new JSeparator(SwingConstants.VERTICAL))
     toolbar.add(xAngleField)
     toolbar.add(yAngleField)
     toolbar.add(zAngleField)
     toolbar.add(isIntrinsic)
-    toolbar.add(new JSeparator(SwingConstants.VERTICAL))
-    toolbar.add(xPosField)
-    toolbar.add(yPosField)
-    toolbar.add(zPosField)
     toolbar.add(zViewPosField)
     toolbar.add(new JSeparator(SwingConstants.VERTICAL))
     toolbar.add(zoomSlider)
