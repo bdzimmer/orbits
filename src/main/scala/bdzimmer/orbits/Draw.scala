@@ -49,6 +49,11 @@ object Draw {
 
       im: BufferedImage): scala.collection.mutable.Map[String, Vec2] = {
 
+    // TODO: move this to a higher level
+    // clear the image
+    val gr = im.getGraphics
+    gr.setColor(Color.BLACK)
+    gr.fillRect(0, 0, im.getWidth, im.getHeight)
 
     // camera prep
     val (camRot, camPos) = camInfo
@@ -83,11 +88,6 @@ object Draw {
     val activeFlights = flights.filter(x =>
       // !x.equals(fp) &&
       x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
-
-    // clear the image
-    val gr = im.getGraphics
-    gr.setColor(Color.BLACK)
-    gr.fillRect(0, 0, im.getWidth, im.getHeight)
 
     // ~~~~
 
