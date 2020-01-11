@@ -570,7 +570,10 @@ object RenderFlight {
 
     val camOrient = Vec3(-math.Pi * 0.25, 0, math.Pi)
     val camPos = Vec3(0, -planetMax * 2.25, planetMax * 2.25)
-    val camTrans = View.cameraTransform(Transformations.rotationZYX(camOrient), camPos)
+    val camTrans = View.cameraTransform(
+      // Transformations.rotationZYX(camOrient),
+      Transformations.rotationXYZ(camOrient),
+      camPos)
     val xshiftAmount = if (xshift) {
       -imWidth * 0.1
     } else {

@@ -69,4 +69,63 @@ class UnitTestsSuite extends FunSuite {
     }
   }
 
+  test("check tilts and inclinations") {
+    val date = CalendarDateTime(2010, 6, 14, 12, 0, 0.0).julian
+    val planetName = "Mars"
+    val planet = MeeusPlanets.Planets(planetName)
+
+    val earth = MeeusPlanets.Earth
+
+    def angleDegrees(a: Vec3, b: Vec3): Double = {
+     val res = math.acos(Vec3.dot(a, b)) / Conversions.DegToRad
+     math.rint(res * 1000.0) / 1000.0
+    }
+
+    val zAxis = Transformations.UnitZ
+
+    val oe = planet.planet(date)
+
+    val orbitalToIntertial = Orbits.transformOrbitalInertial(oe)
+
+    val axisOrbital = orbitalToIntertial.mul(zAxis)
+
+    val earthAxis = Orbits.laplacePlaneICRFTransformation(
+      earth.axialTilt.rightAscension, earth.axialTilt.declination)
+    val planetAxis = Orbits.laplacePlaneICRFTransformation(
+      planet.axialTilt.rightAscension, planet.axialTilt.declination).mul(zAxis)
+
+    println()
+    println(planetName)
+    println("orbital inc to ecliptic: " + angleDegrees(zAxis, axisOrbital))
+    println("axial tilt to orbit:     " + angleDegrees(planetAxis, axisOrbital))
+    println("axial tilt to ecliptic:  " + angleDegrees(planetAxis, zAxis))
+
+
+  }
+
+
+  test("orbital elements of mercury") {
+
+    // Mercury's orbital elements are evaluated at this date
+    // as an example in *Astronomical Formulae for Calculators*
+
+    val date = 2443683.5
+    val elements = MeeusPlanets.Mercury.planet(date)
+
+    println(elements.longitudeMean / Conversions.DegToRad)
+    println(elements.semimajorAxis)
+    println(elements.eccentricity)
+    println(elements.inclination / Conversions.DegToRad)
+    println(elements.argPeriapsis / Conversions.DegToRad)
+    println(elements.longitudeAscending / Conversions.DegToRad)
+
+  }
+
+  test("matrix multiplication") {
+    val rotZ = Transformations.rotZ(45.0 * Conversions.DegToRad)
+    println(rotZ.mul(Transformations.UnitX))
+    println(rotZ.mul(Transformations.UnitY))
+    println(rotZ.mul(Transformations.UnitZ))
+  }
+
 }

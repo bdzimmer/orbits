@@ -44,9 +44,35 @@ object Conversions {
   val YearToDay = 365.2425
 
   // TODO: proper conversion from ICRF to ecliptic coordinate system
-  // Note: I'm changing these to use rotation around the Y axis instead of X axis.
 
-  val ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
+  // val ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad) // original
+  // def ICRFToEcliptic = Transformations.rotX(-23.4392811 * DegToRad)
+
+//  val correction = 3.0 * DegToRad
+//
+//  val ICRFToEcliptic =
+//      Transformations.rotZ(-correction).mul(
+//      Transformations.rotX(-23.4392811 * DegToRad).mul(
+//      Transformations.rotZ(correction)))
+
+  def correction = DebugInput.get("correction", (-90.0, -180.0, 180.0)) * DegToRad
+  // def spin = DebugInput.get("spin", (0.0, -180.0, 180.0)) * DegToRad
+  // def whatever = DebugInput.get("whatever", (0.0, -180.0, 180.0)) * DegToRad
+
+
+//  def ICRFToEcliptic =
+//    Transformations.rotZ(-correction).mul(
+//    Transformations.rotY(-23.4392811 * DegToRad).mul(
+//    Transformations.rotZ(correction)))
+
+  def ICRFToEcliptic =
+      Transformations.rotY(-23.4392811 * DegToRad).mul(
+        Transformations.rotZ(correction))
+
+//  def ICRFToEcliptic =
+//    Transformations.rotX(correction).mul(
+//      Transformations.rotY(spin).mul(
+//        Transformations.rotZ(whatever)))
 
 
   def julianToCalendarDate(date: Double): CalendarDateTime = {
@@ -190,7 +216,12 @@ object Orbits {
     // then rotate around X by declination
     // finally convert to ecliptic coordinate system
     val planeRelativeToICRF = radRotation(rightAscension, declination)
+
+    // TODO: remove ICRF conversion
     val planeRelativeToEcliptic = Conversions.ICRFToEcliptic.mul(planeRelativeToICRF)
+    // val planeRelativeToEcliptic = planeRelativeToICRF.mul(Conversions.ICRFToEcliptic)
+
+    // val planeRelativeToEcliptic = planeRelativeToICRF
 
     planeRelativeToEcliptic
 
@@ -200,9 +231,12 @@ object Orbits {
     // convert right ascention and declination of an axis orthogonal to a plane
     // to a transformation of the XY plane
 
-    // Note: this is incorrect currently.
+    // original behavior
+    // Transformations.rotX(declination).mul(Transformations.rotZ(rightAscension))
 
-    Transformations.rotX(declination).mul(Transformations.rotZ(rightAscension))
+    // new behavior
+    Transformations.rotZ(rightAscension).mul(
+      Transformations.rotY(declination - 0.5 *  math.Pi))
 
   }
 

@@ -24,6 +24,7 @@ object Draw {
 
   val MoonsExperiment = true
 
+  val DetailMin =  12.0
 
   def redraw(
 
@@ -41,10 +42,22 @@ object Draw {
 
       statusOption: Int,
 
-      camTrans: Mat44,
+      // camTrans: Mat44,
+      camInfo: (Mat33, Vec3),
+
       viewPos: Vec3,
 
       im: BufferedImage): scala.collection.mutable.Map[String, Vec2] = {
+
+    // TODO: move this to a higher level
+    // clear the image
+    val gr = im.getGraphics
+    gr.setColor(Color.BLACK)
+    gr.fillRect(0, 0, im.getWidth, im.getHeight)
+
+    // camera prep
+    val (camRot, camPos) = camInfo
+    val camTrans = View.cameraTransform(camRot, camPos)
 
     val objects: scala.collection.mutable.Map[String, Vec2] = new scala.collection.mutable.HashMap[String, Vec2]()
 
@@ -76,11 +89,6 @@ object Draw {
       // !x.equals(fp) &&
       x.startDate.julian <= curDateJulian && x.endDate.julian >= curDateJulian)
 
-    // clear the image
-    val gr = im.getGraphics
-    gr.setColor(Color.BLACK)
-    gr.fillRect(0, 0, im.getWidth, im.getHeight)
-
     // ~~~~
 
     // draw the grid and the sun
@@ -94,47 +102,87 @@ object Draw {
     // flight at
     planetMotions.foreach(x => RenderFlight.drawOrbit(im, x._2, view, Color.LIGHT_GRAY, motionVerticals))
 
-    if (viewPos.z > 100000.0) {
-      planets.zip(planetMotions).foreach({case (x, y) => {
-        val pos = y._2.last.position
-        val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
-        val scale = Vec3(radiusAu, radiusAu, radiusAu)
+    // draw the position of each planet
+    planets.zip(planetMotions).foreach({case (x, y) => {
+
+      // calculate viewport diameter of planet
+      val pos = y._2.last.position
+
+      // TODO: don't draw if the camera position is right on top of it
+      val camToPlanet = Vec3.length(Vec3.sub(camPos, pos))
+      val camToPlanetThresh = 1.0e-6
+
+      if (camToPlanet > camToPlanetThresh) {
+
         val name = x._1
-        val rad = view.settings.circleRadius * 4
-        val rotation = Orbits.laplacePlaneICRFTransformation(
+
+        val radiusAu = x._2.radiusKm * 1000.0 / Conversions.AuToMeters
+
+        // TODO: this could be cached for the planet
+        val tilt = Orbits.laplacePlaneICRFTransformation(
           x._2.axialTilt.rightAscension, x._2.axialTilt.declination)
 
-        view.drawSphere(
-          im,
-          Transformations.transformation(rotation, y._2.last.position),
-          scale,
-          Color.LIGHT_GRAY)
+        val rotationAngle = (x._2.rotDegPerDay * curDateJulian) % 360.0
+        val rotation = Transformations.rotZ(rotationAngle * Conversions.DegToRad)
+        val sphereTrans = Transformations.transformation(tilt.mul(rotation), pos)
+        val (_, _, _, _, diameterView) = sphereInfo(radiusAu, sphereTrans, camTrans, viewPos)
 
-        // TODO: draw axis
+        // if zoomed in far enough to see it, draw detailed view
+        if (diameterView > DetailMin) {
+          // ~~~~ detailed planet view ~~~~
 
-        val pos2d = View.perspective(pos, camTrans, viewPos)
-        val gr = im.getGraphics.asInstanceOf[Graphics2D]
-        gr.setRenderingHints(Viewer.RenderHints)
-        gr.setColor(Color.LIGHT_GRAY)
+          // coordinates in the viewer image
+          val pos2d = View.perspective(pos, camTrans, viewPos)
+          val (ptx, pty) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
 
-        // TODO: use cvtPos
-        val ptx = pos2d.x.toInt + im.getWidth / 2
-        val pty = im.getHeight - (pos2d.y.toInt + im.getHeight / 2)
+          if (view.inView(im, ptx, pty)) {
 
-        if (name.length > 0) {
-          println(view.settings.displayFont.getSize)
-          gr.setFont(view.settings.displayFont.deriveFont(view.settings.displayFont.getSize * 4.0f))
-          gr.drawString(name, ptx + rad, pty)
+            val scale = Vec3(radiusAu, radiusAu, radiusAu)
+
+            view.drawSphere(
+              im,
+              sphereTrans,
+              scale,
+              Color.LIGHT_GRAY,
+              true)
+
+            val gr = im.getGraphics.asInstanceOf[Graphics2D]
+            gr.setRenderingHints(Viewer.RenderHints)
+            val titleColor = Color.LIGHT_GRAY
+
+            gr.setFont(view.settings.displayFontLarge)
+
+            // put the name of the planet near the planet
+            // gr.drawString(name, ptx + rad, pty)
+
+            // put the name of the planet dramatically near the bottom of the screen
+            // TODO: this width could be cached for each planet
+            val lineWidth = gr.getFontMetrics(view.settings.displayFontLarge).stringWidth(name)
+
+            // fade the color in dramatically as a function of zoom
+            // val fade = math.min(((viewPos.z - DetailMin) / (DetailMax - DetailMin)).toFloat, 1.0f)
+            val detailMax = im.getHeight * 0.25
+            val fade = math.min(((diameterView - DetailMin) / (detailMax - DetailMin)).toFloat, 1.0f)
+
+            gr.setColor(new Color(
+              (titleColor.getRed * fade).toInt,
+              (titleColor.getGreen * fade).toInt,
+              (titleColor.getBlue * fade).toInt))
+
+            gr.drawString(
+              name.toUpperCase, im.getWidth / 2 - lineWidth / 2,
+              im.getHeight - view.settings.lineHeightLarge)
+
+          }
+        } else {
+          view.drawPosition(im, y._2.last.position, x._1, "", Color.LIGHT_GRAY)
         }
 
-      }})
-    } else {
-      planetMotions.foreach(x => view.drawPosition(im, x._2.last.position, x._1, "", Color.LIGHT_GRAY))
-    }
+        objects(name) = View.perspective(pos, view.camTrans, view.viewPos)
 
-    planetMotions.foreach(x => {
-      objects(x._1) = View.perspective(x._2.last.position, view.camTrans, view.viewPos)
-    })
+      }
+
+    }})
 
     // view.drawSphere(im, Transformations.IdentityTransformation, Vec3(0.5, 0.5, 0.5), Color.GREEN)
 
@@ -142,45 +190,53 @@ object Draw {
 
     if (MoonsExperiment) {
       Moons.Moons.foreach({case (name, moon) => {
+
+        // TODO: consider putting this in the detailed planet view above
+
         // TODO: remove ICRF transformation from calculation
+        // TODO: this can be precalculated for each moon
         val laplacePlane = Some(
           moon.laplacePlane.map(
             y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
         val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
-        RenderFlight.drawOrbit(im, motion, view, Color.LIGHT_GRAY, motionVerticals)
-        view.drawPosition(im, motion.last.position, name, "", Color.LIGHT_GRAY)
 
-        if (orbitInfo) {
+        // TODO: this should be calculated separately
+        // so the full period isn't required if we aren't going to draw it anyway
+        val moonPos = motion.last.position
 
-          /*
-          RenderFlight.drawOrbitInfo(
-            im,
-            moon.moon(curDateJulian),
-            Transformations.transformation(
+        // find the radius of the orbit in the viewer
+        val primaryPos = Orbits.planetState(moon.primary, curDateJulian).position
+        val moonPosView = View.perspective(moonPos, camTrans, viewPos)
+        val primaryPosView = View.perspective(primaryPos, camTrans, viewPos)
+        val radiusView = Vec2.length(Vec2.sub(moonPosView, primaryPosView))
+
+        if (radiusView > DetailMin) {
+          RenderFlight.drawOrbit(im, motion, view, Color.LIGHT_GRAY, motionVerticals)
+
+          view.drawPosition(im, moonPos, name, "", Color.LIGHT_GRAY)
+
+          if (orbitInfo) {
+
+            val preTrans = Transformations.transformation(
               laplacePlane.getOrElse(Transformations.Identity3),
-              Orbits.planetState(moon.primary, curDateJulian).position),
-            view)
+              Orbits.planetState(moon.primary, curDateJulian).position)
 
-           */
+            RenderFlight.drawOrbitInfo(
+              im,
+              moon.moon(curDateJulian),
+              preTrans,
+              view)
 
-          val preTrans = Transformations.transformation(
-            laplacePlane.getOrElse(Transformations.Identity3),
-            Orbits.planetState(moon.primary, curDateJulian).position)
+            val pMotion = RenderFlight.precessionPeriod(moon.moon, curDateJulian, preTrans)
+            RenderFlight.drawOrbit(
+              im, pMotion, view,
+              RenderFlight.ColorOrbital, motionVerticals, true)
 
-          RenderFlight.drawOrbitInfo(
-            im,
-            moon.moon(curDateJulian),
-            preTrans,
-            view)
+          }
 
-          val pMotion = RenderFlight.precessionPeriod(moon.moon, curDateJulian, preTrans)
-          RenderFlight.drawOrbit(
-            im, pMotion, view,
-            RenderFlight.ColorOrbital, motionVerticals, true)
+          objects(name) = View.perspective(motion.last.position, view.camTrans, view.viewPos)
 
         }
-
-        objects(name) = View.perspective(motion.last.position, view.camTrans, view.viewPos)
 
       }})
 
@@ -325,5 +381,34 @@ object Draw {
     objects
 
   }
+
+
+  // get info used for rendering spheres
+  def sphereInfo(
+      radiusZ: Double,
+      trans: Mat44,
+      camTrans: Mat44,
+      viewPos: Vec3): (Vec3, Vec3, Vec2, Vec2, Double) = {
+
+    // how big is the sphere in the viewport?
+    // note that this could be calculated from a transformation without rotation
+
+    val northPole = Transformations.transform(trans, Vec3(0.0, 0.0, radiusZ))
+    val southPole = Transformations.transform(trans, Vec3(0.0, 0.0, -radiusZ))
+
+    // draw axis
+    // view.drawLine(im, northPole, southPole, Color.LIGHT_GRAY)
+
+    val northPoleView = View.perspective(northPole, camTrans, viewPos)
+    val southPoleView = View.perspective(southPole, camTrans, viewPos)
+    val diameterView = Vec2.length(Vec2.sub(northPoleView, southPoleView))
+
+    (northPole, southPole, northPoleView, southPoleView, diameterView)
+
+  }
+
+
+
+
 
 }

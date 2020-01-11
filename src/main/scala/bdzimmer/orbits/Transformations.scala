@@ -44,23 +44,23 @@ object Transformations {
   def rotX(theta: Double): Mat33 = {
     Mat33(
       UnitX,
-      Vec3(0.0, math.cos(theta), -math.sin(theta)),
-      Vec3(0.0, math.sin(theta),  math.cos(theta)))
+      Vec3(0.0,  math.cos(theta), math.sin(theta)),
+      Vec3(0.0, -math.sin(theta),  math.cos(theta)))
   }
 
 
   def rotY(theta: Double): Mat33 = {
     Mat33(
-      Vec3( math.cos(theta), 0.0, math.sin(theta)),
+      Vec3(math.cos(theta), 0.0, -math.sin(theta)),
       UnitY,
-      Vec3(-math.sin(theta), 0.0, math.cos(theta)))
+      Vec3(math.sin(theta), 0.0,  math.cos(theta)))
   }
 
 
   def rotZ(theta: Double): Mat33 = {
     Mat33(
-      Vec3(math.cos(theta), -math.sin(theta), 0.0),
-      Vec3(math.sin(theta),  math.cos(theta), 0.0),
+      Vec3(math.cos(theta),  math.sin(theta), 0.0),
+      Vec3(-math.sin(theta), math.cos(theta), 0.0),
       UnitZ)
   }
 
