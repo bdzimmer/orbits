@@ -365,78 +365,9 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
 }
 
 
-case class ViewerSettings(
-    displayFont: Font,
-    displayFontItalic: Font,
-    lineHeight: Int,
-    columnWidth: Int,
-
-    displayFontSmall: Font,
-    displayFontItalicSmall: Font,
-    lineHeightSmall: Int,
-    columnWidthSmall: Int,
-
-    displayFontLarge: Font,
-    lineHeightLarge: Int,
-
-    stroke: Stroke,
-
-    circleRadius: Int,
-    arrows3D: Boolean,
-    arrowLength: Double
-)
-
-
 object Viewer {
 
   val DrawMax = 32768
-
-  val ViewerSettingsDefault = ViewerSettings(
-    displayFont = new Font("Monospace", Font.BOLD, 12),
-    displayFontItalic = new Font("Monospace", Font.BOLD | Font.ITALIC, 12),
-    lineHeight = 14,
-    columnWidth = 100,
-
-    displayFontSmall = new Font("Monospace", Font.BOLD, 12),
-    displayFontItalicSmall = new Font("Monospace", Font.BOLD | Font.ITALIC, 12),
-    lineHeightSmall = 14,
-    columnWidthSmall = 100,
-
-    displayFontLarge = new Font("Monospace", Font.BOLD, 48),
-    lineHeightLarge = 56,
-
-    stroke = new BasicStroke(2),
-
-    circleRadius = 6,
-    arrows3D = false,
-    arrowLength = 0.0
-  )
-
-  val ViewerSettingsArtsy = ViewerSettings(
-    // displayFont = new Font("Orbitron", Font.BOLD, 16),
-    // displayFontItalic = new Font("Orbitron", Font.BOLD | Font.ITALIC, 16),
-
-
-    displayFont = new Font("Play", Font.PLAIN, 16),
-    displayFontItalic = new Font("Play", Font.PLAIN | Font.ITALIC, 16),
-    lineHeight = 18,
-    columnWidth = 125,
-
-    displayFontSmall = new Font("Play", Font.PLAIN, 10),
-    displayFontItalicSmall = new Font("Play", Font.PLAIN | Font.ITALIC, 10),
-    lineHeightSmall = 11,
-    columnWidthSmall = 60,
-
-    displayFontLarge = new Font("Orbitron", Font.BOLD, 64),
-    lineHeightLarge = 72,
-
-    stroke = new BasicStroke(2),
-
-    circleRadius = 6,
-    arrows3D = true,
-    arrowLength = 100.0
-  )
-
 
   val RenderHints = new RenderingHints(
      RenderingHints.KEY_TEXT_ANTIALIASING,

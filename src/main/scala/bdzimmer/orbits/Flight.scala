@@ -242,7 +242,8 @@ object RenderFlight {
       startDate: CalendarDateTime,
       endDate: CalendarDateTime): BufferedImage = {
 
-    val viewerSettings = Viewer.ViewerSettingsDefault
+    // TODO: make this an argument
+    val viewerSettings = Style.ViewerSettingsDefault
 
     val startDateJulian = startDate.julian
     val endDateJulian = endDate.julian
@@ -344,7 +345,8 @@ object RenderFlight {
       endDate: CalendarDateTime,
       outputDir: String): Unit = {
 
-    val viewerSettings = Viewer.ViewerSettingsDefault
+    // TODO: make this an argument
+    val viewerSettings = Style.ViewerSettingsDefault
 
     val startDateJulian = startDate.julian
     val endDateJulian = endDate.julian
@@ -411,7 +413,7 @@ object RenderFlight {
       val xshiftAmount =  -imWidth * 0.1
       val viewPos = Vec3(xshiftAmount, 0, imWidth * 1.0)
 
-      val view = new Viewer(camTrans, viewPos, Viewer.ViewerSettingsDefault)
+      val view = new Viewer(camTrans, viewPos, viewerSettings)
 
       val curDateTime = Conversions.julianToCalendarDate(ticks(idx))
 
@@ -587,7 +589,7 @@ object RenderFlight {
 
   def defaultView(imWidth: Int, imHeight: Int, planetMax: Double, xshift: Boolean = true): Viewer = {
     val (camTrans, viewPos) = defaultViewParams(imWidth, imHeight, planetMax, xshift)
-    new Viewer(camTrans, viewPos, Viewer.ViewerSettingsDefault)
+    new Viewer(camTrans, viewPos, Style.ViewerSettingsDefault)
   }
 
 

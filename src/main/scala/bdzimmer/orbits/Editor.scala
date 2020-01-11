@@ -65,17 +65,6 @@ case class UpdateCameraControls(
 )
 
 
-// TODO: make the fields constant
-case class ShowSettings(
-   var planets: scala.collection.immutable.Map[String, Boolean],
-   var lagrangePoints: Boolean,
-   var asteroidBelt: Boolean,
-   var orbitInfo: Boolean,
-   var motionVerticals: Boolean,
-   var flightStatus: Int      // TODO: enumeration
-)
-
-
 class Editor(
     flightsList: List[FlightParams],
     ships: List[Spacecraft]

@@ -20,7 +20,7 @@ object Draw {
 
   val EpsVel = 1.0e-4  // for velocity calculation
 
-  val DisplaySettings = Viewer.ViewerSettingsArtsy
+  val DisplaySettings = Style.ViewerSettingsArtsy
 
   val MoonsExperiment = true
 
