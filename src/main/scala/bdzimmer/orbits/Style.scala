@@ -109,8 +109,8 @@ object Style {
     } else {
 
       try { // feeling lazy
-        s.split("\\s*\\;\\s*").foreach(change => {
-          val cs = change.split("\\&")
+        s.split("\\s*\\&\\s*").foreach(change => {
+          val cs = change.split("\\~")
           val key = cs(0)
           val value = cs(1)
           key match {

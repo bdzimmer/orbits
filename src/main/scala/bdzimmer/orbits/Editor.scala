@@ -561,7 +561,7 @@ object Editor {
   val ControlsWidth = 400
 
   val FactionsFilename = "orbits_factions.txt"
-  val StylesFilename = "orits_styles.txt"
+  val StylesFilename = "orbits_styles.txt"
 
   val ExportFilename = "flights_export"
 
