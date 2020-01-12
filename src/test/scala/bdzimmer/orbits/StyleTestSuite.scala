@@ -12,7 +12,7 @@ class StyleTestSuite extends FunSuite {
 
     // ~~~~ no modifications
 
-    val default = Style.ViewerSettingsArtsy
+    val default = Style.ViewerSettingsDefault
 
     assert(
       Style.viewerSettingsFromString("").equals(default))

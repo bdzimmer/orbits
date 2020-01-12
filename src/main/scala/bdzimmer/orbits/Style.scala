@@ -56,30 +56,30 @@ object Style {
   // TODO: constants for font names / types
   // TODO: find proper monospace font
 
-  // TODO: rename to "plain"
+//  // TODO: rename to "plain"
+//  val ViewerSettingsDefault = ViewerSettings(
+//    displayFont = new Font(Font.MONOSPACED, Font.BOLD, 12),
+//    displayFontItalic = new Font(Font.MONOSPACED, Font.BOLD | Font.ITALIC, 12),
+//    lineHeight = 14,
+//    columnWidth = 100,
+//
+//    displayFontSmall = new Font(Font.MONOSPACED, Font.BOLD, 12),
+//    displayFontItalicSmall = new Font(Font.MONOSPACED, Font.BOLD | Font.ITALIC, 12),
+//    lineHeightSmall = 14,
+//    columnWidthSmall = 100,
+//
+//    displayFontLarge = new Font(Font.MONOSPACED, Font.BOLD, 48),
+//    lineHeightLarge = 56,
+//
+//    stroke = new BasicStroke(2),
+//
+//    circleRadius = 6,
+//    arrows3D = false,
+//    arrowLength = 0.0
+//  )
+
+
   val ViewerSettingsDefault = ViewerSettings(
-    displayFont = new Font(Font.MONOSPACED, Font.BOLD, 12),
-    displayFontItalic = new Font(Font.MONOSPACED, Font.BOLD | Font.ITALIC, 12),
-    lineHeight = 14,
-    columnWidth = 100,
-
-    displayFontSmall = new Font(Font.MONOSPACED, Font.BOLD, 12),
-    displayFontItalicSmall = new Font(Font.MONOSPACED, Font.BOLD | Font.ITALIC, 12),
-    lineHeightSmall = 14,
-    columnWidthSmall = 100,
-
-    displayFontLarge = new Font(Font.MONOSPACED, Font.BOLD, 48),
-    lineHeightLarge = 56,
-
-    stroke = new BasicStroke(2),
-
-    circleRadius = 6,
-    arrows3D = false,
-    arrowLength = 0.0
-  )
-
-
-  val ViewerSettingsArtsy = ViewerSettings(
     displayFont = new Font(Fonts.FontPlay, Font.PLAIN, 16),
     displayFontItalic = new Font(Fonts.FontPlay, Font.PLAIN | Font.ITALIC, 16),
     lineHeight = 18,
@@ -102,7 +102,7 @@ object Style {
 
 
   def viewerSettingsFromString(s: String): ViewerSettings = {
-    var settings = ViewerSettingsArtsy
+    var settings = ViewerSettingsDefault
 
     if (s.equals("")) {
       settings

@@ -76,7 +76,7 @@ class Editor(
 
   val showSettings = Editor.ShowSettingsDefault.copy()
   val cameraSettings = Editor.CameraSettingsDefault.copy()
-  var viewerSettings = Style.ViewerSettingsArtsy
+  var viewerSettings = Style.ViewerSettingsDefault
 
   var prevPos = Vec3(0.0, 0.0, 0.0)
 
@@ -787,7 +787,7 @@ object Editor {
 
     val styleMenu = new JMenu("Style")
     val styleButtonGroup = new ButtonGroup()
-    val stylesList = ("Default", Style.ViewerSettingsArtsy) :: styles.toList
+    val stylesList = ("Default", Style.ViewerSettingsDefault) :: styles.toList
     stylesList.zipWithIndex.foreach({case ((key, value), idx) => {
       val button = new JRadioButtonMenuItem(key)
       button.addActionListener(new ActionListener {
