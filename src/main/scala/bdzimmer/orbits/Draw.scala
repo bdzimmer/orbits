@@ -20,7 +20,7 @@ object Draw {
 
   val EpsVel = 1.0e-4  // for velocity calculation
 
-  val DisplaySettings = Style.ViewerSettingsArtsy
+  // val DisplaySettings = Style.ViewerSettingsArtsy
 
   val MoonsExperiment = true
 
@@ -39,8 +39,8 @@ object Draw {
       lagrangePoints: Boolean,
       orbitInfo: Boolean,
       motionVerticals: Boolean,
-
       statusOption: Int,
+      viewerSettings: ViewerSettings,
 
       // camTrans: Mat44,
       camInfo: (Mat33, Vec3),
@@ -61,7 +61,7 @@ object Draw {
 
     val objects: scala.collection.mutable.Map[String, Vec2] = new scala.collection.mutable.HashMap[String, Vec2]()
 
-    val view = new Viewer(camTrans, viewPos, DisplaySettings)
+    val view = new Viewer(camTrans, viewPos, viewerSettings)
 
     // helper - draw velocity arrow
     def drawVelocityArrow(flightFn: FlightFn, color: Color): Double = {
@@ -311,7 +311,7 @@ object Draw {
         Conversions.julianToCalendarDate(curDateJulian),
         Vec3.length(Vec3.sub(positions.last, positions.head)),
         vel,
-        DisplaySettings
+        viewerSettings
       )
 
     })
@@ -354,7 +354,7 @@ object Draw {
           Conversions.julianToCalendarDate(curDateJulian),
           Vec3.length(Vec3.sub(flightStates.last, flightStates.head)),
           curVel,
-          DisplaySettings)
+          viewerSettings)
       } else if (statusOption == 1) {
         // draw flight summary
         fp.ship match {
@@ -366,12 +366,12 @@ object Draw {
             RenderFlight.drawFlightSummary(
               im, x, fp.faction, distance, vel, accel,
               fp.origName, fp.destName, fp.startDate, fp.endDate,
-              DisplaySettings)
+              viewerSettings)
           }
           case x: ConstVelCraft => RenderFlight.drawFlightSummary(
             im, x, fp.faction, distance, vel,
             fp.origName, fp.destName, fp.startDate, fp.endDate,
-            DisplaySettings)
+            viewerSettings)
         }
 
       }

@@ -27,13 +27,13 @@ case class AnimationSettings(
 
 object Animation {
 
-  // TODO: lots of extra stuff needs to go here
   def animateFlights(
       flights: List[FlightParams],   // all flights in epoch
       startDate: CalendarDateTime,
       endDate: CalendarDateTime,
       factions: Map[String, Color],
       showSettings: ShowSettings,
+      viewerSettings: ViewerSettings,
       animationSettings: AnimationSettings,
       outputDirname: String): Unit = {
 
@@ -139,6 +139,7 @@ object Animation {
         showSettings.orbitInfo,
         showSettings.motionVerticals,
         showSettings.flightStatus,
+        viewerSettings,
         (camRot, initCamPos),
         initViewPos,
         im

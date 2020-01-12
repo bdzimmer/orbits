@@ -67,13 +67,17 @@ case class UpdateCameraControls(
 
 class Editor(
     flightsList: List[FlightParams],
-    ships: List[Spacecraft]
+    ships: List[Spacecraft],
+    styles: Map[String, ViewerSettings],
+    factions: Map[String, Color]
   ) extends JFrame {
 
   Toolkit.getDefaultToolkit().setDynamicLayout(false)
 
   val showSettings = Editor.ShowSettingsDefault.copy()
   val cameraSettings = Editor.CameraSettingsDefault.copy()
+  var viewerSettings = Style.ViewerSettingsArtsy
+
   var prevPos = Vec3(0.0, 0.0, 0.0)
 
   // for clicking on objects
@@ -83,7 +87,7 @@ class Editor(
   // make mutable copy of flights list
   val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
 
-  val factions: Map[String, Color] = IO.loadFactions(Editor.FactionsFilename)
+  // val factions: Map[String, Color] = IO.loadFactions(Editor.FactionsFilename)
 
   /// /// image for view
 
@@ -120,7 +124,11 @@ class Editor(
   /// /// build menu bar
 
   val mainMenuBar = Editor.buildMenuBar(
-    showSettings, redraw, flights, ships.map(x => (x.name, x)).toMap, rebuildFlights)
+    showSettings, redraw, flights,
+    ships.map(x => (x.name, x)).toMap,
+    rebuildFlights,
+    styles,
+    x => {viewerSettings = x}) // TODO: if this works, redo camerasettings like this
 
   setJMenuBar(mainMenuBar)
 
@@ -275,6 +283,7 @@ class Editor(
       showSettings.orbitInfo,
       showSettings.motionVerticals,
       showSettings.flightStatus,
+      viewerSettings,
       (camRot, camPos),
       viewPos,
       image
@@ -291,7 +300,7 @@ class Editor(
     // some of this could be before Draw.redraw if it didn't clear the image...food for thought
 
     val camTrans = View.cameraTransform(camRot, camPos)
-    val view = new Viewer(camTrans, viewPos, Draw.DisplaySettings)
+    val view = new Viewer(camTrans, viewPos, viewerSettings)
 
     selectedObjects.foreach({case (name, (_, selected)) => {
       if (selected) {
@@ -551,7 +560,9 @@ object Editor {
   val RotateSpeed = 0.1
   val ControlsWidth = 400
 
-  val FactionsFilename = "factions.txt"
+  val FactionsFilename = "orbits_factions.txt"
+  val StylesFilename = "orits_styles.txt"
+
   val ExportFilename = "flights_export"
 
 
@@ -646,7 +657,9 @@ object Editor {
       redraw: () => Unit,
       flights: scala.collection.mutable.Buffer[FlightParams],
       ships: Map[String, Spacecraft],
-      rebuildFlights: () => Unit): JMenuBar = {
+      rebuildFlights: () => Unit,
+      styles: Map[String, ViewerSettings],
+      updateViewerSettings: ViewerSettings => Unit): JMenuBar = {
 
     val menuBar = new JMenuBar()
 
@@ -757,6 +770,7 @@ object Editor {
 
     viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
 
+    // TODO: do this with a single foreach
     val flightStatusButtonGroup = new ButtonGroup()
     val flightStatusRadioButtons = List("Status", "Summary", "None").map(x => new JRadioButtonMenuItem(x))
     flightStatusRadioButtons(showSettings.flightStatus).setSelected(true)
@@ -766,11 +780,34 @@ object Editor {
         redraw()
       }
     }))
-    flightStatusRadioButtons.map(x => flightStatusButtonGroup.add(x))
+    flightStatusRadioButtons.foreach(x => flightStatusButtonGroup.add(x))
     flightStatusRadioButtons.foreach(x => viewMenu.add(x))
+
+    // ~~~~
+
+    val styleMenu = new JMenu("Style")
+    val styleButtonGroup = new ButtonGroup()
+    val stylesList = ("Default", Style.ViewerSettingsArtsy) :: styles.toList
+    stylesList.zipWithIndex.foreach({case ((key, value), idx) => {
+      val button = new JRadioButtonMenuItem(key)
+      button.addActionListener(new ActionListener {
+        override def actionPerformed(e: ActionEvent): Unit = {
+          updateViewerSettings(value)
+          redraw()
+        }
+      })
+      if (idx == 0) {
+        button.setSelected(true)
+      }
+      styleButtonGroup.add(button)
+      styleMenu.add(button)
+    }})
+
+    // ~~~~
 
     menuBar.add(fileMenu)
     menuBar.add(viewMenu)
+    menuBar.add(styleMenu)
 
     menuBar
   }

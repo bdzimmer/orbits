@@ -34,6 +34,20 @@ object IO {
   }
 
 
+  // load styles
+  def loadStyles(inputFilename: String): Map[String, ViewerSettings] = {
+    val inputFile = new java.io.File(inputFilename)
+    Try({
+      val lines = FileUtils.readLines(inputFile)
+      lines.asScala.map(line => {
+        val splitted = line.split(",")
+        val name = splitted(0)
+        (name, Style.viewerSettingsFromString(splitted(1)))
+      }).toMap
+    }).getOrElse(Map())
+  }
+
+
   // load flights from a tab-separated file
   def loadFlightsTsv(inputFilename: String, ships: Map[String, Spacecraft]): List[FlightParams] = {
     val lines = FileUtils.readLines(new File(inputFilename))
