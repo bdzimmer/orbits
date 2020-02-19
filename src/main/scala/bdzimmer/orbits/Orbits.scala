@@ -309,7 +309,7 @@ object Orbits {
 
     moonRelMotionRot.map(x => OrbitalState(
       Vec3.add(x.position, primaryState.position),
-      x.velocity))
+      x.velocity))  // TODO: add the primary's velocity properly
 
   }
 

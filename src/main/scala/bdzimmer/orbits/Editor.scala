@@ -565,69 +565,72 @@ object Editor {
 
   val ExportFilename = "flights_export"
 
-
-
   // find position of a celestial body by name at a certain date
-  def findPosition(
-      fullName: String,
-      curDateJulian: Double): Vec3 = {
-
-    // TODO: lagrange - replace some of this logic with a map, or split LagrangePoint definition here
-    // it would be better to construct the map of Orbital whatevers once ahead of time
-    // since this gets invoked every draw...blech
-
-    // check if the last part is "-LX"
-    val suffix: String = fullName.takeRight(3)
-    val (lagrangePoint, name) = if (suffix(0) == '-' && suffix(1) == 'L') {
-      (Some(suffix.takeRight(2)), fullName.dropRight(3))
-    } else {
-      (None, fullName)
-    }
-
-    if (MeeusPlanets.Planets.keySet.contains(name)) {
-      // is it a planet?
-
-      val planet = MeeusPlanets.Planets.getOrElse(name, MeeusPlanets.Earth).planet
-
-      // convert the planet estimator to lagrange point estimator if necessary
-      val planetPoint = lagrangePoint.map({
-        // son of a gun...I had no idea this was valid syntax
-        case "L3" => new MeeusPlanets.L3Estimator(planet)
-        case "L4" => new MeeusPlanets.L4Estimator(planet)
-        case "L5" => new MeeusPlanets.L5Estimator(planet)
-        case _    => planet
-      }).getOrElse(planet)
-
-      Orbits.planetState(planetPoint, curDateJulian).position
-
-    } else if (Moons.Moons.keySet.contains(name)) {
-      // is it a moon?
-
-      val moon = Moons.Moons.getOrElse(name, Moons.Luna)
-      val primaryPos = Orbits.planetState(moon.primary, curDateJulian).position
-
-      // TODO: this is awkward
-      // all of this should just be an an estimator or something like it
-      val laplacePlane = moon.laplacePlane.map(
-        y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
-      ).getOrElse(Conversions.ICRFToEcliptic)
-
-      val moonRelativePos = laplacePlane.mul(
-        Orbits.planetState(moon.moon, curDateJulian).position)
-
-      Vec3.add(primaryPos, moonRelativePos)
-
-    } else if (name.equals("Sun")) {
-
-      // Sun is always at the origin
-      Vec3(0.0, 0.0, 0.0)
-
-    } else {
-      println("Unknown body '" + name + "' in findPosition")
-      Vec3(0.0, 0.0, 0.0)
-    }
-
+  def findPosition(fullName: String, curDateJulian: Double): Vec3 = {
+    Locations.StatesMap.get(fullName).map(
+      func => func(curDateJulian).position).getOrElse(Transformations.Vec3Zero)
   }
+
+//  def findPosition(
+//      fullName: String,
+//      curDateJulian: Double): Vec3 = {
+//
+//    // TODO: lagrange - replace some of this logic with a map, or split LagrangePoint definition here
+//    // it would be better to construct the map of Orbital whatevers once ahead of time
+//    // since this gets invoked every draw...blech
+//
+//    // check if the last part is "-LX"
+//    val suffix: String = fullName.takeRight(3)
+//    val (lagrangePoint, name) = if (suffix(0) == '-' && suffix(1) == 'L') {
+//      (Some(suffix.takeRight(2)), fullName.dropRight(3))
+//    } else {
+//      (None, fullName)
+//    }
+//
+//    if (MeeusPlanets.Planets.keySet.contains(name)) {
+//      // is it a planet?
+//
+//      val planet = MeeusPlanets.Planets.getOrElse(name, MeeusPlanets.Earth).planet
+//
+//      // convert the planet estimator to lagrange point estimator if necessary
+//      val planetPoint = lagrangePoint.map({
+//        // son of a gun...I had no idea this was valid syntax
+//        case "L3" => new MeeusPlanets.L3Estimator(planet)
+//        case "L4" => new MeeusPlanets.L4Estimator(planet)
+//        case "L5" => new MeeusPlanets.L5Estimator(planet)
+//        case _    => planet
+//      }).getOrElse(planet)
+//
+//      Orbits.planetState(planetPoint, curDateJulian).position
+//
+//    } else if (Moons.Moons.keySet.contains(name)) {
+//      // is it a moon?
+//
+//      val moon = Moons.Moons.getOrElse(name, Moons.Luna)
+//      val primaryPos = Orbits.planetState(moon.primary, curDateJulian).position
+//
+//      // TODO: this is awkward
+//      // all of this should just be an an estimator or something like it
+//      val laplacePlane = moon.laplacePlane.map(
+//        y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
+//      ).getOrElse(Conversions.ICRFToEcliptic)
+//
+//      val moonRelativePos = laplacePlane.mul(
+//        Orbits.planetState(moon.moon, curDateJulian).position)
+//
+//      Vec3.add(primaryPos, moonRelativePos)
+//
+//    } else if (name.equals("Sun")) {
+//
+//      // Sun is always at the origin
+//      Vec3(0.0, 0.0, 0.0)
+//
+//    } else {
+//      println("Unknown body '" + name + "' in findPosition")
+//      Vec3(0.0, 0.0, 0.0)
+//    }
+//
+//  }
 
   def paramsToFun(fp: FlightParams): (FlightFn, scala.collection.immutable.Seq[Double]) = {
 
