@@ -256,6 +256,7 @@ object Draw {
 
     // draw L3, L4 and L5 points of visible planets
     if (lagrangePoints) {
+      // TODO: would be nice to not reconstruct these every time
       planets.foreach(p => {
         view.drawPosition(
           im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2.planet), curDateJulian).position,

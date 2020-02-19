@@ -544,7 +544,7 @@ object Editor {
 
   val ShowSettingsDefault = ShowSettings(
       planets = MeeusPlanets.Planets.map(x => (x._1, InitialVisiblePlanets.contains(x._1))),
-      lagrangePoints = false,
+      lagrangePoints = true,  // TODO: false
       asteroidBelt = true,
       orbitInfo = false,
       motionVerticals = false,
@@ -569,14 +569,36 @@ object Editor {
 
   // find position of a celestial body by name at a certain date
   def findPosition(
-      name: String,
+      fullName: String,
       curDateJulian: Double): Vec3 = {
+
+    // TODO: lagrange - replace some of this logic with a map, or split LagrangePoint definition here
+    // it would be better to construct the map of Orbital whatevers once ahead of time
+    // since this gets invoked every draw...blech
+
+    // check if the last part is "-LX"
+    val suffix: String = fullName.takeRight(3)
+    val (lagrangePoint, name) = if (suffix(0) == '-' && suffix(1) == 'L') {
+      (Some(suffix.takeRight(2)), fullName.dropRight(3))
+    } else {
+      (None, fullName)
+    }
 
     if (MeeusPlanets.Planets.keySet.contains(name)) {
       // is it a planet?
 
       val planet = MeeusPlanets.Planets.getOrElse(name, MeeusPlanets.Earth).planet
-      Orbits.planetState(planet, curDateJulian).position
+
+      // convert the planet estimator to lagrange point estimator if necessary
+      val planetPoint = lagrangePoint.map({
+        // son of a gun...I had no idea this was valid syntax
+        case "L3" => new MeeusPlanets.L3Estimator(planet)
+        case "L4" => new MeeusPlanets.L4Estimator(planet)
+        case "L5" => new MeeusPlanets.L5Estimator(planet)
+        case _    => planet
+      }).getOrElse(planet)
+
+      Orbits.planetState(planetPoint, curDateJulian).position
 
     } else if (Moons.Moons.keySet.contains(name)) {
       // is it a moon?
@@ -585,6 +607,7 @@ object Editor {
       val primaryPos = Orbits.planetState(moon.primary, curDateJulian).position
 
       // TODO: this is awkward
+      // all of this should just be an an estimator or something like it
       val laplacePlane = moon.laplacePlane.map(
         y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
       ).getOrElse(Conversions.ICRFToEcliptic)
@@ -596,14 +619,13 @@ object Editor {
 
     } else if (name.equals("Sun")) {
 
-      // sun is always at the origin
+      // Sun is always at the origin
       Vec3(0.0, 0.0, 0.0)
 
     } else {
       println("Unknown body '" + name + "' in findPosition")
       Vec3(0.0, 0.0, 0.0)
     }
-
 
   }
 
@@ -1292,9 +1314,12 @@ object Editor {
 
     // TODO: better programatic creation of camera types
 
-    val bodies = (List("Sun") ++ MeeusPlanets.Planets.keysIterator ++ Moons.Moons.keysIterator).toList
+    val cameraPosType = new JComboBox[String]((
+        List("Manual") ++
+        Locations.Bodies ++
+        Locations.LagrangePoints
+    ).toArray)
 
-    val cameraPosType = new JComboBox[String]((List("Manual") ++ bodies).toArray)
     cameraPosType.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
         cameraSettings.cameraPosType = cameraPosType.getSelectedItem.asInstanceOf[String]
@@ -1302,7 +1327,12 @@ object Editor {
       }
     })
 
-    val cameraPointType = new JComboBox[String]((List("Manual", "Follow Active") ++ bodies).toArray)
+    val cameraPointType = new JComboBox[String]((
+        List("Manual", "Follow Active") ++
+        Locations.Bodies ++
+        Locations.LagrangePoints
+    ).toArray)
+
     cameraPointType.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
           cameraSettings.cameraPointType = cameraPointType.getSelectedItem.asInstanceOf[String]

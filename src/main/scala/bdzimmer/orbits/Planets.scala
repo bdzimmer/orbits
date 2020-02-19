@@ -413,3 +413,23 @@ object Moons {
   }
 
 }
+
+
+object Locations {
+  // General collections of locatios that we should be able to operate on
+
+  // TODO: turn Bodies into a map -> (OrbitalElementsEstimator, type) or something
+
+  val Bodies: List[String] = (
+      List("Sun") ++
+      MeeusPlanets.Planets.keysIterator ++
+      Moons.Moons.keysIterator) // .toList happens with List("Sun")
+
+  // only generate lagrange point labels for moons now
+  // TODO: also make this a map String => OrbitalElementsEstimator
+  // TODO: L-point estimators have a common parent
+  val LagrangePoints: List[String] = MeeusPlanets.Planets.keysIterator.flatMap(planetName => {
+    List("L3", "L4", "L5").map(pointName => (planetName + "-" + pointName))
+  }).toList
+
+}
