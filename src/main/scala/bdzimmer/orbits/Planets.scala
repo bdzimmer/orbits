@@ -476,17 +476,8 @@ object Locations {
         y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
       ).getOrElse(Conversions.ICRFToEcliptic)
 
-      // TODO: this needs to be a function called "Orbits.moonState"
-      curDateJulian => {
-        val primaryState = Orbits.planetState(moon.primary, curDateJulian)
-        val moonState = Orbits.planetState(moon.moon, curDateJulian)
-        val moonRelativePos = laplacePlane.mul(moonState.position)
-        val moonRelativeVel = laplacePlane.mul(moonState.velocity)
-
-        OrbitalState(
-          position = Vec3.add(primaryState.position, moonRelativePos),
-          velocity = Vec3.add(primaryState.velocity, moonRelativeVel))
-      }
+      curDateJulian => Orbits.moonState(
+        moon.moon, moon.primary, laplacePlane, curDateJulian)
 
     } else {
       // Sun and any unknown bodies

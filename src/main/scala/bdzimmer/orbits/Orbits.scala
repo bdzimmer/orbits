@@ -278,6 +278,24 @@ object Orbits {
   }
 
 
+  def moonState(
+      moon: MoonICRFEstimator,
+      primary: OrbitalElementsEstimator,
+      laplacePlane: Mat33,
+      curDateJulian: Double): OrbitalState = {
+
+    val primaryState = Orbits.planetState(primary, curDateJulian)
+    val moonState = Orbits.planetState(moon, curDateJulian)
+    val moonRelativePos = laplacePlane.mul(moonState.position)
+    val moonRelativeVel = laplacePlane.mul(moonState.velocity)
+
+    OrbitalState(
+      position = Vec3.add(primaryState.position, moonRelativePos),
+      velocity = Vec3.add(primaryState.velocity, moonRelativeVel))
+
+  }
+
+
   def moonMotionPeriod(
       primary: OrbitalElementsEstimator,
       moon: MoonICRFEstimator,
@@ -285,6 +303,8 @@ object Orbits {
       startTime: Double,
       nPoints: Int = 90
     ): Seq[OrbitalState] = {
+
+    // TODO: refactor in light of moonState function above
 
     // TODO: is there a way to properly calculate the period instead of using this?
     val period = moon.p
@@ -307,9 +327,10 @@ object Orbits {
 
     val primaryState = planetState(primary, startTime)
 
+    // TODO: the velocity calculation here is incorrect
     moonRelMotionRot.map(x => OrbitalState(
       Vec3.add(x.position, primaryState.position),
-      x.velocity))  // TODO: add the primary's velocity properly
+      x.velocity))
 
   }
 
