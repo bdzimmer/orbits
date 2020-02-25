@@ -25,8 +25,10 @@ case class FlightParams(
     ship: Spacecraft,
     origName: String,
     destName: String,
-    orig: OrbitalElementsEstimator,
-    dest: OrbitalElementsEstimator,
+    // orig: OrbitalElementsEstimator,
+    // dest: OrbitalElementsEstimator,
+    orig: Double => OrbitalState,
+    dest: Double => OrbitalState,
     startDate: CalendarDateTime,
     endDate: CalendarDateTime,
     passengers: List[String],
@@ -571,66 +573,6 @@ object Editor {
       func => func(curDateJulian).position).getOrElse(Transformations.Vec3Zero)
   }
 
-//  def findPosition(
-//      fullName: String,
-//      curDateJulian: Double): Vec3 = {
-//
-//    // TODO: lagrange - replace some of this logic with a map, or split LagrangePoint definition here
-//    // it would be better to construct the map of Orbital whatevers once ahead of time
-//    // since this gets invoked every draw...blech
-//
-//    // check if the last part is "-LX"
-//    val suffix: String = fullName.takeRight(3)
-//    val (lagrangePoint, name) = if (suffix(0) == '-' && suffix(1) == 'L') {
-//      (Some(suffix.takeRight(2)), fullName.dropRight(3))
-//    } else {
-//      (None, fullName)
-//    }
-//
-//    if (MeeusPlanets.Planets.keySet.contains(name)) {
-//      // is it a planet?
-//
-//      val planet = MeeusPlanets.Planets.getOrElse(name, MeeusPlanets.Earth).planet
-//
-//      // convert the planet estimator to lagrange point estimator if necessary
-//      val planetPoint = lagrangePoint.map({
-//        // son of a gun...I had no idea this was valid syntax
-//        case "L3" => new MeeusPlanets.L3Estimator(planet)
-//        case "L4" => new MeeusPlanets.L4Estimator(planet)
-//        case "L5" => new MeeusPlanets.L5Estimator(planet)
-//        case _    => planet
-//      }).getOrElse(planet)
-//
-//      Orbits.planetState(planetPoint, curDateJulian).position
-//
-//    } else if (Moons.Moons.keySet.contains(name)) {
-//      // is it a moon?
-//
-//      val moon = Moons.Moons.getOrElse(name, Moons.Luna)
-//      val primaryPos = Orbits.planetState(moon.primary, curDateJulian).position
-//
-//      // TODO: this is awkward
-//      // all of this should just be an an estimator or something like it
-//      val laplacePlane = moon.laplacePlane.map(
-//        y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
-//      ).getOrElse(Conversions.ICRFToEcliptic)
-//
-//      val moonRelativePos = laplacePlane.mul(
-//        Orbits.planetState(moon.moon, curDateJulian).position)
-//
-//      Vec3.add(primaryPos, moonRelativePos)
-//
-//    } else if (name.equals("Sun")) {
-//
-//      // Sun is always at the origin
-//      Vec3(0.0, 0.0, 0.0)
-//
-//    } else {
-//      println("Unknown body '" + name + "' in findPosition")
-//      Vec3(0.0, 0.0, 0.0)
-//    }
-//
-//  }
 
   def paramsToFun(fp: FlightParams): (FlightFn, scala.collection.immutable.Seq[Double]) = {
 
@@ -647,8 +589,11 @@ object Editor {
     val ticks = (startDateJulian until endDateJulian by res).toList.toIndexedSeq // don't ask
 
     // find positions of origin and destination bodies
-    val origState = Orbits.planetState(fp.orig, startDateJulian)
-    val destState = Orbits.planetState(fp.dest, endDateJulian)
+    // val origState = Orbits.planetState(fp.orig, startDateJulian)
+    // val destState = Orbits.planetState(fp.dest, endDateJulian)
+
+    val origState = fp.orig(startDateJulian)
+    val destState = fp.dest(endDateJulian)
 
     val flightFn = fp.ship match {
       case _: ConstAccelCraft => ConstAccelFlightFn(
@@ -869,15 +814,16 @@ object Editor {
 
     val shipsComboBox = new JComboBox(ships.map(_.name.replace("*", "")).toArray)
 
-    val planetsList = MeeusPlanets.Planets.keys.toList
-    val planetsArray = planetsList.toArray
+    // val planetsList = MeeusPlanets.Planets.keys.toList
+    // val planetsArray = planetsList.toArray
+    val locsArray = Locations.All.toArray
 
-    val startLocComboBox = new JComboBox(planetsArray)
+    val startLocComboBox = new JComboBox(locsArray)
 
     val startDateText = new JTextField("", 12)
     startDateText.setMaximumSize(startDateText.getPreferredSize)
 
-    val endLocComboBox = new JComboBox(planetsArray)
+    val endLocComboBox = new JComboBox(locsArray)
 
     val endDateText = new JTextField("", 12)
     endDateText.setMaximumSize(endDateText.getPreferredSize)
@@ -901,8 +847,8 @@ object Editor {
           ship = ships(shipsComboBox.getSelectedIndex),
           origName = origName,
           destName = destName,
-          orig = MeeusPlanets.Planets.getOrElse(origName, MeeusPlanets.Earth).planet,
-          dest = MeeusPlanets.Planets.getOrElse(destName, MeeusPlanets.Earth).planet,
+          orig = Locations.StatesMap.getOrElse(origName, Locations.DefaultFun),
+          dest = Locations.StatesMap.getOrElse(destName, Locations.DefaultFun),
           startDate = startDate,
           endDate = endDate,
           passengers = List()
@@ -967,8 +913,8 @@ object Editor {
       // println("updating flight fields:" + idx)
       val fp = flights(idx)
       shipsComboBox.setSelectedIndex(ships.indexOf(fp.ship))
-      startLocComboBox.setSelectedIndex(planetsList.indexOf(fp.origName)) // TODO: this isn't quite right
-      endLocComboBox.setSelectedIndex(planetsList.indexOf(fp.destName))
+      startLocComboBox.setSelectedIndex(locsArray.indexOf(fp.origName)) // TODO: this isn't quite right
+      endLocComboBox.setSelectedIndex(locsArray.indexOf(fp.destName))
       startDateText.setText(fp.startDate.dateTimeString)
       endDateText.setText(fp.endDate.dateTimeString)
       updateActionListener.enabled = true
@@ -1033,8 +979,8 @@ object Editor {
         val endDate = fp.endDate.julian
         val startDate = SolveFlight.startDate(
           fp.ship,
-          t => Orbits.planetState(fp.orig, t).position,
-          Orbits.planetState(fp.dest, endDate).position,
+          t => fp.orig(t).position,
+          fp.dest(endDate).position,
           endDate)
         println(startDate)
         startDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))
@@ -1050,8 +996,8 @@ object Editor {
         val startDate = fp.startDate.julian
         val endDate = SolveFlight.endDate(
           fp.ship,
-          Orbits.planetState(fp.orig, startDate).position,
-          t => Orbits.planetState(fp.dest, t).position,
+          fp.orig(startDate).position,
+          t => fp.dest(t).position,
           startDate)
         println(endDate)
         endDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))

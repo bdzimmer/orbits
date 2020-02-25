@@ -285,8 +285,8 @@ object Draw {
       val factionColor = factions.getOrElse(flight.faction, Color.LIGHT_GRAY)
 
       if (true) {
-        val origStates = ticks.map(tick => Orbits.planetState(flight.orig, tick))
-        val destStates = ticks.map(tick => Orbits.planetState(flight.dest, tick))
+        val origStates = ticks.map(tick => flight.orig(tick))
+        val destStates = ticks.map(tick => flight.dest(tick))
         view.drawMotion(im, origStates.map(_.position), factionColor, true, verticals = motionVerticals)
         view.drawMotion(im, destStates.map(_.position), factionColor, true, verticals = motionVerticals)
       }
@@ -326,8 +326,8 @@ object Draw {
         return scala.collection.mutable.Map()
       }
 
-      val origStates = ticks.map(tick => Orbits.planetState(fp.orig, tick))
-      val destStates = ticks.map(tick => Orbits.planetState(fp.dest, tick))
+      val origStates = ticks.map(tick => fp.orig(tick))
+      val destStates = ticks.map(tick => fp.dest(tick))
       val ticksSubset = ticks.takeWhile(x => x < curDateJulian)
       val flightStates = ticksSubset.map(tick => flightFn(tick))
 

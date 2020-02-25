@@ -441,6 +441,12 @@ object Locations {
 
   val All = Bodies ++ LagrangePoints
 
+  def DefaultFun(t: Double): OrbitalState = {
+    OrbitalState(
+      Transformations.Vec3Zero,
+      Transformations.Vec3Zero)
+  }
+
   // TODO: eventually map over tuples rather than re-splitting string
   // TODO: convert to listmap so the keys of this thing can be used
   val StatesMap = All.map(fullName => {
@@ -483,9 +489,7 @@ object Locations {
       // Sun and any unknown bodies
       // consider making Sun its own case
 
-      _ => OrbitalState(
-        Transformations.Vec3Zero,
-        Transformations.Vec3Zero)
+      DefaultFun
     }
 
     (fullName, stateFunc)
