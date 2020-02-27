@@ -36,7 +36,9 @@ case class FlightParams(
     description: String) {
 
   override def toString: String = {
-    startDate.dateString + " - " + ship.name.replace("*", "") + " - " + origName + " - " + destName
+    startDate.dateString + " - " +
+    ship.name.replace("*", "") + " - " +
+    origName + " - " + destName  // TODO: use an arrow here
   }
 
 }
@@ -70,6 +72,7 @@ case class UpdateCameraControls(
 class Editor(
     flightsList: List[FlightParams],
     ships: List[Spacecraft],
+    epochs: List[(String, Double, Double)],
     styles: Map[String, ViewerSettings],
     factions: Map[String, Color]
   ) extends JFrame {
@@ -106,7 +109,7 @@ class Editor(
   val (
       flightsToolbar, flightsComboBox,
       flightsSlider, getTimelineTime, timelineButton, skipButtons, rebuildFlights) = Editor.buildFlightsToolbar(
-      flights, ships, redraw)
+      flights, ships, epochs, redraw)
   toolbarRow0.add(flightsToolbar)
   toolbarRow0.add(
     Editor.buildExportToolbar(redrawGeneric))
@@ -786,6 +789,7 @@ object Editor {
   def buildFlightsToolbar(
       flights: scala.collection.mutable.Buffer[FlightParams],
       ships: List[Spacecraft],
+      epochs: List[(String, Double, Double)],
       redraw: () => Unit): (JToolBar, JComboBox[String], JSlider, () => Double,
       JToggleButton, ClearableButtonGroup, () => Unit) = {
 
@@ -1048,7 +1052,7 @@ object Editor {
     var timelineTime: Double = 0.0 // yep
     var runAtIntervalThread: Thread = null
 
-    val allPanel = new JPanel(new GridLayout(5, 1))
+    val allPanel = new JPanel(new GridLayout(6, 1))
 
     val timelineDateTimeText = new JTextField("", 19)
     timelineDateTimeText.setFont(new Font("monospaced", Font.BOLD, 48))
@@ -1080,16 +1084,34 @@ object Editor {
     val skipPanel = new JPanel(new GridLayout(1, 7))
     allPanel.add(skipPanel)
 
-    val delayMsText = new JTextField("50", 4)
+    val delayMsText = new JTextField("33", 4)
     delayMsText.setMaximumSize(delayMsText.getPreferredSize)
+
+    val epochsComboBox = new JComboBox[String](
+      epochs.zipWithIndex.map({case (x, idx) =>
+        (idx + 1) + ". " +
+        x._1 + " - " +
+        Conversions.julianToCalendarDate(x._2).dateTimeString + " - " +
+        Conversions.julianToCalendarDate(x._3).dateTimeString}).toArray)
+
+    epochsComboBox.addActionListener(new ActionListener {
+      override def actionPerformed(e: ActionEvent): Unit = {
+        redraw()
+      }
+    })
+    allPanel.add(epochsComboBox)
 
     // TODO: eventually, calculate this whenever flights changes
     // TODO: unsafe if flights empty
     def dateRange(): (Double, Double) = {
-      val startDate = flights.map(_.startDate.julian).min
-      val endDate = flights.map(_.endDate.julian).max
-      (startDate, endDate)
+//      val startDate = flights.map(_.startDate.julian).min
+//      val endDate = flights.map(_.endDate.julian).max
+//      (startDate, endDate)
+      val epoch = epochs(epochsComboBox.getSelectedIndex)
+      (epoch._2, epoch._3)
     }
+
+
 
     def updateTimelineTime(newTime: Double, startDate: Double, endDate: Double): Unit = {
       val timeMin = startDate + (endDate - startDate) * minSlider.getValue / sliderMax.toDouble
