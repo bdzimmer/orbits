@@ -197,7 +197,11 @@ object Draw {
         // TODO: this can be precalculated for each moon
         val laplacePlane = Some(
           moon.laplacePlane.map(
-            y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
+            y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
+          ).getOrElse(
+            // Conversions.ICRFToEcliptic
+            Transformations.Identity3
+          ))
         val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
 
         // TODO: this should be calculated separately

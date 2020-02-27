@@ -480,7 +480,10 @@ object Locations {
       val moon = Moons.Moons.getOrElse(name, Moons.Luna)
       val laplacePlane = moon.laplacePlane.map(
         y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
-      ).getOrElse(Conversions.ICRFToEcliptic)
+      ).getOrElse(
+        // Conversions.ICRFToEcliptic
+        Transformations.Identity3
+      )
 
       curDateJulian => Orbits.moonState(
         moon.moon, moon.primary, laplacePlane, curDateJulian)

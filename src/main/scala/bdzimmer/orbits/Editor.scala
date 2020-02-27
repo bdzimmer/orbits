@@ -322,7 +322,11 @@ class Editor(
           // TODO: remove ICRF transformation from calculation
           val laplacePlane = Some(
             x.laplacePlane.map(
-              y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
+              y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
+            ).getOrElse(
+              // Conversions.ICRFToEcliptic
+              Transformations.Identity3
+            ))
 
           val preTrans = Transformations.transformation(
             laplacePlane.getOrElse(Transformations.Identity3),
