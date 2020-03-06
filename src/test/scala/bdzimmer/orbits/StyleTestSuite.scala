@@ -8,7 +8,7 @@ import java.awt.Font
 
 class StyleTestSuite extends FunSuite {
 
-  test("ShowSettings from string") {
+  test("ViewerSettings from string") {
 
     // ~~~~ no modifications
 

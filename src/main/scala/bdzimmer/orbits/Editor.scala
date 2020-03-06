@@ -92,8 +92,6 @@ class Editor(
   // make mutable copy of flights list
   val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
 
-  // val factions: Map[String, Color] = IO.loadFactions(Editor.FactionsFilename)
-
   /// /// image for view
 
   var imWidth: Int = Editor.ViewWidth
@@ -128,7 +126,7 @@ class Editor(
 
   /// /// build menu bar
 
-  val mainMenuBar = Editor.buildMenuBar(
+  val (mainMenuBar, fpsCheckBox) = Editor.buildMenuBar(
     showSettings, redraw, flights,
     ships.map(x => (x.name, x)).toMap,
     rebuildFlights,
@@ -241,14 +239,19 @@ class Editor(
 
   def redraw(): Unit = {
 
-    val startTime = System.currentTimeMillis
+    val startTime = System.nanoTime // System.currentTimeMillis
     redrawGeneric(im)
     imagePanel.repaint()
 
-    val endTime = System.currentTimeMillis
+    val endTime = System.nanoTime // System.currentTimeMillis
 
-    val fps = 1000.0 / (endTime - startTime)
-    // println(fps)
+    if (fpsCheckBox.isSelected) {
+      val fps = 1.0e9 / (endTime - startTime)
+      println(fps)
+      val gr = im.getGraphics
+      gr.setColor(Color.GREEN)
+      gr.drawString(fps.round.toString, im.getWidth - 50, 25)
+    }
 
     System.out.print(".")
   }
@@ -636,7 +639,7 @@ object Editor {
       ships: Map[String, Spacecraft],
       rebuildFlights: () => Unit,
       styles: Map[String, ViewerSettings],
-      updateViewerSettings: ViewerSettings => Unit): JMenuBar = {
+      updateViewerSettings: ViewerSettings => Unit): (JMenuBar, JCheckBoxMenuItem) = {
 
     val menuBar = new JMenuBar()
 
@@ -757,8 +760,13 @@ object Editor {
         redraw()
       }
     }))
-    flightStatusRadioButtons.foreach(x => flightStatusButtonGroup.add(x))
-    flightStatusRadioButtons.foreach(x => viewMenu.add(x))
+    flightStatusRadioButtons.foreach(flightStatusButtonGroup.add)
+    flightStatusRadioButtons.foreach(viewMenu.add)
+
+    viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
+
+    val fpsCheckBox = new JCheckBoxMenuItem("FPS", false)
+    viewMenu.add(fpsCheckBox)
 
     // ~~~~
 
@@ -786,7 +794,7 @@ object Editor {
     menuBar.add(viewMenu)
     menuBar.add(styleMenu)
 
-    menuBar
+    (menuBar, fpsCheckBox)
   }
 
 
