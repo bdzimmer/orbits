@@ -916,13 +916,13 @@ object RenderFlight {
     val startDateJulian = flight.startDate.julian
     val endDateJulian = flight.endDate.julian
 
-    val origStart = Orbits.planetState(flight.orig, startDateJulian)
+    val origStart = flight.orig(startDateJulian)
     // val origEnd = Orbits.planetState(flight.orig, endDateJulian)
-    val origCur = Orbits.planetState(flight.orig, curDateJulian)
+    val origCur = flight.orig(curDateJulian)
 
     // val destStart = Orbits.planetState(flight.dest, startDateJulian)
-    val destEnd = Orbits.planetState(flight.dest, endDateJulian)
-    val destCur = Orbits.planetState(flight.dest, curDateJulian)
+    val destEnd = flight.dest(endDateJulian)
+    val destCur = flight.dest(curDateJulian)
 
     val color = new Color(255, 255, 255, 31)
 

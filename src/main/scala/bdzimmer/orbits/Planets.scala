@@ -256,7 +256,13 @@ object MeeusPlanets {
   }
 
 
-  class L3Estimator(oee: OrbitalElementsEstimator) extends OrbitalElementsEstimator {
+  // blech - if Scala had unions I could avoid this nonsense
+
+  abstract class LagrangePointEstimator extends OrbitalElementsEstimator
+
+  // it might really be necessary to have 3 of these, but I think it's ok for now
+
+  class L3Estimator(oee: OrbitalElementsEstimator) extends LagrangePointEstimator {
     def apply(t: Double): OrbitalElements = {
       val oeeT = oee(t)
       val period = Orbits.planetPeriod(oeeT.semimajorAxis)
@@ -265,7 +271,7 @@ object MeeusPlanets {
   }
 
 
-  class L4Estimator(oee: OrbitalElementsEstimator) extends OrbitalElementsEstimator {
+  class L4Estimator(oee: OrbitalElementsEstimator) extends LagrangePointEstimator {
     def apply(t: Double): OrbitalElements = {
       val oeeT = oee(t)
       val period = Orbits.planetPeriod(oeeT.semimajorAxis)
@@ -274,7 +280,7 @@ object MeeusPlanets {
   }
 
 
-  class L5Estimator(oee: OrbitalElementsEstimator) extends OrbitalElementsEstimator {
+  class L5Estimator(oee: OrbitalElementsEstimator) extends LagrangePointEstimator {
     def apply(t: Double): OrbitalElements = {
       val oeeT = oee(t)
       val period = Orbits.planetPeriod(oeeT.semimajorAxis)
@@ -411,5 +417,86 @@ object Moons {
     }
 
   }
+
+
+}
+
+
+object Locations {
+  // General collections of locatios that we should be able to operate on
+
+  // TODO: turn Bodies into a map -> (OrbitalElementsEstimator, type) or something
+
+  val Bodies: List[String] = (
+      List("Sun") ++
+      MeeusPlanets.Planets.keysIterator ++
+      Moons.Moons.keysIterator) // .toList happens with List("Sun")
+
+  // only generate lagrange point labels for moons now
+  // TODO: also make this a map String => OrbitalElementsEstimator
+  // TODO: L-point estimators have a common parent
+  val LagrangePoints: List[String] = MeeusPlanets.Planets.keysIterator.flatMap(planetName => {
+    List("L3", "L4", "L5").map(pointName => (planetName + "-" + pointName))
+  }).toList
+
+  val All = Bodies ++ LagrangePoints
+
+  def DefaultFun(t: Double): OrbitalState = {
+    OrbitalState(
+      Transformations.Vec3Zero,
+      Transformations.Vec3Zero)
+  }
+
+  // TODO: eventually map over tuples rather than re-splitting string
+  // TODO: convert to listmap so the keys of this thing can be used
+  val StatesMap = All.map(fullName => {
+
+    val suffix: String = fullName.takeRight(3)
+    val (lagrangePoint, name) = if (suffix(0) == '-' && suffix(1) == 'L') {
+      (Some(suffix.takeRight(2)), fullName.dropRight(3))
+    } else {
+      (None, fullName)
+    }
+
+    val stateFunc: Double => OrbitalState = if (MeeusPlanets.Planets.keySet.contains(name)) {
+      // is it a planet?
+
+      val planet = MeeusPlanets.Planets.getOrElse(name, MeeusPlanets.Earth).planet
+
+      // convert the planet estimator to lagrange point estimator if necessary
+      val planetPoint = lagrangePoint.map({
+        // son of a gun...I had no idea this was valid syntax
+        case "L3" => new MeeusPlanets.L3Estimator(planet)
+        case "L4" => new MeeusPlanets.L4Estimator(planet)
+        case "L5" => new MeeusPlanets.L5Estimator(planet)
+        case _    => planet
+      }).getOrElse(planet)
+
+      curDateJulian => Orbits.planetState(planetPoint, curDateJulian)
+
+    } else if (Moons.Moons.keySet.contains(name)) {
+      // is it a moon?
+
+      val moon = Moons.Moons.getOrElse(name, Moons.Luna)
+      val laplacePlane = moon.laplacePlane.map(
+        y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
+      ).getOrElse(
+        // Conversions.ICRFToEcliptic
+        Transformations.Identity3
+      )
+
+      curDateJulian => Orbits.moonState(
+        moon.moon, moon.primary, laplacePlane, curDateJulian)
+
+    } else {
+      // Sun and any unknown bodies
+      // consider making Sun its own case
+
+      DefaultFun
+    }
+
+    (fullName, stateFunc)
+
+  }).toMap
 
 }

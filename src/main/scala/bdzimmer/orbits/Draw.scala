@@ -197,7 +197,11 @@ object Draw {
         // TODO: this can be precalculated for each moon
         val laplacePlane = Some(
           moon.laplacePlane.map(
-            y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
+            y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
+          ).getOrElse(
+            // Conversions.ICRFToEcliptic
+            Transformations.Identity3
+          ))
         val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
 
         // TODO: this should be calculated separately
@@ -256,6 +260,7 @@ object Draw {
 
     // draw L3, L4 and L5 points of visible planets
     if (lagrangePoints) {
+      // TODO: would be nice to not reconstruct these every time
       planets.foreach(p => {
         view.drawPosition(
           im, Orbits.planetState(new MeeusPlanets.L3Estimator(p._2.planet), curDateJulian).position,
@@ -284,8 +289,8 @@ object Draw {
       val factionColor = factions.getOrElse(flight.faction, Color.LIGHT_GRAY)
 
       if (true) {
-        val origStates = ticks.map(tick => Orbits.planetState(flight.orig, tick))
-        val destStates = ticks.map(tick => Orbits.planetState(flight.dest, tick))
+        val origStates = ticks.map(tick => flight.orig(tick))
+        val destStates = ticks.map(tick => flight.dest(tick))
         view.drawMotion(im, origStates.map(_.position), factionColor, true, verticals = motionVerticals)
         view.drawMotion(im, destStates.map(_.position), factionColor, true, verticals = motionVerticals)
       }
@@ -325,8 +330,8 @@ object Draw {
         return scala.collection.mutable.Map()
       }
 
-      val origStates = ticks.map(tick => Orbits.planetState(fp.orig, tick))
-      val destStates = ticks.map(tick => Orbits.planetState(fp.dest, tick))
+      val origStates = ticks.map(tick => fp.orig(tick))
+      val destStates = ticks.map(tick => fp.dest(tick))
       val ticksSubset = ticks.takeWhile(x => x < curDateJulian)
       val flightStates = ticksSubset.map(tick => flightFn(tick))
 

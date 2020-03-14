@@ -25,8 +25,10 @@ case class FlightParams(
     ship: Spacecraft,
     origName: String,
     destName: String,
-    orig: OrbitalElementsEstimator,
-    dest: OrbitalElementsEstimator,
+    // orig: OrbitalElementsEstimator,
+    // dest: OrbitalElementsEstimator,
+    orig: Double => OrbitalState,
+    dest: Double => OrbitalState,
     startDate: CalendarDateTime,
     endDate: CalendarDateTime,
     passengers: List[String],
@@ -34,7 +36,9 @@ case class FlightParams(
     description: String) {
 
   override def toString: String = {
-    startDate.dateString + " - " + ship.name.replace("*", "") + " - " + origName + " - " + destName
+    startDate.dateString + " - " +
+    ship.name.replace("*", "") + " - " +
+    origName + " - " + destName  // TODO: use an arrow here
   }
 
 }
@@ -68,6 +72,7 @@ case class UpdateCameraControls(
 class Editor(
     flightsList: List[FlightParams],
     ships: List[Spacecraft],
+    epochs: List[(String, Double, Double)],
     styles: Map[String, ViewerSettings],
     factions: Map[String, Color]
   ) extends JFrame {
@@ -87,8 +92,6 @@ class Editor(
   // make mutable copy of flights list
   val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
 
-  // val factions: Map[String, Color] = IO.loadFactions(Editor.FactionsFilename)
-
   /// /// image for view
 
   var imWidth: Int = Editor.ViewWidth
@@ -104,7 +107,7 @@ class Editor(
   val (
       flightsToolbar, flightsComboBox,
       flightsSlider, getTimelineTime, timelineButton, skipButtons, rebuildFlights) = Editor.buildFlightsToolbar(
-      flights, ships, redraw)
+      flights, ships, epochs, redraw)
   toolbarRow0.add(flightsToolbar)
   toolbarRow0.add(
     Editor.buildExportToolbar(redrawGeneric))
@@ -123,7 +126,7 @@ class Editor(
 
   /// /// build menu bar
 
-  val mainMenuBar = Editor.buildMenuBar(
+  val (mainMenuBar, fpsCheckBox) = Editor.buildMenuBar(
     showSettings, redraw, flights,
     ships.map(x => (x.name, x)).toMap,
     rebuildFlights,
@@ -236,14 +239,19 @@ class Editor(
 
   def redraw(): Unit = {
 
-    val startTime = System.currentTimeMillis
+    val startTime = System.nanoTime // System.currentTimeMillis
     redrawGeneric(im)
     imagePanel.repaint()
 
-    val endTime = System.currentTimeMillis
+    val endTime = System.nanoTime // System.currentTimeMillis
 
-    val fps = 1000.0 / (endTime - startTime)
-    // println(fps)
+    if (fpsCheckBox.isSelected) {
+      val fps = 1.0e9 / (endTime - startTime)
+      println(fps)
+      val gr = im.getGraphics
+      gr.setColor(Color.GREEN)
+      gr.drawString(fps.round.toString, im.getWidth - 50, 25)
+    }
 
     System.out.print(".")
   }
@@ -317,7 +325,11 @@ class Editor(
           // TODO: remove ICRF transformation from calculation
           val laplacePlane = Some(
             x.laplacePlane.map(
-              y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)).getOrElse(Conversions.ICRFToEcliptic))
+              y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
+            ).getOrElse(
+              // Conversions.ICRFToEcliptic
+              Transformations.Identity3
+            ))
 
           val preTrans = Transformations.transformation(
             laplacePlane.getOrElse(Transformations.Identity3),
@@ -544,7 +556,7 @@ object Editor {
 
   val ShowSettingsDefault = ShowSettings(
       planets = MeeusPlanets.Planets.map(x => (x._1, InitialVisiblePlanets.contains(x._1))),
-      lagrangePoints = false,
+      lagrangePoints = true,  // TODO: false
       asteroidBelt = true,
       orbitInfo = false,
       motionVerticals = false,
@@ -565,47 +577,12 @@ object Editor {
 
   val ExportFilename = "flights_export"
 
-
-
   // find position of a celestial body by name at a certain date
-  def findPosition(
-      name: String,
-      curDateJulian: Double): Vec3 = {
-
-    if (MeeusPlanets.Planets.keySet.contains(name)) {
-      // is it a planet?
-
-      val planet = MeeusPlanets.Planets.getOrElse(name, MeeusPlanets.Earth).planet
-      Orbits.planetState(planet, curDateJulian).position
-
-    } else if (Moons.Moons.keySet.contains(name)) {
-      // is it a moon?
-
-      val moon = Moons.Moons.getOrElse(name, Moons.Luna)
-      val primaryPos = Orbits.planetState(moon.primary, curDateJulian).position
-
-      // TODO: this is awkward
-      val laplacePlane = moon.laplacePlane.map(
-        y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
-      ).getOrElse(Conversions.ICRFToEcliptic)
-
-      val moonRelativePos = laplacePlane.mul(
-        Orbits.planetState(moon.moon, curDateJulian).position)
-
-      Vec3.add(primaryPos, moonRelativePos)
-
-    } else if (name.equals("Sun")) {
-
-      // sun is always at the origin
-      Vec3(0.0, 0.0, 0.0)
-
-    } else {
-      println("Unknown body '" + name + "' in findPosition")
-      Vec3(0.0, 0.0, 0.0)
-    }
-
-
+  def findPosition(fullName: String, curDateJulian: Double): Vec3 = {
+    Locations.StatesMap.get(fullName).map(
+      func => func(curDateJulian).position).getOrElse(Transformations.Vec3Zero)
   }
+
 
   def paramsToFun(fp: FlightParams): (FlightFn, scala.collection.immutable.Seq[Double]) = {
 
@@ -622,8 +599,11 @@ object Editor {
     val ticks = (startDateJulian until endDateJulian by res).toList.toIndexedSeq // don't ask
 
     // find positions of origin and destination bodies
-    val origState = Orbits.planetState(fp.orig, startDateJulian)
-    val destState = Orbits.planetState(fp.dest, endDateJulian)
+    // val origState = Orbits.planetState(fp.orig, startDateJulian)
+    // val destState = Orbits.planetState(fp.dest, endDateJulian)
+
+    val origState = fp.orig(startDateJulian)
+    val destState = fp.dest(endDateJulian)
 
     val flightFn = fp.ship match {
       case _: ConstAccelCraft => ConstAccelFlightFn(
@@ -659,7 +639,7 @@ object Editor {
       ships: Map[String, Spacecraft],
       rebuildFlights: () => Unit,
       styles: Map[String, ViewerSettings],
-      updateViewerSettings: ViewerSettings => Unit): JMenuBar = {
+      updateViewerSettings: ViewerSettings => Unit): (JMenuBar, JCheckBoxMenuItem) = {
 
     val menuBar = new JMenuBar()
 
@@ -780,8 +760,13 @@ object Editor {
         redraw()
       }
     }))
-    flightStatusRadioButtons.foreach(x => flightStatusButtonGroup.add(x))
-    flightStatusRadioButtons.foreach(x => viewMenu.add(x))
+    flightStatusRadioButtons.foreach(flightStatusButtonGroup.add)
+    flightStatusRadioButtons.foreach(viewMenu.add)
+
+    viewMenu.add(new JSeparator(SwingConstants.HORIZONTAL))
+
+    val fpsCheckBox = new JCheckBoxMenuItem("FPS", false)
+    viewMenu.add(fpsCheckBox)
 
     // ~~~~
 
@@ -809,13 +794,14 @@ object Editor {
     menuBar.add(viewMenu)
     menuBar.add(styleMenu)
 
-    menuBar
+    (menuBar, fpsCheckBox)
   }
 
 
   def buildFlightsToolbar(
       flights: scala.collection.mutable.Buffer[FlightParams],
       ships: List[Spacecraft],
+      epochs: List[(String, Double, Double)],
       redraw: () => Unit): (JToolBar, JComboBox[String], JSlider, () => Double,
       JToggleButton, ClearableButtonGroup, () => Unit) = {
 
@@ -844,15 +830,16 @@ object Editor {
 
     val shipsComboBox = new JComboBox(ships.map(_.name.replace("*", "")).toArray)
 
-    val planetsList = MeeusPlanets.Planets.keys.toList
-    val planetsArray = planetsList.toArray
+    // val planetsList = MeeusPlanets.Planets.keys.toList
+    // val planetsArray = planetsList.toArray
+    val locsArray = Locations.All.toArray
 
-    val startLocComboBox = new JComboBox(planetsArray)
+    val startLocComboBox = new JComboBox(locsArray)
 
     val startDateText = new JTextField("", 12)
     startDateText.setMaximumSize(startDateText.getPreferredSize)
 
-    val endLocComboBox = new JComboBox(planetsArray)
+    val endLocComboBox = new JComboBox(locsArray)
 
     val endDateText = new JTextField("", 12)
     endDateText.setMaximumSize(endDateText.getPreferredSize)
@@ -876,8 +863,8 @@ object Editor {
           ship = ships(shipsComboBox.getSelectedIndex),
           origName = origName,
           destName = destName,
-          orig = MeeusPlanets.Planets.getOrElse(origName, MeeusPlanets.Earth).planet,
-          dest = MeeusPlanets.Planets.getOrElse(destName, MeeusPlanets.Earth).planet,
+          orig = Locations.StatesMap.getOrElse(origName, Locations.DefaultFun),
+          dest = Locations.StatesMap.getOrElse(destName, Locations.DefaultFun),
           startDate = startDate,
           endDate = endDate,
           passengers = List()
@@ -942,8 +929,8 @@ object Editor {
       // println("updating flight fields:" + idx)
       val fp = flights(idx)
       shipsComboBox.setSelectedIndex(ships.indexOf(fp.ship))
-      startLocComboBox.setSelectedIndex(planetsList.indexOf(fp.origName)) // TODO: this isn't quite right
-      endLocComboBox.setSelectedIndex(planetsList.indexOf(fp.destName))
+      startLocComboBox.setSelectedIndex(locsArray.indexOf(fp.origName)) // TODO: this isn't quite right
+      endLocComboBox.setSelectedIndex(locsArray.indexOf(fp.destName))
       startDateText.setText(fp.startDate.dateTimeString)
       endDateText.setText(fp.endDate.dateTimeString)
       updateActionListener.enabled = true
@@ -1008,8 +995,8 @@ object Editor {
         val endDate = fp.endDate.julian
         val startDate = SolveFlight.startDate(
           fp.ship,
-          t => Orbits.planetState(fp.orig, t).position,
-          Orbits.planetState(fp.dest, endDate).position,
+          t => fp.orig(t).position,
+          fp.dest(endDate).position,
           endDate)
         println(startDate)
         startDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))
@@ -1025,8 +1012,8 @@ object Editor {
         val startDate = fp.startDate.julian
         val endDate = SolveFlight.endDate(
           fp.ship,
-          Orbits.planetState(fp.orig, startDate).position,
-          t => Orbits.planetState(fp.dest, t).position,
+          fp.orig(startDate).position,
+          t => fp.dest(t).position,
           startDate)
         println(endDate)
         endDate.foreach(t => println(Conversions.julianToCalendarDate(t).dateTimeString))
@@ -1077,7 +1064,7 @@ object Editor {
     var timelineTime: Double = 0.0 // yep
     var runAtIntervalThread: Thread = null
 
-    val allPanel = new JPanel(new GridLayout(5, 1))
+    val allPanel = new JPanel(new GridLayout(6, 1))
 
     val timelineDateTimeText = new JTextField("", 19)
     timelineDateTimeText.setFont(new Font("monospaced", Font.BOLD, 48))
@@ -1109,16 +1096,34 @@ object Editor {
     val skipPanel = new JPanel(new GridLayout(1, 7))
     allPanel.add(skipPanel)
 
-    val delayMsText = new JTextField("50", 4)
+    val delayMsText = new JTextField("33", 4)
     delayMsText.setMaximumSize(delayMsText.getPreferredSize)
+
+    val epochsComboBox = new JComboBox[String](
+      epochs.zipWithIndex.map({case (x, idx) =>
+        (idx + 1) + ". " +
+        x._1 + " - " +
+        Conversions.julianToCalendarDate(x._2).dateTimeString + " - " +
+        Conversions.julianToCalendarDate(x._3).dateTimeString}).toArray)
+
+    epochsComboBox.addActionListener(new ActionListener {
+      override def actionPerformed(e: ActionEvent): Unit = {
+        redraw()
+      }
+    })
+    allPanel.add(epochsComboBox)
 
     // TODO: eventually, calculate this whenever flights changes
     // TODO: unsafe if flights empty
     def dateRange(): (Double, Double) = {
-      val startDate = flights.map(_.startDate.julian).min
-      val endDate = flights.map(_.endDate.julian).max
-      (startDate, endDate)
+//      val startDate = flights.map(_.startDate.julian).min
+//      val endDate = flights.map(_.endDate.julian).max
+//      (startDate, endDate)
+      val epoch = epochs(epochsComboBox.getSelectedIndex)
+      (epoch._2, epoch._3)
     }
+
+
 
     def updateTimelineTime(newTime: Double, startDate: Double, endDate: Double): Unit = {
       val timeMin = startDate + (endDate - startDate) * minSlider.getValue / sliderMax.toDouble
@@ -1292,9 +1297,12 @@ object Editor {
 
     // TODO: better programatic creation of camera types
 
-    val bodies = (List("Sun") ++ MeeusPlanets.Planets.keysIterator ++ Moons.Moons.keysIterator).toList
+    val cameraPosType = new JComboBox[String]((
+        List("Manual") ++
+        Locations.Bodies ++
+        Locations.LagrangePoints
+    ).toArray)
 
-    val cameraPosType = new JComboBox[String]((List("Manual") ++ bodies).toArray)
     cameraPosType.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
         cameraSettings.cameraPosType = cameraPosType.getSelectedItem.asInstanceOf[String]
@@ -1302,7 +1310,12 @@ object Editor {
       }
     })
 
-    val cameraPointType = new JComboBox[String]((List("Manual", "Follow Active") ++ bodies).toArray)
+    val cameraPointType = new JComboBox[String]((
+        List("Manual", "Follow Active") ++
+        Locations.Bodies ++
+        Locations.LagrangePoints
+    ).toArray)
+
     cameraPointType.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
           cameraSettings.cameraPointType = cameraPointType.getSelectedItem.asInstanceOf[String]

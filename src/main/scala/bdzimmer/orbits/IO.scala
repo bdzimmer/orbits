@@ -58,8 +58,8 @@ object IO {
         ships.getOrElse(lineSplit(0), defaultShip),
         lineSplit(1), // TODO: handle more complex location names, including lagrange points
         lineSplit(2),
-        MeeusPlanets.Planets.getOrElse(lineSplit(1), MeeusPlanets.Earth).planet,
-        MeeusPlanets.Planets.getOrElse(lineSplit(2), MeeusPlanets.Earth).planet,
+        Locations.StatesMap.getOrElse(lineSplit(1), Locations.DefaultFun),
+        Locations.StatesMap.getOrElse(lineSplit(2), Locations.DefaultFun),
         DateTime.parse(lineSplit(3)),
         DateTime.parse(lineSplit(4)),
         lineSplit(5).split(";\\s+").toList,
