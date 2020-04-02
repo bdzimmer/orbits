@@ -5,15 +5,14 @@
 package bdzimmer.orbits
 
 import scala.collection.JavaConverters._
-
 import java.io.File
 import java.util
-import java.awt.{Font, Graphics2D, RenderingHints, Color}
-import java.awt.image.BufferedImage
-import java.awt.font.TextAttribute
+import java.awt.{Color, Font, Graphics2D, RenderingHints}
+import java.awt.image.{BufferedImage}
 
 import org.apache.commons.io.{FileUtils, FilenameUtils}
 import org.apache.commons.imaging.{ImageFormats, Imaging}
+import bdzimmer.util.StringUtils._
 
 case class TextConfig(text: String, font: String, size: Int)
 
@@ -30,7 +29,8 @@ object Text {
   def readConfig(inputFilename: String): (String, Font) = {
     val lines = FileUtils.readLines(new File(inputFilename)).asScala
     val text = lines(0)
-    val (font, _, _ , _) = Style.parseFont(lines(1))
+    val ss = lines(1).split(";")
+    val font = FontUtil.font(ss(0), FontUtil.getStyle(ss(1)), ss(2).toIntSafe())
     (text, font)
   }
 
@@ -42,9 +42,7 @@ object Text {
     val dummy = new BufferedImage(1, 1, ImageType)
 
     val renderFont = if (Kerning) {
-      val map = new util.Hashtable[TextAttribute, AnyRef]
-      map.put(TextAttribute.KERNING, TextAttribute.KERNING_ON)
-      font.deriveFont(map)
+      FontUtil.enableKerning(font)
     } else {
       font
     }

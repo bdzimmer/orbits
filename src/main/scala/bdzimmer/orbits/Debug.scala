@@ -21,7 +21,7 @@ object Debug {
 object DebugDisplay {
 
   val FieldWidth = 20
-  val FieldFont = new Font("Monospace", Font.PLAIN, 16)
+  val FieldFont = FontUtil.font("Monospace", Font.PLAIN, 16)
 
   val store = scala.collection.mutable.LinkedHashMap[String, Any]()
   // this does not need to be mutable, but I want it to be fast
