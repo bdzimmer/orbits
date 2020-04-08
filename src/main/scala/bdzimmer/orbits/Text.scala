@@ -5,10 +5,10 @@
 package bdzimmer.orbits
 
 import scala.collection.JavaConverters._
-import java.io.File
+import java.io.{File, FileWriter, PrintWriter}
 import java.util
 import java.awt.{Color, Font, Graphics2D, RenderingHints}
-import java.awt.image.{BufferedImage}
+import java.awt.image.BufferedImage
 
 import org.apache.commons.io.{FileUtils, FilenameUtils}
 import org.apache.commons.imaging.{ImageFormats, Imaging}
@@ -35,8 +35,10 @@ object Text {
   }
 
   def main(argv: Array[String]): Unit = {
+
     val inputFilename = argv(0)
-    val outputFilename = FilenameUtils.getBaseName(inputFilename) + ".png"
+    val outputFilename = FilenameUtils.removeExtension(inputFilename) + ".png"
+    val infoFilename = FilenameUtils.removeExtension(inputFilename) + "_info.txt"
 
     val (text, font) = readConfig(inputFilename)
     val dummy = new BufferedImage(1, 1, ImageType)
@@ -55,6 +57,7 @@ object Text {
     val height = metrics.getAscent + metrics.getDescent
 
     // allocate image of proper size
+    // note: may need to use maxAscent and maxDescent to create extra border
     val im = new BufferedImage(width, height, ImageType)
     val grRender = im.getGraphics.asInstanceOf[Graphics2D]
     grRender.setRenderingHints(RenderHints)
@@ -65,6 +68,14 @@ object Text {
     grRender.drawString(text, 0, metrics.getAscent)
 
     Imaging.writeImage(im, new File(outputFilename), ImageFormats.PNG, new util.HashMap[String, Object]())
+
+    // save other useful information that can be read into a dictionary
+    val pw = new PrintWriter(new FileWriter(infoFilename))
+    pw.println("ascent\t" + metrics.getAscent)
+    pw.println("descent\t" + metrics.getDescent)
+    pw.println("width\t" + width)
+    pw.println("height\t" + height)
+    pw.close()
 
   }
 
