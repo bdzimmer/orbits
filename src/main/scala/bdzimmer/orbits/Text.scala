@@ -26,12 +26,22 @@ object Text {
   val RenderHints = new RenderingHints(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
   RenderHints.put(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
-  def readConfig(inputFilename: String): (String, Font) = {
+  def readConfig(inputFilename: String): (String, Font, (Int, Int)) = {
     val lines = FileUtils.readLines(new File(inputFilename)).asScala
+
+    // text on first line
     val text = lines(0)
+
+    // font config on second line
     val ss = lines(1).split(";")
     val font = FontUtil.font(ss(0), FontUtil.getStyle(ss(1)), ss(2).toIntSafe())
-    (text, font)
+
+    // borders on third line
+    val bs = lines(2).split(";")
+    val borderX = bs(0).toIntSafe()
+    val borderY = bs(1).toIntSafe()
+
+    (text, font, (borderX, borderY))
   }
 
   def main(argv: Array[String]): Unit = {
@@ -40,7 +50,7 @@ object Text {
     val outputFilename = FilenameUtils.removeExtension(inputFilename) + ".png"
     val infoFilename = FilenameUtils.removeExtension(inputFilename) + "_info.txt"
 
-    val (text, font) = readConfig(inputFilename)
+    val (text, font, (borderX, borderY)) = readConfig(inputFilename)
     val dummy = new BufferedImage(1, 1, ImageType)
 
     val renderFont = if (Kerning) {
@@ -58,14 +68,14 @@ object Text {
 
     // allocate image of proper size
     // note: may need to use maxAscent and maxDescent to create extra border
-    val im = new BufferedImage(width, height, ImageType)
+    val im = new BufferedImage(width + borderX * 2, height + borderY * 2, ImageType)
     val grRender = im.getGraphics.asInstanceOf[Graphics2D]
     grRender.setRenderingHints(RenderHints)
 
     // TODO: do you actually get subpixel resolution with the float verison?
     grRender.setColor(new Color(255, 255, 255))
     grRender.setFont(renderFont)
-    grRender.drawString(text, 0, metrics.getAscent)
+    grRender.drawString(text, 0 + borderX, metrics.getAscent + borderY)
 
     Imaging.writeImage(im, new File(outputFilename), ImageFormats.PNG, new util.HashMap[String, Object]())
 
@@ -75,6 +85,8 @@ object Text {
     pw.println("descent\t" + metrics.getDescent)
     pw.println("width\t" + width)
     pw.println("height\t" + height)
+    pw.println("borderX\t" + borderX)  // not sure if border should be part of this
+    pw.println("borderY\t" + borderY)  // but it can't hurt
     pw.close()
 
   }
