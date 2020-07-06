@@ -37,7 +37,7 @@ object Text {
 
     // font config on second line
     val ss = lines(1).split(";")
-    var font = FontUtil.font(ss(0), FontUtil.getStyle(ss(1)), ss(2).toIntSafe())
+    val font = FontUtil.font(ss(0), FontUtil.getStyle(ss(1)), ss(2).toIntSafe())
 
     // borders on third line
     val bs = lines(2).split(";")
@@ -67,6 +67,8 @@ object Text {
   def main(argv: Array[String]): Unit = {
 
     val inputFilename = argv(0)
+    val command = argv(1)
+
     val outputFilename = FilenameUtils.removeExtension(inputFilename) + ".png"
     val infoFilename = FilenameUtils.removeExtension(inputFilename) + "_info.txt"
 
@@ -86,57 +88,63 @@ object Text {
     val width = metrics.stringWidth(text)
     val height = metrics.getAscent + metrics.getDescent
 
-    // allocate image of proper size
-    // note: may need to use maxAscent and maxDescent to create extra border
-    val im = new BufferedImage(width + borderX * 2, height + borderY * 2, ImageType)
-    val grRender = im.getGraphics.asInstanceOf[Graphics2D]
-    grRender.setRenderingHints(RenderHints)
-
-    grRender.setColor(new Color(255, 255, 255))
-    grRender.setFont(renderFont)
-
-    stroke match {
-      case None => {
-        grRender.drawString(text, 0 + borderX, metrics.getAscent + borderY)
-      }
-      case Some(strokeWidth) => {
-        val stroke = new BasicStroke(
-          strokeWidth.toFloat,
-          BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-
-        val glyphs = renderFont.layoutGlyphVector(
-          grRender.getFontRenderContext,
-          text.toArray,
-          0,
-          text.length,
-          Font.LAYOUT_LEFT_TO_RIGHT)
-
-        grRender.translate(0 + borderX, metrics.getAscent + borderY)
-        grRender.setStroke(stroke)
-
-        val shape = glyphs.getOutline
-        grRender.draw(shape)
-
-        if (DebugSegments) {
-          debugShape(shape, grRender, borderX, metrics.getAscent + borderY)
-        }
-
-      }
-    }
-
-
-    Imaging.writeImage(im, new File(outputFilename), ImageFormats.PNG, new util.HashMap[String, Object]())
-
-    // save other useful information that can be read into a dictionary
+    // save useful information that can be read into a dictionary
     val pw = new PrintWriter(new FileWriter(infoFilename))
     pw.println("ascent\t" + metrics.getAscent)
     pw.println("descent\t" + metrics.getDescent)
     pw.println("width\t" + width)
     pw.println("height\t" + height)
+    pw.println("leading\t" + metrics.getLeading)
     pw.println("borderX\t" + borderX)  // not sure if border should be part of this
     pw.println("borderY\t" + borderY)  // but it can't hurt
-    pw.println("stroke\t" + stroke)
+    stroke.foreach(x => pw.println("stroke\t" + x))
     pw.close()
+
+    // only draw if the command is "draw"
+
+    if (command.equals("draw")) {
+
+      // allocate image of proper size
+      // note: may need to use maxAscent and maxDescent to create extra border
+      val im = new BufferedImage(width + borderX * 2, height + borderY * 2, ImageType)
+      val grRender = im.getGraphics.asInstanceOf[Graphics2D]
+      grRender.setRenderingHints(RenderHints)
+
+      grRender.setColor(new Color(255, 255, 255))
+      grRender.setFont(renderFont)
+
+      stroke match {
+        case None => {
+          grRender.drawString(text, 0 + borderX, metrics.getAscent + borderY)
+        }
+        case Some(strokeWidth) => {
+          val stroke = new BasicStroke(
+            strokeWidth.toFloat,
+            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+
+          val glyphs = renderFont.layoutGlyphVector(
+            grRender.getFontRenderContext,
+            text.toArray,
+            0,
+            text.length,
+            Font.LAYOUT_LEFT_TO_RIGHT)
+
+          grRender.translate(0 + borderX, metrics.getAscent + borderY)
+          grRender.setStroke(stroke)
+
+          val shape = glyphs.getOutline
+          grRender.draw(shape)
+
+          if (DebugSegments) {
+            debugShape(shape, grRender, borderX, metrics.getAscent + borderY)
+          }
+
+        }
+      }
+
+      Imaging.writeImage(im, new File(outputFilename), ImageFormats.PNG, new util.HashMap[String, Object]())
+
+    }
 
   }
 
