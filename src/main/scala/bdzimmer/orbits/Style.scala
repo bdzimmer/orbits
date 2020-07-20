@@ -54,43 +54,20 @@ case class ShowSettings(
 object Style {
 
   // TODO: constants for font names / types
-  // TODO: find proper monospace font
-
-//  // TODO: rename to "plain"
-//  val ViewerSettingsDefault = ViewerSettings(
-//    displayFont = new Font(Font.MONOSPACED, Font.BOLD, 12),
-//    displayFontItalic = new Font(Font.MONOSPACED, Font.BOLD | Font.ITALIC, 12),
-//    lineHeight = 14,
-//    columnWidth = 100,
-//
-//    displayFontSmall = new Font(Font.MONOSPACED, Font.BOLD, 12),
-//    displayFontItalicSmall = new Font(Font.MONOSPACED, Font.BOLD | Font.ITALIC, 12),
-//    lineHeightSmall = 14,
-//    columnWidthSmall = 100,
-//
-//    displayFontLarge = new Font(Font.MONOSPACED, Font.BOLD, 48),
-//    lineHeightLarge = 56,
-//
-//    stroke = new BasicStroke(2),
-//
-//    circleRadius = 6,
-//    arrows3D = false,
-//    arrowLength = 0.0
-//  )
-
+  // TODO: find proper monospace font name
 
   val ViewerSettingsDefault = ViewerSettings(
-    displayFont = new Font(Fonts.FontPlay, Font.PLAIN, 16),
-    displayFontItalic = new Font(Fonts.FontPlay, Font.PLAIN | Font.ITALIC, 16),
+    displayFont = FontUtil.font(Fonts.FontPlay, Font.PLAIN, 16),
+    displayFontItalic = FontUtil.font(Fonts.FontPlay, Font.PLAIN | Font.ITALIC, 16),
     lineHeight = 18,
     columnWidth = 125,
 
-    displayFontSmall = new Font(Fonts.FontPlay, Font.PLAIN, 10),
-    displayFontItalicSmall = new Font(Fonts.FontPlay, Font.PLAIN | Font.ITALIC, 10),
+    displayFontSmall = FontUtil.font(Fonts.FontPlay, Font.PLAIN, 10),
+    displayFontItalicSmall = FontUtil.font(Fonts.FontPlay, Font.PLAIN | Font.ITALIC, 10),
     lineHeightSmall = 11,
     columnWidthSmall = 60,
 
-    displayFontLarge = new Font(Fonts.FontOrbitron, Font.BOLD, 64),
+    displayFontLarge = FontUtil.font(Fonts.FontOrbitron, Font.BOLD, 64),
     lineHeightLarge = 72,
 
     stroke = new BasicStroke(2),
@@ -177,16 +154,7 @@ object Style {
     // throw an exception if the string isn't formatted correctly.
 
     val ss = s.split(";")
-
-    val name = ss(0)
-    val style = ss(1) match {
-      case "bold" => Font.BOLD
-      case "italic" => Font.ITALIC
-      case "bolditalic" => Font.BOLD | Font.ITALIC
-      case _ => Font.PLAIN
-    }
-    val size = ss(2).toIntSafe()
-    val font = new Font(name, style, size)
+    val font = FontUtil.font(ss(0), FontUtil.getStyle(ss(1)), ss(2).toIntSafe())
     val fontItalic = font.deriveFont(font.getStyle | Font.ITALIC)
 
     // TODO: automatically derive these if they are not supplied

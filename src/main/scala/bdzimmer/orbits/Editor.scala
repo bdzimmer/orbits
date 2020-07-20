@@ -1067,7 +1067,7 @@ object Editor {
     val allPanel = new JPanel(new GridLayout(6, 1))
 
     val timelineDateTimeText = new JTextField("", 19)
-    timelineDateTimeText.setFont(new Font("monospaced", Font.BOLD, 48))
+    timelineDateTimeText.setFont(FontUtil.font("monospaced", Font.BOLD, 48))
     timelineDateTimeText.setBackground(Color.BLACK)
     timelineDateTimeText.setForeground(Color.GREEN)
     timelineDateTimeText.setMaximumSize(timelineDateTimeText.getPreferredSize)
