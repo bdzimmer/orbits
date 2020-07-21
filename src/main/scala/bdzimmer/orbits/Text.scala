@@ -4,17 +4,19 @@
 
 package bdzimmer.orbits
 
+import scala.collection.mutable.Buffer
 import scala.collection.JavaConverters._
+
 import java.io.{File, FileWriter, PrintWriter}
 import java.util
-import java.awt.{BasicStroke, Color, Font, Graphics2D, RenderingHints}
+import java.awt.{BasicStroke, Color, Font, FontMetrics, Graphics2D, RenderingHints, Shape}
 import java.awt.image.BufferedImage
+import java.awt.font.{FontRenderContext, LineBreakMeasurer, TextAttribute}
 import java.awt.geom.{AffineTransform, PathIterator}
-import java.awt.Shape
+import java.text.AttributedString
 
 import org.apache.commons.io.{FileUtils, FilenameUtils}
 import org.apache.commons.imaging.{ImageFormats, Imaging}
-
 import bdzimmer.util.StringUtils._
 
 
@@ -29,7 +31,205 @@ object Text {
     RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
   RenderHints.put(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
-  def readConfig(inputFilename: String): (String, Font, (Int, Int), Option[Double]) = {
+  case class SingleLineConfig(
+    text: String,
+    font: Font,
+    borderX: Int,
+    borderY: Int,
+    stroke: Option[Double]
+  )
+
+  case class MultiLineConfig(
+    paragraphs: List[String],
+    font: Font,  // TODO: more fonts
+    borderX: Int,
+    borderY: Int,
+    width: Int,
+    height: Int,
+    justify: Boolean
+  )
+
+
+  def main(argv: Array[String]): Unit = {
+
+    val inputFilename = argv(0)
+    val command = argv(1)
+    val mode = argv.lift(2).getOrElse("single")
+
+    val outputFilename = FilenameUtils.removeExtension(inputFilename) + ".png"
+    val infoFilename = FilenameUtils.removeExtension(inputFilename) + "_info.txt"
+
+    if (mode.equals("single")) {
+
+      val config = readSingleLineConfig(inputFilename)
+
+      val (metrics, width, height) = findMetrics(config.font, config.text)
+
+      // only draw if the command is "draw"
+      if (command.equals("draw")) {
+        val im = drawSingle(config, width, height, metrics)
+        writePng(im, outputFilename)
+      }
+
+      // save useful information that can be read into a dictionary
+      val pw = new PrintWriter(new FileWriter(infoFilename))
+      pw.println("ascent\t" + metrics.getAscent)
+      pw.println("descent\t" + metrics.getDescent)
+      pw.println("width\t" + width)
+      pw.println("height\t" + height)
+      pw.println("leading\t" + metrics.getLeading)
+      pw.println("borderX\t" + config.borderX) // not sure if border should be part of this
+      pw.println("borderY\t" + config.borderY) // but it can't hurt
+      config.stroke.foreach(x => pw.println("stroke\t" + x))
+      pw.close()
+
+    } else if (mode.equals("multi")) {
+
+      val config = readMultiLineConfig(inputFilename)
+      val (metrics, _, _) = findMetrics(
+        config.font, config.paragraphs.lift(0).getOrElse("test"))
+
+      if (command.equals("draw")) {
+        val im = drawMulti(config, metrics)
+        writePng(im, outputFilename)
+      }
+
+    } else {
+      println("unrecognized mode: " + mode)
+    }
+
+  }
+
+
+  def drawSingle(config: SingleLineConfig, width: Int, height: Int, metrics: FontMetrics): BufferedImage = {
+
+    // allocate image of proper size
+    // note: may need to use maxAscent and maxDescent to create extra border
+    val im = new BufferedImage(width + config.borderX * 2, height + config.borderY * 2, ImageType)
+    val grRender = im.getGraphics.asInstanceOf[Graphics2D]
+    grRender.setRenderingHints(RenderHints)
+
+    grRender.setColor(Color.WHITE)
+    grRender.setFont(config.font)
+
+    // note how the y offset uses only border and ascent. we may also want to use leading.
+
+    config.stroke match {
+      case None => {
+        grRender.drawString(config.text, 0 + config.borderX, metrics.getAscent + config.borderY)
+      }
+      case Some(strokeWidth) => {
+        val stroke = new BasicStroke(
+          strokeWidth.toFloat,
+          BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+
+        val glyphs = config.font.layoutGlyphVector(
+          grRender.getFontRenderContext,
+          config.text.toArray,
+          0,
+          config.text.length,
+          Font.LAYOUT_LEFT_TO_RIGHT)
+
+        grRender.translate(0 + config.borderX, metrics.getAscent + config.borderY)
+        grRender.setStroke(stroke)
+
+        val shape = glyphs.getOutline
+        grRender.draw(shape)
+
+        if (DebugSegments) {
+          debugShape(shape, grRender, config.borderX, metrics.getAscent + config.borderY)
+        }
+
+      }
+    }
+
+    im
+
+  }
+
+
+  def drawMulti(config: MultiLineConfig, metrics: FontMetrics): BufferedImage = {
+    // Draw multiline wrapped and possibly justified text onto an image.
+
+    // This documentation is a good starting point:
+    // https://docs.oracle.com/javase/7/docs/api/java/awt/font/LineBreakMeasurer.html
+
+    val im = new BufferedImage(
+      config.width + config.borderX * 2,
+      config.height + config.borderY * 2,
+      ImageType)
+
+    val grRender = im.getGraphics.asInstanceOf[Graphics2D]
+    grRender.setRenderingHints(RenderHints)
+    val frc = grRender.getFontRenderContext
+
+    var y: Float = config.borderY
+
+    config.paragraphs.foreach(paragraph => {
+
+      // for a simple, uniform font style
+      // val styledText = new AttributedString(paragraph)
+      // styledText.addAttribute(TextAttribute.FONT, config.font)
+      val styledText = parseStyles(paragraph, config.font)
+
+      val count = breakCount(styledText, frc, config.width)
+
+      val textIt = styledText.getIterator
+      val measurer = new LineBreakMeasurer(textIt, frc)
+
+      // while (measurer.getPosition < textIt.getEndIndex) {
+      (0 until count).foreach(idx => {
+
+        val layoutOrg = measurer.nextLayout(config.width)
+        val layout = if (config.justify && idx < count - 1) {
+          layoutOrg.getJustifiedLayout(config.width)
+        } else {
+          layoutOrg
+        }
+
+        // the layout metrics are potentially a little different
+        // than the font metrics
+
+        // y = y + layout.getAscent
+        y = y + metrics.getAscent
+
+        val dx = if (layout.isLeftToRight) {
+          0.0f
+        } else {
+          config.width - layout.getAdvance
+        }
+        layout.draw(grRender, config.borderX + dx, y)
+
+        // y = y + layout.getDescent + layout.getLeading
+        y = y + metrics.getDescent + metrics.getLeading
+
+      })
+    })
+
+    im
+  }
+
+  def breakCount(
+      styledText: AttributedString,
+      frc: FontRenderContext,
+      width: Int
+      ): Int = {
+
+    var count = 0
+
+    val textIt = styledText.getIterator
+    val measurer = new LineBreakMeasurer(textIt, frc)
+
+    while (measurer.getPosition < textIt.getEndIndex) {
+      measurer.nextLayout(width)
+      count = count + 1
+    }
+
+    count
+  }
+
+
+  def readSingleLineConfig(inputFilename: String): SingleLineConfig = {
     val lines = FileUtils.readLines(new File(inputFilename)).asScala
 
     // text on first line
@@ -37,7 +237,12 @@ object Text {
 
     // font config on second line
     val ss = lines(1).split(";")
-    val font = FontUtil.font(ss(0), FontUtil.getStyle(ss(1)), ss(2).toIntSafe())
+
+    // kerning enabled by default
+    // val font = FontUtil.font(ss(0), FontUtil.getStyle(ss(1)), ss(2).toIntSafe())
+
+    // kerning not enabled by default
+    val font = new Font(ss(0), FontUtil.getStyle(ss(1)), ss(2).toIntSafe())
 
     // borders on third line
     val bs = lines(2).split(";")
@@ -51,99 +256,126 @@ object Text {
       None
     }
 
-    // optional - scale
-//    if (lines.length > 3) {
-//      val scale = lines(3).toDoubleSafe()
-//      if (scale > 0.0) {
-//        val trans = new AffineTransform()
-//        trans.setToScale(scale, scale)
-//        font = font.deriveFont(trans)
-//      }
-//    }
-
-    (text, font, (borderX, borderY), stroke)
-  }
-
-  def main(argv: Array[String]): Unit = {
-
-    val inputFilename = argv(0)
-    val command = argv(1)
-
-    val outputFilename = FilenameUtils.removeExtension(inputFilename) + ".png"
-    val infoFilename = FilenameUtils.removeExtension(inputFilename) + "_info.txt"
-
-    val (text, font, (borderX, borderY), stroke) = readConfig(inputFilename)
-    val dummy = new BufferedImage(1, 1, ImageType)
-
+    // turn on kerning if called for
     val renderFont = if (Kerning) {
       FontUtil.enableKerning(font)
     } else {
       font
     }
 
+    SingleLineConfig(text, renderFont, borderX, borderY, stroke)
+  }
+
+
+  def readMultiLineConfig(inputFilename: String): MultiLineConfig = {
+    val lines = FileUtils.readLines(new File(inputFilename)).asScala
+
+    // font config on first line
+    val ss = lines(0).split(";")
+    val font = new Font(ss(0), FontUtil.getStyle(ss(1)), ss(2).toIntSafe())
+
+    // borders on second line
+    val bs = lines(1).split(";")
+    val borderX = bs(0).toIntSafe()
+    val borderY = bs(1).toIntSafe()
+
+    // width and height on third line
+    val dims = lines(2).split(";")
+    val width = dims(0).toIntSafe()
+    val height = dims(1).toIntSafe()
+
+    // justify mode on fourth line
+    val justify = lines(3).equals("true")
+
+    // lines of text on remaining lines
+    val configLines = lines.drop(4).toList
+
+    // turn on kerning if called for
+    val renderFont = if (Kerning) {
+      FontUtil.enableKerning(font)
+    } else {
+      font
+    }
+
+    MultiLineConfig(
+      configLines, renderFont, borderX, borderY, width, height, justify)
+  }
+
+
+  def findMetrics(font: Font, text: String): (FontMetrics, Int, Int) = {
+
     // get metrics from dummy graphics instance
+    val dummy = new BufferedImage(1, 1, ImageType)
     val grDummy = dummy.getGraphics.asInstanceOf[Graphics2D]
     grDummy.setRenderingHints(Viewer.RenderHints)
-    val metrics = grDummy.getFontMetrics(renderFont)
+    val metrics = grDummy.getFontMetrics(font)
+
+    // calculate width and height which (roughly) contains the drawn font
     val width = metrics.stringWidth(text)
-    val height = metrics.getAscent + metrics.getDescent
 
-    // save useful information that can be read into a dictionary
-    val pw = new PrintWriter(new FileWriter(infoFilename))
-    pw.println("ascent\t" + metrics.getAscent)
-    pw.println("descent\t" + metrics.getDescent)
-    pw.println("width\t" + width)
-    pw.println("height\t" + height)
-    pw.println("leading\t" + metrics.getLeading)
-    pw.println("borderX\t" + borderX)  // not sure if border should be part of this
-    pw.println("borderY\t" + borderY)  // but it can't hurt
-    stroke.foreach(x => pw.println("stroke\t" + x))
-    pw.close()
+    val height = metrics.getAscent + metrics.getDescent + metrics.getLeading
 
-    // only draw if the command is "draw"
+    (metrics, width, height)
 
-    if (command.equals("draw")) {
+  }
 
-      // allocate image of proper size
-      // note: may need to use maxAscent and maxDescent to create extra border
-      val im = new BufferedImage(width + borderX * 2, height + borderY * 2, ImageType)
-      val grRender = im.getGraphics.asInstanceOf[Graphics2D]
-      grRender.setRenderingHints(RenderHints)
 
-      grRender.setColor(new Color(255, 255, 255))
-      grRender.setFont(renderFont)
+  def writePng(im: BufferedImage, outputFilename: String): Unit = {
+    Imaging.writeImage(im, new File(outputFilename), ImageFormats.PNG, new util.HashMap[String, Object]())
+  }
 
-      stroke match {
-        case None => {
-          grRender.drawString(text, 0 + borderX, metrics.getAscent + borderY)
-        }
-        case Some(strokeWidth) => {
-          val stroke = new BasicStroke(
-            strokeWidth.toFloat,
-            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+  def parseStyles(paragraph: String, font: Font): AttributedString = {
+    // split by SINGLE SPACE, check beginnings of words for instructions
+    var resultString = ""
+    var attribs: Buffer[(Font, Int, Int)] = Buffer()
+    var pos = 0
 
-          val glyphs = renderFont.layoutGlyphVector(
-            grRender.getFontRenderContext,
-            text.toArray,
-            0,
-            text.length,
-            Font.LAYOUT_LEFT_TO_RIGHT)
+    paragraph.split(" ").foreach(word => {
 
-          grRender.translate(0 + borderX, metrics.getAscent + borderY)
-          grRender.setStroke(stroke)
-
-          val shape = glyphs.getOutline
-          grRender.draw(shape)
-
-          if (DebugSegments) {
-            debugShape(shape, grRender, borderX, metrics.getAscent + borderY)
-          }
-
-        }
+      val trimmed = word.replaceAll("^\\s+","")
+      val whitespaceLength = word.length - trimmed.length
+      val whitespace = word.take(whitespaceLength)
+      val (chunkString, chunkFont) = if (trimmed.startsWith("{i}")) {
+        (trimmed.drop(3), font.deriveFont(Font.ITALIC))
+      } else if (trimmed.startsWith("{b}")) {
+        (trimmed.drop(3), font.deriveFont(Font.BOLD))
+      } else if (trimmed.startsWith("{bi}")) {
+        (trimmed.drop(4), font.deriveFont(Font.BOLD | Font.ITALIC))
+      } else {
+        (word, font)
       }
 
-      Imaging.writeImage(im, new File(outputFilename), ImageFormats.PNG, new util.HashMap[String, Object]())
+      if (whitespaceLength > 0) {
+        resultString = resultString + whitespace
+        attribs.append((font, pos, pos + whitespaceLength))
+        pos = pos + whitespaceLength
+      }
 
+      if (chunkString.length > 0) {
+        resultString = resultString + chunkString
+        attribs.append((chunkFont, pos, pos + chunkString.length))
+        pos = pos + chunkString.length
+      }
+
+      resultString = resultString + " "
+      attribs.append((font, pos, pos + 1))
+      pos = pos + 1
+
+    })
+
+    resultString = resultString.dropRight(1)
+    attribs = attribs.dropRight(1)
+
+    if (resultString.length > 0) {
+      val result = new AttributedString(resultString)
+      attribs.foreach(attrib => {
+        result.addAttribute(TextAttribute.FONT, attrib._1, attrib._2, attrib._3)
+      })
+      result
+    } else {
+      val result = new AttributedString(" ")
+      result.addAttribute(TextAttribute.FONT, font)
+      result
     }
 
   }
@@ -155,7 +387,7 @@ object Text {
     val pit = shape.getPathIterator(new AffineTransform())
     var xm: Double = 0.0
     var ym: Double = 0.0
-    grRender.setColor(new Color(0, 255, 0))
+    grRender.setColor(Color.GREEN)
     while (!pit.isDone) {
       val coords = new Array[Double](6)
       val segType = pit.currentSegment(coords)
@@ -171,7 +403,7 @@ object Text {
         ym = coords(1)
       } else if (segType == PathIterator.SEG_CLOSE) {
         println("SEG_CLOSE")
-        grRender.setColor(new Color(255, 0, 0))
+        grRender.setColor(Color.RED)
         grRender.drawLine(
           x.toInt, y.toInt,
           xm.toInt, ym.toInt)
@@ -179,7 +411,7 @@ object Text {
         y = ym
       } else if (segType == PathIterator.SEG_LINETO) {
         println("SEG_LINETO")
-        grRender.setColor(new Color(0, 0, 255))
+        grRender.setColor(Color.BLUE)
         grRender.drawLine(
           x.toInt, y.toInt,
           coords(0).toInt, coords(1).toInt)
@@ -187,7 +419,7 @@ object Text {
         y = coords(1)
       } else if (segType == PathIterator.SEG_QUADTO) {
         println("SEG_QUADTO")
-        grRender.setColor(new Color(0, 255, 0))
+        grRender.setColor(Color.GREEN)
         grRender.drawLine(
           x.toInt, y.toInt,
           coords(0).toInt, coords(1).toInt)
@@ -200,7 +432,7 @@ object Text {
         y = coords(3)
       } else if (segType == PathIterator.SEG_CUBICTO) {
         println("SEG_CUBICTO")
-        grRender.setColor(new Color(0, 255  , 0))
+        grRender.setColor(Color.GREEN)
         grRender.drawLine(
           x.toInt, y.toInt,
           coords(0).toInt, coords(1).toInt)

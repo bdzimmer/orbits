@@ -13,7 +13,6 @@ object FontUtil {
   def font(name: String, style: Int, size: Int): Font = {
     val fontNoKerning = new Font(name, style, size)
     enableKerning(fontNoKerning)
-    fontNoKerning
   }
 
 
