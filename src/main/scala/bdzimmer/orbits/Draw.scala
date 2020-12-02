@@ -284,7 +284,7 @@ object Draw {
     // otherFlights.zip(otherFlightsColors).toList.foreach(x => view.drawMotion(im, x._1, x._2))
 
     activeFlights.foreach(flight => {
-      val (flightFn, ticks) = Editor.paramsToFun(flight)
+      val (flightFn, ticks) = InteractiveView.paramsToFun(flight)
       val positions = ticks.filter(x => x <= curDateJulian).map(tick => flightFn(tick))
       val factionColor = factions.getOrElse(flight.faction, Color.LIGHT_GRAY)
 
@@ -324,7 +324,7 @@ object Draw {
 
     fpOption.foreach(fp => {
 
-      val (flightFn, ticks) = Editor.paramsToFun(fp)
+      val (flightFn, ticks) = InteractiveView.paramsToFun(fp)
 
       if (ticks.length < 1) {
         return scala.collection.mutable.Map()
