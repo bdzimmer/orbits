@@ -4,21 +4,18 @@
 
 package bdzimmer.orbits
 
-import java.awt.{BorderLayout, Color, Dimension, FlowLayout, Font, Graphics, GridLayout, Image, Toolkit}
+import java.awt.{BorderLayout, Color, FlowLayout, Font, GridLayout}
 import java.awt.event._
-import java.awt.image.BufferedImage
-import java.text.SimpleDateFormat
-import java.util.Calendar
 
 import bdzimmer.orbits.InteractiveView.InitialVisiblePlanets
 import javax.swing._
 import javax.swing.event._
 
 import scala.util.Try
-import org.apache.commons.imaging.{ImageFormats, Imaging}
 import bdzimmer.util.StringUtils._
 
 import scala.collection.immutable.Seq
+import scala.collection.mutable.{Buffer => MutableBuffer}
 
 
 class Editor(
@@ -33,7 +30,7 @@ class Editor(
   var viewerSettings = Style.ViewerSettingsDefault
 
   // make mutable copy of flights list
-  val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
+  val flights: MutableBuffer[FlightParams] = flightsList.toBuffer
 
   /// /// build toolbars
 
@@ -67,7 +64,7 @@ class Editor(
     viewerSettings
   )
 
-  val ivs = scala.collection.mutable.Buffer[InteractiveView]()
+  val ivs = MutableBuffer[InteractiveView]()
   ivs += iv
 
   /// /// add additional toolbars
@@ -117,7 +114,7 @@ class Editor(
 
 
   def buildAddViewToolbar(
-     ivs: scala.collection.mutable.Buffer[InteractiveView]): JToolBar = {
+     ivs: MutableBuffer[InteractiveView]): JToolBar = {
 
     val toolbar = new JToolBar()
     toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
@@ -191,7 +188,7 @@ object Editor {
   def buildMenuBar(
       showSettings: ShowSettings,
       redraw: () => Unit,
-      flights: scala.collection.mutable.Buffer[FlightParams],
+      flights: MutableBuffer[FlightParams],
       ships: Map[String, Spacecraft],
       rebuildFlights: () => Unit,
       styles: Map[String, ViewerSettings],
@@ -216,6 +213,7 @@ object Editor {
         // TODO: add date
         val outputPrefix = ExportFilename
 
+        // TODO: filter and save only simple flights for now
         IO.saveFlightsSec(flights, outputPrefix + ".sec")
         IO.saveFlightsTsv(flights, outputPrefix + ".tsv")
       }
@@ -356,7 +354,7 @@ object Editor {
 
 
   def buildFlightsToolbar(
-      flights: scala.collection.mutable.Buffer[FlightParams],
+      flights: MutableBuffer[FlightParams],
       ships: List[Spacecraft],
       epochs: List[(String, Double, Double)],
       redraw: () => Unit): (JToolBar, JComboBox[String], JSlider, () => Double,
@@ -416,27 +414,37 @@ object Editor {
 
       if (startDate.year > 0 && endDate.year > 0) {
 
-        val fp = flights(idx).copy(
-          ship = ships(shipsComboBox.getSelectedIndex),
-          origName = origName,
-          destName = destName,
-          orig = Locations.StatesMap.getOrElse(origName, Locations.DefaultFun),
-          dest = Locations.StatesMap.getOrElse(destName, Locations.DefaultFun),
-          startDate = startDate,
-          endDate = endDate,
-          passengers = List()
-        )
+        flights(idx) match {
+          case simpleFight: SimpleFlightParams => {
 
-        flights(idx) = fp
-        // println(fp, DateTime.parse(startDateText.getText).julian, DateTime.parse(endDateText.getText).julian)
+            val fp = simpleFight.copy(
+              ship = ships(shipsComboBox.getSelectedIndex),
+              origName = origName,
+              destName = destName,
+              orig = Locations.StatesMap.getOrElse(origName, Locations.DefaultFun),
+              dest = Locations.StatesMap.getOrElse(destName, Locations.DefaultFun),
+              startDate = startDate,
+              endDate = endDate,
+              passengers = List()
+            )
 
-        Disable(flightsComboBox, {
-          flightsComboBox.removeItemAt(idx)
-          flightsComboBox.insertItemAt((idx + 1) + ". " + fp.toString, idx)
-          flightsComboBox.setSelectedIndex(idx)
-          toolbar.revalidate()
-          toolbar.repaint()
-        })
+            flights(idx) = simpleFight
+            // println(fp, DateTime.parse(startDateText.getText).julian, DateTime.parse(endDateText.getText).julian)
+
+            Disable(flightsComboBox, {
+              flightsComboBox.removeItemAt(idx)
+              flightsComboBox.insertItemAt((idx + 1) + ". " + fp.toString, idx)
+              flightsComboBox.setSelectedIndex(idx)
+              toolbar.revalidate()
+              toolbar.repaint()
+            })
+
+          }
+          case _ => {
+            println("Can only edit simple flights.")
+          }
+
+        }
 
       }
     }

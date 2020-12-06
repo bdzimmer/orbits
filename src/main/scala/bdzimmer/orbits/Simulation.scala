@@ -1,9 +1,7 @@
 package bdzimmer.orbits
 
-import scala.collection.mutable.Buffer
+import scala.collection.mutable.{Buffer => MutableBuffer}
 import java.awt.Color
-
-import scala.collection.mutable
 
 
 object Simulation {
@@ -66,7 +64,7 @@ object Simulation {
     // now update this over a bunch of time steps
     // and we'll interpolate between when sampling the flight's state function
 
-    val states: mutable.Buffer[(Double, OrbitalState)] = mutable.Buffer()
+    val states: MutableBuffer[(Double, OrbitalState)] = MutableBuffer()
 
     // we'll calculate this for 24 hours
     // once every minute
@@ -106,7 +104,7 @@ object Simulation {
 
     /// ///
 
-    val flight = FlightParams(
+    val flight = SimpleFlightParams(
       ship,
       "Earth",
       "Mars",
@@ -118,7 +116,7 @@ object Simulation {
       "Default",
       "Nothing")
 
-    val flights = scala.collection.mutable.Buffer(flight)
+    val flights: MutableBuffer[FlightParams] = MutableBuffer(flight)
 
     // OK, next step is a new flight type created from a list of states, I think!
     // FlightParams will have subtypes, including a "custom" type with basically a trivial

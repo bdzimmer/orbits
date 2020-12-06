@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Ben Zimmer. All rights reserved.
+// Copyright (c) 2020 Ben Zimmer. All rights reserved.
 
 // Orbits InteractiveView
 
@@ -13,35 +13,10 @@ import java.util.Calendar
 import javax.swing._
 import javax.swing.event._
 
-import scala.util.Try
 import org.apache.commons.imaging.{ImageFormats, Imaging}
-import bdzimmer.util.StringUtils._
 
 import scala.collection.immutable.Seq
-
-
-// this is sort of a parallel version of how flights are represented in Secondary
-case class FlightParams(
-    ship: Spacecraft,
-    origName: String,
-    destName: String,
-    // orig: OrbitalElementsEstimator,
-    // dest: OrbitalElementsEstimator,
-    orig: Double => OrbitalState,
-    dest: Double => OrbitalState,
-    startDate: CalendarDateTime,
-    endDate: CalendarDateTime,
-    passengers: List[String],
-    faction: String,
-    description: String) {
-
-  override def toString: String = {
-    startDate.dateString + " - " +
-    ship.name.replace("*", "") + " - " +
-    origName + " - " + destName  // TODO: use an arrow here
-  }
-
-}
+import scala.collection.mutable.{Buffer => MutableBuffer}
 
 
 case class CameraSettings(
@@ -76,7 +51,7 @@ class InteractiveView(
     getCurDateJulian: () => Double,
     getTimelineMode: () => Boolean,
     getPlanets: () => Seq[(String, Planet)],
-    getFlights: () => scala.collection.mutable.Buffer[FlightParams], // because reasons
+    getFlights: () => MutableBuffer[FlightParams], // because reasons
     getFlight: () => FlightParams,
     getFactions: () => Map[String, Color],
     getFpsEnabled: () => Boolean,
@@ -436,7 +411,7 @@ class InteractiveView(
         // average positions of active flights with initial
         val curState = Vec3.mul(
           activeFlights.map(fp => {
-            val (flightFn, _) = InteractiveView.paramsToFun(fp)
+            val (flightFn, _) = FlightParams.paramsToFun(fp)
             flightFn(curDateJulian)
           }).foldLeft(initial)(Vec3.add),
           1.0 / (activeFlights.length + InteractiveView.Damping)
@@ -472,7 +447,7 @@ class InteractiveView(
 
     // individual flight mode
 
-    val (flightFn, _) = InteractiveView.paramsToFun(flight)
+    val (flightFn, _) = FlightParams.paramsToFun(flight)
 
     val camRot = cameraSettings.cameraPointType match {
       case "Manual"        => getManualCamRot
@@ -578,41 +553,6 @@ object InteractiveView {
   }
 
 
-  def paramsToFun(fp: FlightParams): (FlightFn, scala.collection.immutable.Seq[Double]) = {
-
-    val startDateJulian = fp.startDate.julian
-    val endDateJulian = fp.endDate.julian
-
-    val res = if ((endDateJulian - startDateJulian) > 1.0) {
-      // one tick per hour
-      1.0 / 24.0
-    } else {
-      // one tick per minute
-      1.0 / 24.0 / 60.0
-    }
-    val ticks = (startDateJulian until endDateJulian by res).toList.toIndexedSeq // don't ask
-
-    // find positions of origin and destination bodies
-    // val origState = Orbits.planetState(fp.orig, startDateJulian)
-    // val destState = Orbits.planetState(fp.dest, endDateJulian)
-
-    val origState = fp.orig(startDateJulian)
-    val destState = fp.dest(endDateJulian)
-
-    val flightFn = fp.ship match {
-      case _: ConstAccelCraft => ConstAccelFlightFn(
-        origState.position, destState.position,
-        startDateJulian, endDateJulian - startDateJulian)
-      case _: ConstVelCraft => ConstVelFlightFn(
-        origState.position, destState.position,
-        startDateJulian, endDateJulian - startDateJulian
-      )
-    }
-
-    (flightFn, ticks)
-  }
-
-
   def pointCamera(point: Vec3, camPos: Vec3): Mat33 = {
     val camToPoint = Vec2(point.x - camPos.x, point.y - camPos.y)
     val camAngleX = math.atan2(point.z - camPos.z, Vec2.length(camToPoint))
@@ -624,6 +564,7 @@ object InteractiveView {
 //      camOrient.z / Conversions.DegToRad)
     Transformations.rotationZYX(camOrient)
   }
+
 
   def buildCameraToolbar(
       cameraSettings: CameraSettings, redraw: () => Unit): (JToolBar, UpdateCameraControls) = {
@@ -786,7 +727,6 @@ object InteractiveView {
     (toolbar, updateCameraControls)
 
   }
-
 
 
   def buildExportToolbar(

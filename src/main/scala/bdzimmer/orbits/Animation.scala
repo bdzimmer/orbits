@@ -184,7 +184,7 @@ object Animation {
   // sum of flight states; used for damping
   def sumStates(flights: List[FlightParams], date: Double): Vec3 = {
     flights.map(fp => {
-      val (flightFn, _) = InteractiveView.paramsToFun(fp)
+      val (flightFn, _) = FlightParams.paramsToFun(fp)
       flightFn(date)
     }).foldLeft(Vec3(0.0, 0.0, 0.0))(Vec3.add)
   }
