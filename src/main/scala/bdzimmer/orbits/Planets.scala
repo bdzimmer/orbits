@@ -476,17 +476,8 @@ object Locations {
 
     } else if (Moons.Moons.keySet.contains(name)) {
       // is it a moon?
-
       val moon = Moons.Moons.getOrElse(name, Moons.Luna)
-      val laplacePlane = moon.laplacePlane.map(
-        y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
-      ).getOrElse(
-        // Conversions.ICRFToEcliptic
-        Transformations.Identity3
-      )
-
-      curDateJulian => Orbits.moonState(
-        moon.moon, moon.primary, laplacePlane, curDateJulian)
+      Orbits.buildMoonState(moon)
 
     } else {
       // Sun and any unknown bodies
@@ -498,5 +489,6 @@ object Locations {
     (fullName, stateFunc)
 
   }).toMap
+
 
 }

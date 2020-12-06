@@ -296,6 +296,22 @@ object Orbits {
   }
 
 
+  def buildMoonState(moon: Moons.Moon): Double => OrbitalState = {
+    // a wrapper so we only transform the Laplace plane once
+
+    val laplacePlane = moon.laplacePlane.map(
+      y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
+    ).getOrElse(
+      // Conversions.ICRFToEcliptic
+      Transformations.Identity3
+    )
+
+    curDateJulian => Orbits.moonState(
+      moon.moon, moon.primary, laplacePlane, curDateJulian)
+
+  }
+
+
   def moonMotionPeriod(
       primary: OrbitalElementsEstimator,
       moon: MoonICRFEstimator,
