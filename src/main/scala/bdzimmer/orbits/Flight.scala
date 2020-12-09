@@ -30,25 +30,27 @@ class DummyFlightFn extends FlightFn {
 
 
 class LinearInterpFlightFn(
+    val startTime: Double,
+    endTime: Double,
     path: Seq[(Double, OrbitalState)]) extends FlightFn {
 
-  val startTime = path.head._1
-  val endTime = path.last._1
+  // val startTime = path.head._1
+  // val endTime = path.last._1
 
   def apply(t_abs: Double): Vec3 = {
     if (t_abs < startTime) {
       path.head._2.position
-    } else if (t_abs > endTime) {
-      path.last._2.position
     } else {
-      // TODO: binary search eventually
+      // TODO: if we assume constant intervals, we can index to the spot directly
+      // rather than doing this iteration (or even something more efficient)
       var idx = 1
-      while (idx < path.length && path(idx)._1 < t_abs) {
+      while (idx < path.length - 1 && path(idx)._1 < t_abs) {
         idx += 1
       }
       val (time0, state0) = path(idx - 1)
-      val (time1, state1) = path(idx)
+      val (time1, state1) = path(idx - 0)
       val frac = (t_abs - time0) / (time1 - time0)
+      // println(s"$idx $time0 $t_abs $time1 $frac")
       Vec3.add(
         state0.position,
         Vec3.mul(

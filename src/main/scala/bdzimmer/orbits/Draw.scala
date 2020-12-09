@@ -63,23 +63,6 @@ object Draw {
 
     val view = new Viewer(camTrans, viewPos, viewerSettings)
 
-    // helper - draw velocity arrow
-    def drawVelocityArrow(flightFn: FlightFn, color: Color): Double = {
-      if (curDateJulian - EpsVel > flightFn.startTime) {
-        val curState = flightFn(curDateJulian)
-        val curVelVec = Vec3.mul(
-          Vec3.sub(curState, flightFn(curDateJulian - EpsVel)),
-          1.0 / EpsVel)
-        val curVel = Vec3.length(curVelVec)
-        if (curVel > ConstVelFlightFn.VelMin) {
-          view.drawArrow(im, OrbitalState(curState, curVelVec), color)
-        }
-        curVel
-      } else {
-        0.0
-      }
-    }
-
     val planetMotions = planets.map(x => {
       (x._1, Orbits.planetMotionPeriod(x._2.planet, curDateJulian))
     })
@@ -286,23 +269,36 @@ object Draw {
     // otherFlights.zip(otherFlightsColors).toList.foreach(x => view.drawMotion(im, x._1, x._2))
 
     activeFlights.foreach(flight => {
-      val (flightFn, ticks) = FlightParams.paramsToFun(flight)
-      val positions = ticks.filter(x => x <= curDateJulian).map(tick => flightFn(tick))
-      val factionColor = factions.getOrElse(flight.faction, Color.LIGHT_GRAY)
-
+      val (flightFn, ticksPartial) = FlightParams.paramsToFun(flight)
+      val ticks = (ticksPartial.filter(x => x <= curDateJulian).toList :+ curDateJulian)
+      val positions = ticks.map(tick => flightFn(tick))
       val origStates = ticks.map(tick => flight.orig(tick))
+
+      val factionColor = factions.getOrElse(flight.faction, Color.LIGHT_GRAY)
 
       val vel = flight match {
         case _: PreCalculatedFlightParams => {
           // draw absolute motion and velocity arrow
-          view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
-          val vel = drawVelocityArrow(flightFn, factionColor)
+          /// view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
+          // val vel = drawVelocityArrow(im, view, curDateJulian, flightFn, factionColor)
+
+          // velocity relative to origin
+          val curState = stateFromFlightFn(curDateJulian, flightFn)
+          val origCur = flight.orig(curDateJulian)
+          val velVecRel = Vec3.sub(curState.velocity, origCur.velocity)
+          // draw the arrow
+          val vel = Vec3.length(velVecRel)
+          if (vel > ConstVelFlightFn.VelMin) {
+            view.drawArrow(im, OrbitalState(curState.position, velVecRel), factionColor)
+          }
 
           // draw motion relative to origin at each position
-          val origCur = flight.orig(curDateJulian)
+          println("draw motion")
+          println(s"${origCur.position} ${origStates.last.position}")
           val relPositions = positions.zip(origStates).map({case (pos, orig) =>
             Vec3.add(origCur.position, Vec3.sub(pos, orig.position))})
           view.drawMotion(im, relPositions, factionColor, true, verticals = motionVerticals)
+
           vel
         }
 
@@ -316,7 +312,7 @@ object Draw {
 
           // draw motion and velocity arrow
           view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
-          val vel = drawVelocityArrow(flightFn, factionColor)
+          val vel = drawVelocityArrow(im, view, curDateJulian, flightFn, factionColor)
 
           // draw flight radii
           RenderFlight.drawFlightRadii(im, flight, curDateJulian, view)
@@ -355,7 +351,7 @@ object Draw {
 
       val origStates = ticks.map(tick => fp.orig(tick))
       val destStates = ticks.map(tick => fp.dest(tick))
-      val ticksSubset = ticks.takeWhile(x => x < curDateJulian)
+      val ticksSubset = ticks.takeWhile(x => x < curDateJulian).toList :+ curDateJulian
       val flightStates = ticksSubset.map(tick => flightFn(tick))
 
       val factionColor = factions.getOrElse(fp.faction, Color.GREEN)
@@ -371,7 +367,9 @@ object Draw {
       // average velocity
       val vel = distance / (fp.endDate.julian - fp.startDate.julian)
 
-      val curVel = drawVelocityArrow(flightFn, factionColor)
+      // val curVel = drawVelocityArrow(im, view, curDateJulian, flightFn, factionColor)
+      // TODO: option for relative velocity here
+      val curVel = Vec3.length(stateFromFlightFn(curDateJulian, flightFn).velocity)
 
       if (statusOption == 0) {
         // draw flight status with current datetime, distance, and velocity
@@ -435,8 +433,39 @@ object Draw {
 
   }
 
+  // helper - draw velocity arrow given only t => position
+  def drawVelocityArrow(
+      im: BufferedImage,
+      view: Viewer,
+      curDateJulian: Double,
+      flightFn: FlightFn,
+      color: Color): Double = {
+
+    if (curDateJulian - EpsVel > flightFn.startTime) {
+      val curState = flightFn(curDateJulian)
+      val curVelVec = Vec3.mul(
+        Vec3.sub(curState, flightFn(curDateJulian - EpsVel)),
+        1.0 / EpsVel)
+      val curVel = Vec3.length(curVelVec)
+      if (curVel > ConstVelFlightFn.VelMin) {
+        view.drawArrow(im, OrbitalState(curState, curVelVec), color)
+      }
+      curVel
+    } else {
+      0.0
+    }
+  }
 
 
-
+  def stateFromFlightFn(
+      curDateJulian: Double,
+      flightFn: FlightFn
+  ): OrbitalState = {
+    val curPos = flightFn(curDateJulian)
+    val curVel = Vec3.mul(
+      Vec3.sub(curPos, flightFn(curDateJulian - EpsVel)),
+      1.0 / EpsVel)
+    OrbitalState(curPos, curVel)
+  }
 
 }

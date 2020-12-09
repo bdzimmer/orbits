@@ -104,7 +104,8 @@ object FlightParams {
       }
       case pcfp: PreCalculatedFlightParams => {
         val ticks = pcfp.path.map(_._1)
-        val flightFn = new LinearInterpFlightFn(pcfp.path)
+        val flightFn = new LinearInterpFlightFn(
+            pcfp.startDate.julian, pcfp.endDate.julian, pcfp.path)
         (flightFn, ticks)
       }
       case _ => (new DummyFlightFn, Seq(0.0d))

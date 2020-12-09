@@ -72,7 +72,7 @@ object Simulation {
     // we'll calculate once every minute
     val tickSeconds = 60.0d
     val tickInterval = tickSeconds / Conversions.DayToSec
-    val ticks = (startDate.julian to endDate.julian by tickInterval)
+    val ticks = (startDate.julian until endDate.julian by tickInterval)
 
     var curPosition = startPosition
     var curVelocity = startVelocity
@@ -105,6 +105,7 @@ object Simulation {
 
     println(states.length)
     val statesFiltered = states.grouped(100).map(_.head).toList
+    println(statesFiltered.length)
 
     /// ///
 
@@ -144,7 +145,15 @@ object Simulation {
     def getCurDateJulian(): Double = {
       // (startDate.julian + endDate.julian) * 0.5
       val idx = slider.getValue()
-      states(idx)._1
+      // println(s"${idx} / ${states.length} ${states(idx)._1} / ${endDate.julian}")
+      // states(idx)._1
+      val startDateJulian = startDate.julian
+      val endDateJulian = endDate.julian
+      val diff = endDateJulian - startDateJulian
+      val frac = idx / slider.getMaximum.toDouble
+      val res = startDateJulian + frac * diff
+      println(s"$startDateJulian $res $endDateJulian")
+      res
     }
 
     // val flights: scala.collection.mutable.Buffer[FlightParams] = scala.collection.mutable.Buffer()
@@ -168,7 +177,6 @@ object Simulation {
     val cameraPointType = iv.cameraToolbar.getComponentAtIndex(1).asInstanceOf[JComboBox[String]]
     cameraPointType.setSelectedItem("Earth")
     iv.updateCameraControls.setZViewPos(950000)
-    iv.redraw()
 
     // wire up slider and make controls window visible
     slider.addChangeListener(new ChangeListener() {
@@ -180,6 +188,8 @@ object Simulation {
     controlsWindow.setSize(new Dimension(480, 64))
     controlsWindow.toFront()
     controlsWindow.setVisible(true)
+
+    iv.redraw()
 
   }
 

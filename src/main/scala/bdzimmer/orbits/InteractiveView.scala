@@ -395,7 +395,7 @@ class InteractiveView(
       case _ => InteractiveView.findPosition(cameraSettings.cameraPosType, curDateJulian)
     }
 
-    val activeFlights = flights.filter(x => curDateJulian > x.startDate.julian && curDateJulian < x.endDate.julian)
+    val activeFlights = flights.filter(x => curDateJulian >= x.startDate.julian && curDateJulian < x.endDate.julian)
     val fpOption = activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
 
     val camRot = cameraSettings.cameraPointType match {
