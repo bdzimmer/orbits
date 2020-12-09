@@ -202,6 +202,8 @@ object Draw {
             // Conversions.ICRFToEcliptic
             Transformations.Identity3
           ))
+
+        // motion of the moon relative to the primary
         val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
 
         // TODO: this should be calculated separately
@@ -288,19 +290,40 @@ object Draw {
       val positions = ticks.filter(x => x <= curDateJulian).map(tick => flightFn(tick))
       val factionColor = factions.getOrElse(flight.faction, Color.LIGHT_GRAY)
 
-      if (true) {
-        val origStates = ticks.map(tick => flight.orig(tick))
-        val destStates = ticks.map(tick => flight.dest(tick))
-        view.drawMotion(im, origStates.map(_.position), factionColor, true, verticals = motionVerticals)
-        view.drawMotion(im, destStates.map(_.position), factionColor, true, verticals = motionVerticals)
+      val origStates = ticks.map(tick => flight.orig(tick))
+
+      val vel = flight match {
+        case _: PreCalculatedFlightParams => {
+          // draw absolute motion and velocity arrow
+          view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
+          val vel = drawVelocityArrow(flightFn, factionColor)
+
+          // draw motion relative to origin at each position
+          val origCur = flight.orig(curDateJulian)
+          val relPositions = positions.zip(origStates).map({case (pos, orig) =>
+            Vec3.add(origCur.position, Vec3.sub(pos, orig.position))})
+          view.drawMotion(im, relPositions, factionColor, true, verticals = motionVerticals)
+          vel
+        }
+
+        case _ => {
+          // draw origin and destination states
+          if (true) {
+            val destStates = ticks.map(tick => flight.dest(tick))
+            view.drawMotion(im, origStates.map(_.position), factionColor, true, verticals = motionVerticals)
+            view.drawMotion(im, destStates.map(_.position), factionColor, true, verticals = motionVerticals)
+          }
+
+          // draw motion and velocity arrow
+          view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
+          val vel = drawVelocityArrow(flightFn, factionColor)
+
+          // draw flight radii
+          RenderFlight.drawFlightRadii(im, flight, curDateJulian, view)
+          vel
+        }
+
       }
-
-      // draw motion and velocity arrow
-      view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
-      val vel = drawVelocityArrow(flightFn, factionColor)
-
-      // draw flight radii
-      RenderFlight.drawFlightRadii(im, flight, curDateJulian, view)
 
       // draw status
       // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong

@@ -5,6 +5,7 @@
 package bdzimmer.orbits
 
 import scala.collection.immutable.Seq
+
 import scala.sys.process._
 import scala.util.Try
 import java.awt.{Color, Graphics2D}
@@ -19,6 +20,43 @@ import bdzimmer.util.StringUtils._
 abstract class FlightFn {
   val startTime: Double
   def apply(t: Double): Vec3
+}
+
+
+class DummyFlightFn extends FlightFn {
+  val startTime = 0.0d
+  def apply(t: Double) = Transformations.Vec3Zero
+}
+
+
+class LinearInterpFlightFn(
+    path: Seq[(Double, OrbitalState)]) extends FlightFn {
+
+  val startTime = path.head._1
+  val endTime = path.last._1
+
+  def apply(t_abs: Double): Vec3 = {
+    if (t_abs < startTime) {
+      path.head._2.position
+    } else if (t_abs > endTime) {
+      path.last._2.position
+    } else {
+      // TODO: binary search eventually
+      var idx = 1
+      while (idx < path.length && path(idx)._1 < t_abs) {
+        idx += 1
+      }
+      val (time0, state0) = path(idx - 1)
+      val (time1, state1) = path(idx)
+      val frac = (t_abs - time0) / (time1 - time0)
+      Vec3.add(
+        state0.position,
+        Vec3.mul(
+          Vec3.sub(state1.position, state0.position),
+          frac))
+      // path(idx)._2.position
+    }
+  }
 }
 
 

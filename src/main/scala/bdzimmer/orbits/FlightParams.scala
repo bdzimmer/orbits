@@ -5,6 +5,7 @@
 
 package bdzimmer.orbits
 
+import scala.collection.immutable.Seq
 
 // This is sort of a parallel version of how flights
 // are represented in Secondary
@@ -71,32 +72,46 @@ object FlightParams {
     val startDateJulian = fp.startDate.julian
     val endDateJulian = fp.endDate.julian
 
-    val res = if ((endDateJulian - startDateJulian) > 1.0) {
-      // one tick per hour
-      1.0 / 24.0
-    } else {
-      // one tick per minute
-      1.0 / 24.0 / 60.0
+    fp match {
+      case sfp: SimpleFlightParams => {
+        val res = if ((endDateJulian - startDateJulian) > 1.0) {
+          // one tick per hour
+          1.0 / 24.0
+        } else {
+          // one tick per minute
+          1.0 / 24.0 / 60.0
+        }
+
+        // don't ask
+        val ticks = (startDateJulian until endDateJulian by res).toList.toIndexedSeq
+
+        // find positions of origin and destination bodies
+        val origState = sfp.orig(startDateJulian)
+        val destState = sfp.dest(endDateJulian)
+
+        val flightFn = sfp.ship match {
+          case _: ConstAccelCraft => ConstAccelFlightFn(
+            origState.position, destState.position,
+            startDateJulian, endDateJulian - startDateJulian)
+          case _: ConstVelCraft => ConstVelFlightFn(
+            origState.position, destState.position,
+            startDateJulian, endDateJulian - startDateJulian
+          )
+        }
+
+        (flightFn, ticks)
+
+      }
+      case pcfp: PreCalculatedFlightParams => {
+        val ticks = pcfp.path.map(_._1)
+        val flightFn = new LinearInterpFlightFn(pcfp.path)
+        (flightFn, ticks)
+      }
+      case _ => (new DummyFlightFn, Seq(0.0d))
+
     }
 
-    // don't ask
-    val ticks = (startDateJulian until endDateJulian by res).toList.toIndexedSeq
 
-    // find positions of origin and destination bodies
-    val origState = fp.orig(startDateJulian)
-    val destState = fp.dest(endDateJulian)
-
-    val flightFn = fp.ship match {
-      case _: ConstAccelCraft => ConstAccelFlightFn(
-        origState.position, destState.position,
-        startDateJulian, endDateJulian - startDateJulian)
-      case _: ConstVelCraft => ConstVelFlightFn(
-        origState.position, destState.position,
-        startDateJulian, endDateJulian - startDateJulian
-      )
-    }
-
-    (flightFn, ticks)
   }
 
 

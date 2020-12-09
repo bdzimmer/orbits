@@ -1,7 +1,10 @@
 package bdzimmer.orbits
 
 import scala.collection.mutable.{Buffer => MutableBuffer}
-import java.awt.Color
+
+import java.awt.{Color, Dimension}
+import javax.swing.{JFrame, JSlider, JComboBox, SwingConstants}
+import javax.swing.event.{ChangeEvent, ChangeListener}
 
 
 object Simulation {
@@ -16,23 +19,16 @@ object Simulation {
 
 
   def main(argv: Array[String]): Unit = {
-    // println("G:" + G)
-    // println("GAuKgSec: " + GAuKgSec)
+
     println("start")
 
     val ship = ConstAccelCraft("Test", 12000.0, 0.45)
 
     val startDate = CalendarDateTime(2018, 5, 7)
-    val endDate = CalendarDateTime(2018, 5, 12)
+    val endDate = CalendarDateTime(2018, 5, 21)
 
     val startPlanet = MeeusPlanets.Earth.planet
     val endPlanet = MeeusPlanets.Mars.planet
-
-//    val result = SolveFlight.endDate(
-//      ship,
-//      Orbits.planetState(startPlanet, startDate.julian).position,
-//      t => Orbits.planetState(endPlanet, t).position,
-//      startDate.julian)
 
     // Alright! Let's calculate some forces!
 
@@ -42,24 +38,47 @@ object Simulation {
 
     val lunaStateFunc = Orbits.buildMoonState(Moons.Luna)
 
-    val bodyPositionsAuAndMassesKg: List[(Double => Vec3, Double)] = List(
-      (t => Orbits.planetState(MeeusPlanets.Earth.planet, t).position, earthKg),
-      (t => Orbits.planetState(MeeusPlanets.Mars.planet, t).position, marsKg),
-      (t => lunaStateFunc(t).position, lunaKg),
-      (_ => SunPosition, SunKg)
+    val bodyPositionsAuAndMassesKg: List[(String, Double => Vec3, Double)] = List(
+      ("Earth", t => Orbits.planetState(MeeusPlanets.Earth.planet, t).position, earthKg),
+      // ("Mars", t => Orbits.planetState(MeeusPlanets.Mars.planet, t).position, marsKg),
+      ("Luna", t => lunaStateFunc(t).position, lunaKg),
+      ("Sun", _ => SunPosition, SunKg)
     )
 
+    /*
     // starting position of ship halfway between Earth and Moon
-    val startPosition = // Vec3.mul(
-      Vec3.add(
-        Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).position,
-        lunaStateFunc(startDate.julian).position)
-      // 0.5d)
+    val earthPos = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).position
+    val lunaPos = lunaStateFunc(startDate.julian).position
+    val lunaPosRel = Vec3.sub(lunaPos, earthPos)
+
+    val startPosition = Vec3.add(earthPos, Vec3.mul(lunaPosRel, 0.1d))
 
     // starting velocity will be half the velocity of the moon at that time
-    val startVelocity = Vec3.mul(
-      lunaStateFunc(startDate.julian).velocity,
-      0.5d)
+    // (relative to earth)
+    val earthVel = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).velocity
+    val lunaVel = lunaStateFunc(startDate.julian).velocity
+    val lunaVelRel = Vec3.sub(lunaVel, earthVel)
+
+    val startVelocity = Vec3.add(earthVel, Vec3.mul(lunaVelRel, 1.2d))
+     */
+
+    // set up starting position and velocity for an orbit of the Earth
+    val radius = 0.0005
+    val velocityScalar = orbitalVelocity(earthKg, radius)
+    val earthPos = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).position
+    val earthVel = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).velocity
+
+    val startPosition = Vec3.add(earthPos, Vec3(radius, 0.0, 0.0))
+    val startVelocity = Vec3.add(earthVel, Vec3(0.0, velocityScalar, 0.0))
+    // val startPosition = earthPos
+    // val startVelocity = earthVel
+
+    println(radius * Conversions.AuToMeters / 1000)
+    println(velocityScalar * Conversions.AuToMeters / 1000 / Conversions.DayToSec)
+    println(earthVel)
+    println(startVelocity)
+
+    // sys.exit()
 
     // now update this over a bunch of time steps
     // and we'll interpolate between when sampling the flight's state function
@@ -68,9 +87,9 @@ object Simulation {
 
     // we'll calculate this for 24 hours
     // once every minute
-    val tickSeconds = 60.0d
-    val tickInterval = tickSeconds * 1.0 / Conversions.DayToSec
-    val ticks = (startDate.julian to (startDate.julian + 0.1) by tickInterval)
+    val tickSeconds = 30.0d
+    val tickInterval = tickSeconds / Conversions.DayToSec
+    val ticks = (startDate.julian to endDate.julian by tickInterval)
 
     var curPosition = startPosition
     var curVelocity = startVelocity
@@ -85,9 +104,7 @@ object Simulation {
       // calculate acceleration due to gravity in AU / sec^2
       val accelGrav = gravity(t, curPosition, bodyPositionsAuAndMassesKg)
       // TODO: engine acceleration
-      val accelTotal = accelGrav  // for now
-
-      println(accelTotal)
+      val accelTotal = Vec3.mul(accelGrav, -1.0)  // for now
 
       // update velocity
       curVelocity = Vec3.add(
@@ -101,20 +118,26 @@ object Simulation {
 
     })
 
+    println(states.length)
+    val statesFiltered = states.grouped(100).map(_.head).toList
 
     /// ///
 
-    val flight = SimpleFlightParams(
+    val flight = PreCalculatedFlightParams(
       ship,
-      "Earth",
-      "Mars",
+      "Earth Orbit",
+      "Earth Orbit",
       t => Orbits.planetState(startPlanet, t),
       t => Orbits.planetState(endPlanet, t),
       startDate,
       endDate,
       List(),
       "Default",
-      "Nothing")
+      "Nothing",
+      statesFiltered
+    )
+
+    println(flight.path.length)
 
     val flights: MutableBuffer[FlightParams] = MutableBuffer(flight)
 
@@ -124,15 +147,19 @@ object Simulation {
 
     // set up interactive viewer for display
 
-    // TODO: make a little JFrame with some controls
-
     val showSettings = Editor.ShowSettingsDefault
     val planets = showSettings.planets.filter(_._2).flatMap(
       x => MeeusPlanets.Planets.get(x._1).map(y => (x._1, y))).toList
     val viewerSettings = Style.ViewerSettingsDefault
 
+    // make a little JFrame with some controls
+    val controlsWindow = new JFrame("Simulation Controls")
+    val slider = new JSlider(SwingConstants.HORIZONTAL, 0, states.length - 1, 0)
+
     def getCurDateJulian(): Double = {
-      (startDate.julian + endDate.julian) * 0.5
+      // (startDate.julian + endDate.julian) * 0.5
+      val idx = slider.getValue()
+      states(idx)._1
     }
 
     // val flights: scala.collection.mutable.Buffer[FlightParams] = scala.collection.mutable.Buffer()
@@ -152,24 +179,53 @@ object Simulation {
       viewerSettings
     )
 
+    // hack hack hack
+    val cameraPointType = iv.cameraToolbar.getComponentAtIndex(1).asInstanceOf[JComboBox[String]]
+    cameraPointType.setSelectedItem("Earth")
+    iv.updateCameraControls.setZViewPos(950000)
+    iv.redraw()
+
+    // wire up slider and make controls window visible
+    slider.addChangeListener(new ChangeListener() {
+      override def stateChanged(changeEvent: ChangeEvent): Unit = {
+        iv.redraw()
+      }
+    })
+    controlsWindow.add(slider)
+    controlsWindow.setSize(new Dimension(480, 64))
+    controlsWindow.toFront()
+    controlsWindow.setVisible(true)
+
+  }
+
+  // calculate orbital velocity in AU / day
+  def orbitalVelocity(
+    massKg: Double,
+    axisAu: Double
+  ): Double = {
+    math.sqrt(GAuKgSec * massKg / axisAu) * Conversions.DayToSec
   }
 
 
   // calculate gravitational acceleration on a ship at a certain point in time
-  // in kg * AU / sec^2
+  // in AU / day^2
   def gravity(
       curDateJulian: Double,
       shipPositionAu: Vec3,
-      bodyPositionsAuAndMassesKg: List[(Double => Vec3, Double)]): Vec3 = {
+      bodyPositionsAuAndMassesKg: List[(String, Double => Vec3, Double)]): Vec3 = {
 
+    val dayToSec2 = Conversions.DayToSec * Conversions.DayToSec
     var total = Vec3(0.0, 0.0, 0.0)
 
-    bodyPositionsAuAndMassesKg.foreach({case (posFunc, massKg) => {
+    bodyPositionsAuAndMassesKg.foreach({case (name, posFunc, massKg) => {
       val pos = posFunc(curDateJulian)
       val dir = Vec3.sub(shipPositionAu, pos)
       val r = Vec3.length(dir)
       val accel = GAuKgSec * massKg / (r * r)
-      val accelVec = Vec3.mul(dir, accel / r)
+      val accelVec = Vec3.mul(dir, accel / r * dayToSec2)
+
+      println("\t" + name + " " + Vec3.length(accelVec))
+
       total = Vec3.add(total, accelVec)
     }})
 
