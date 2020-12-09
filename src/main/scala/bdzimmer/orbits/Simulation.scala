@@ -1,3 +1,5 @@
+// Copyright (c) 2020 Ben Zimmer. All rights reserved.
+
 package bdzimmer.orbits
 
 import scala.collection.mutable.{Buffer => MutableBuffer}
@@ -9,8 +11,11 @@ import javax.swing.event.{ChangeEvent, ChangeListener}
 
 object Simulation {
 
-  val G = 6.67430e-11d
-  val GAuKgSec: Double = G / (math.pow(Conversions.AuToMeters, 3.0))
+  val G_MKgSec = 6.67430e-11d
+  val G_AuKgDay: Double = (
+      G_MKgSec
+      / math.pow(Conversions.AuToMeters, 3.0)
+      * Conversions.DayToSec * Conversions.DayToSec)
 
   val SunKg = 1.989e30d
 
@@ -40,54 +45,32 @@ object Simulation {
 
     val bodyPositionsAuAndMassesKg: List[(String, Double => Vec3, Double)] = List(
       ("Earth", t => Orbits.planetState(MeeusPlanets.Earth.planet, t).position, earthKg),
-      // ("Mars", t => Orbits.planetState(MeeusPlanets.Mars.planet, t).position, marsKg),
+      ("Mars", t => Orbits.planetState(MeeusPlanets.Mars.planet, t).position, marsKg),
       ("Luna", t => lunaStateFunc(t).position, lunaKg),
       ("Sun", _ => SunPosition, SunKg)
     )
 
-    /*
-    // starting position of ship halfway between Earth and Moon
-    val earthPos = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).position
-    val lunaPos = lunaStateFunc(startDate.julian).position
-    val lunaPosRel = Vec3.sub(lunaPos, earthPos)
-
-    val startPosition = Vec3.add(earthPos, Vec3.mul(lunaPosRel, 0.1d))
-
-    // starting velocity will be half the velocity of the moon at that time
-    // (relative to earth)
-    val earthVel = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).velocity
-    val lunaVel = lunaStateFunc(startDate.julian).velocity
-    val lunaVelRel = Vec3.sub(lunaVel, earthVel)
-
-    val startVelocity = Vec3.add(earthVel, Vec3.mul(lunaVelRel, 1.2d))
-     */
-
     // set up starting position and velocity for an orbit of the Earth
-    val radius = 0.0005
+    val radius = 0.0009
     val velocityScalar = orbitalVelocity(earthKg, radius)
     val earthPos = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).position
     val earthVel = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).velocity
 
     val startPosition = Vec3.add(earthPos, Vec3(radius, 0.0, 0.0))
     val startVelocity = Vec3.add(earthVel, Vec3(0.0, velocityScalar, 0.0))
-    // val startPosition = earthPos
-    // val startVelocity = earthVel
 
     println(radius * Conversions.AuToMeters / 1000)
     println(velocityScalar * Conversions.AuToMeters / 1000 / Conversions.DayToSec)
     println(earthVel)
     println(startVelocity)
 
-    // sys.exit()
-
     // now update this over a bunch of time steps
     // and we'll interpolate between when sampling the flight's state function
 
     val states: MutableBuffer[(Double, OrbitalState)] = MutableBuffer()
 
-    // we'll calculate this for 24 hours
-    // once every minute
-    val tickSeconds = 30.0d
+    // we'll calculate once every minute
+    val tickSeconds = 60.0d
     val tickInterval = tickSeconds / Conversions.DayToSec
     val ticks = (startDate.julian to endDate.julian by tickInterval)
 
@@ -102,9 +85,11 @@ object Simulation {
       states += curState
 
       // calculate acceleration due to gravity in AU / sec^2
-      val accelGrav = gravity(t, curPosition, bodyPositionsAuAndMassesKg)
-      // TODO: engine acceleration
-      val accelTotal = Vec3.mul(accelGrav, -1.0)  // for now
+      val accelGrav = gravitationalAcceleration(t, curPosition, bodyPositionsAuAndMassesKg)
+      val accelEngine = Vec3(0.0, 0.0, 0.0)
+      val accelTotal = Vec3.add(
+        accelEngine,
+        accelGrav)
 
       // update velocity
       curVelocity = Vec3.add(
@@ -147,7 +132,7 @@ object Simulation {
 
     // set up interactive viewer for display
 
-    val showSettings = Editor.ShowSettingsDefault
+    val showSettings: ShowSettings = Editor.ShowSettingsDefault.copy(flightStatus = 0)
     val planets = showSettings.planets.filter(_._2).flatMap(
       x => MeeusPlanets.Planets.get(x._1).map(y => (x._1, y))).toList
     val viewerSettings = Style.ViewerSettingsDefault
@@ -203,13 +188,13 @@ object Simulation {
     massKg: Double,
     axisAu: Double
   ): Double = {
-    math.sqrt(GAuKgSec * massKg / axisAu) * Conversions.DayToSec
+    math.sqrt(G_AuKgDay * massKg / axisAu)
   }
 
 
   // calculate gravitational acceleration on a ship at a certain point in time
   // in AU / day^2
-  def gravity(
+  def gravitationalAcceleration(
       curDateJulian: Double,
       shipPositionAu: Vec3,
       bodyPositionsAuAndMassesKg: List[(String, Double => Vec3, Double)]): Vec3 = {
@@ -221,8 +206,8 @@ object Simulation {
       val pos = posFunc(curDateJulian)
       val dir = Vec3.sub(shipPositionAu, pos)
       val r = Vec3.length(dir)
-      val accel = GAuKgSec * massKg / (r * r)
-      val accelVec = Vec3.mul(dir, accel / r * dayToSec2)
+      val accel = G_AuKgDay * massKg / (r * r)
+      val accelVec = Vec3.mul(dir, -accel / r)
 
       println("\t" + name + " " + Vec3.length(accelVec))
 
