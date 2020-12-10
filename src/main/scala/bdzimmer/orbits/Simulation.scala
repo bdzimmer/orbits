@@ -3,10 +3,15 @@
 package bdzimmer.orbits
 
 import scala.collection.mutable.{Buffer => MutableBuffer}
+import java.io.File
+import java.awt.{Color, Dimension, BorderLayout}
+import java.awt.event.{ActionEvent, ActionListener}
+import java.awt.image.BufferedImage
 
-import java.awt.{Color, Dimension}
-import javax.swing.{JFrame, JSlider, JComboBox, SwingConstants}
+import javax.swing.{JButton, JComboBox, JFrame, JSlider, SwingConstants}
 import javax.swing.event.{ChangeEvent, ChangeListener}
+import bdzimmer.util.StringUtils._
+import org.apache.commons.imaging.{ImageFormats, Imaging}
 
 
 object Simulation {
@@ -57,7 +62,7 @@ object Simulation {
     val earthVel = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).velocity
 
     val startPosition = Vec3.add(earthPos, Vec3(radius, 0.0, 0.0))
-    val startVelocity = Vec3.add(earthVel, Vec3(0.0, velocityScalar, 0.0))
+    val startVelocity = Vec3.add(earthVel, Vec3(0.0, velocityScalar * 1.0, 0.0))
 
     println(radius * Conversions.AuToMeters / 1000)
     println(velocityScalar * Conversions.AuToMeters / 1000 / Conversions.DayToSec)
@@ -140,13 +145,10 @@ object Simulation {
 
     // make a little JFrame with some controls
     val controlsWindow = new JFrame("Simulation Controls")
-    val slider = new JSlider(SwingConstants.HORIZONTAL, 0, states.length - 1, 0)
+    val slider = new JSlider(SwingConstants.HORIZONTAL, 0, statesFiltered.length - 1, 0)
 
     def getCurDateJulian(): Double = {
-      // (startDate.julian + endDate.julian) * 0.5
       val idx = slider.getValue()
-      // println(s"${idx} / ${states.length} ${states(idx)._1} / ${endDate.julian}")
-      // states(idx)._1
       val startDateJulian = startDate.julian
       val endDateJulian = endDate.julian
       val diff = endDateJulian - startDateJulian
@@ -165,7 +167,7 @@ object Simulation {
       () => true,  // timeline mode will be false once we have a flight
       () => planets,
       () => flights,
-      () => flight,  // bruh
+      () => flight,
       () => factions,
       () => false,
       () => true,
@@ -184,8 +186,24 @@ object Simulation {
         iv.redraw()
       }
     })
-    controlsWindow.add(slider)
-    controlsWindow.setSize(new Dimension(480, 64))
+    slider.setSize(new Dimension(480, 64))
+    controlsWindow.add(slider, BorderLayout.NORTH)
+
+    val exportButton = new JButton("Export")
+    exportButton.addActionListener(new ActionListener() {
+      override def actionPerformed(actionEvent: ActionEvent): Unit = {
+        // putting this in a thread allows the UI to update so we can see progress
+        val thread = new Thread(new Runnable() {
+          override def run(): Unit = {
+            exportAnimation(iv, slider)
+          }
+        })
+        thread.start()
+      }
+    })
+    controlsWindow.add(exportButton, BorderLayout.SOUTH)
+
+    controlsWindow.pack()
     controlsWindow.toFront()
     controlsWindow.setVisible(true)
 
@@ -209,7 +227,6 @@ object Simulation {
       shipPositionAu: Vec3,
       bodyPositionsAuAndMassesKg: List[(String, Double => Vec3, Double)]): Vec3 = {
 
-    val dayToSec2 = Conversions.DayToSec * Conversions.DayToSec
     var total = Vec3(0.0, 0.0, 0.0)
 
     bodyPositionsAuAndMassesKg.foreach({case (name, posFunc, massKg) => {
@@ -228,5 +245,38 @@ object Simulation {
 
   }
 
+
+  def exportAnimation(iv: InteractiveView, slider: JSlider): String = {
+    val writeTimeStart = System.currentTimeMillis
+
+    val width = 1280
+    val height = 720
+
+    val datetimeString = InteractiveView.currentDatetimeString()
+    val outputDirname = "simulation_" + datetimeString
+    new File(outputDirname).mkdirs()
+
+    (slider.getMinimum to slider.getMaximum).foreach(idx => {
+      slider.setValue(idx)
+      val image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+      iv.redrawGeneric(image)
+      val frameFile = new File(outputDirname / f"$idx%05d.png")
+      Imaging.writeImage(
+        image, frameFile, ImageFormats.PNG, new java.util.HashMap[String, Object]())
+    })
+
+    RenderFlight.imagesToVideo(
+      outputDirname,
+      outputDirname / "animation.mp4",
+      width,
+      height,
+      30)
+
+    val writeTime = System.currentTimeMillis - writeTimeStart
+
+    print("exported " + outputDirname + " in " + writeTime / 1000.0 + " sec")
+
+    outputDirname
+  }
 
 }

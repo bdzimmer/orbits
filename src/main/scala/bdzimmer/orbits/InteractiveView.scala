@@ -742,27 +742,40 @@ object InteractiveView {
 
     exportButton.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
-
-        val writeTimeStart = System.currentTimeMillis
-
-        val sdf = new SimpleDateFormat("YYYYMMdd_HHmmss")
-        val formatted = sdf.format(Calendar.getInstance().getTime)
-
-        val outputFile = new java.io.File("orbits_" + formatted + ".png")
-
-        val image = new BufferedImage(1280, 720, BufferedImage.TYPE_INT_ARGB)
-        drawImage(image)
-        Imaging.writeImage(
-          image, outputFile, ImageFormats.PNG, new java.util.HashMap[String, Object]())
-
-        val writeTime = System.currentTimeMillis - writeTimeStart
-
-        print("exported " + outputFile.getName + " in " + writeTime + " ms")
+        export(drawImage)
       }
     })
 
     toolbar.add(exportButton)
     toolbar
+  }
+
+
+  def export(
+      drawImage: BufferedImage => Unit): String = {
+
+    val writeTimeStart = System.currentTimeMillis
+
+    val datetimeString = currentDatetimeString()
+    val outputFile = new java.io.File("orbits_" + datetimeString + ".png")
+
+    val image = new BufferedImage(1280, 720, BufferedImage.TYPE_INT_ARGB)
+    drawImage(image)
+    Imaging.writeImage(
+      image, outputFile, ImageFormats.PNG, new java.util.HashMap[String, Object]())
+
+    val writeTime = System.currentTimeMillis - writeTimeStart
+
+    print("exported " + outputFile.getName + " in " + writeTime + " ms")
+
+    outputFile.getName
+
+  }
+
+
+  def currentDatetimeString(): String = {
+    val sdf = new SimpleDateFormat("YYYYMMdd_HHmmss")
+    sdf.format(Calendar.getInstance().getTime)
   }
 
 
