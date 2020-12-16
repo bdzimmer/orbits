@@ -99,9 +99,9 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
             gr.setColor(artsyColor)
           }
 
-          val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)  // TODO: experiment with round
+          val (x1, y1) = Viewer.cvtPos(im, p1.x.toInt, p1.y.toInt)  // TODO: experiment with round
           val p2 = pos2d(idx + 1)
-          val (x2, y2) = cvtPos(im, p2.x.toInt, p2.y.toInt)
+          val (x2, y2) = Viewer.cvtPos(im, p2.x.toInt, p2.y.toInt)
           if (x1.abs < Viewer.DrawMax && y1.abs < Viewer.DrawMax && x2.abs < Viewer.DrawMax && y2.abs < Viewer.DrawMax) {
             gr.drawLine(x1, y1, x2, y2)
           }
@@ -126,18 +126,16 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
           val pr1_b = Vec3(pr1.x, pr1.y, 0.0)
           val p1_b = View.perspective(pr1_b, camTrans, viewPos)
 
-
-          val (x0, y0) = cvtPos(im, p0.x.toInt, p0.y.toInt)
-          val (x0_b, y0_b) = cvtPos(im, p0_b.x.toInt, p0_b.y.toInt)
-          val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)
-          val (x1_b, y1_b) = cvtPos(im, p1_b.x.toInt, p1_b.y.toInt)
+          val (x0, y0) = Viewer.cvtPos(im, p0.x.toInt, p0.y.toInt)
+          val (x0_b, y0_b) = Viewer.cvtPos(im, p0_b.x.toInt, p0_b.y.toInt)
+          val (x1, y1) = Viewer.cvtPos(im, p1.x.toInt, p1.y.toInt)
+          val (x1_b, y1_b) = Viewer.cvtPos(im, p1_b.x.toInt, p1_b.y.toInt)
 
           gr.fillPolygon(
               Array(x0, x0_b, x1_b, x1),
               Array(y0, y0_b, y1_b, y1),
              4
           )
-
 
         }})
       }
@@ -168,25 +166,12 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
     gr.setColor(color)
     gr.setStroke(settings.stroke)
 
-    val (x1, y1) = cvtPos(im, p1.x.toInt, p1.y.toInt)
-    val (x2, y2) = cvtPos(im, p2.x.toInt, p2.y.toInt)
+    val (x1, y1) = Viewer.cvtPos(im, p1.x.toInt, p1.y.toInt)
+    val (x2, y2) = Viewer.cvtPos(im, p2.x.toInt, p2.y.toInt)
     if (x1.abs < Viewer.DrawMax && y1.abs < Viewer.DrawMax && x2.abs < Viewer.DrawMax && y2.abs < Viewer.DrawMax) {
       gr.drawLine(x1, y1, x2, y2)
     }
 
-  }
-
-  // TODO: this can be a static method
-  def cvtPos(im: BufferedImage, x: Int, y: Int): (Int, Int) = {
-    (x + im.getWidth / 2, im.getHeight - (y + im.getHeight / 2))
-  }
-
-
-  // TODO: this can be a static method
-  // TODO: something like this that takes the size of the object into account
-  // estimate whether object at coordinates should be drawn
-  def inView(im: BufferedImage, x: Int, y: Int): Boolean = {
-    x > -im.getWidth() && x < 2 * im.getWidth && y > -im.getHeight && y < 2 * im.getHeight
   }
 
 
@@ -223,7 +208,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
   def drawLabel(im: BufferedImage, label: String, desc: String, pos: Vec3, color: Color): Unit = {
 
     val pos2d = View.perspective(pos, camTrans, viewPos)
-    val (x, y) = cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
+    val (x, y) = Viewer.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
 
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
@@ -241,7 +226,7 @@ class Viewer(val camTrans: Mat44, val viewPos: Vec3, val settings: ViewerSetting
 
 
   def drawPolygon(im: BufferedImage, polygon: Seq[Vec2], color: Color, fill: Boolean): Unit = {
-    val ptsShifted = polygon.map(p => cvtPos(im, p.x.toInt, p.y.toInt))
+    val ptsShifted = polygon.map(p => Viewer.cvtPos(im, p.x.toInt, p.y.toInt))
     if (!ptsShifted.exists(p => p._1.abs > Viewer.DrawMax || p._2.abs > Viewer.DrawMax)) {
       val xs = ptsShifted.map(_._1).toArray
       val ys = ptsShifted.map(_._2).toArray
@@ -375,6 +360,19 @@ object Viewer {
   RenderHints.put(
       RenderingHints.KEY_ANTIALIASING,
       RenderingHints.VALUE_ANTIALIAS_ON)
+
+
+  def cvtPos(im: BufferedImage, x: Int, y: Int): (Int, Int) = {
+    (x + im.getWidth / 2, im.getHeight - (y + im.getHeight / 2))
+  }
+
+
+  // TODO: something like this that takes the size of the object into account
+  // estimate whether object at coordinates should be drawn
+  def inView(im: BufferedImage, x: Int, y: Int): Boolean = {
+    x > -im.getWidth() && x < 2 * im.getWidth && y > -im.getHeight && y < 2 * im.getHeight
+  }
+
 
   def arrowPoints(pos: Vec2, dir: Vec2): Seq[Vec2] = {
 

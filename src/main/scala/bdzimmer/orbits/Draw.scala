@@ -119,9 +119,9 @@ object Draw {
 
           // coordinates in the viewer image
           val pos2d = View.perspective(pos, camTrans, viewPos)
-          val (ptx, pty) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
+          val (ptx, pty) = Viewer.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
 
-          if (view.inView(im, ptx, pty)) {
+          if (Viewer.inView(im, ptx, pty)) {
 
             val scale = Vec3(radiusAu, radiusAu, radiusAu)
 
@@ -333,15 +333,13 @@ object Draw {
       // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong
       // TODO: make this optional in ShowSettings
       val pos2d = View.perspective(flightFn(curDateJulian), camTrans, viewPos)
-      val (x, y) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
-      RenderFlight.drawFlightStatus(
+      val (x, y) = Viewer.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
+      RenderFlight.drawSimpleFlightStatus(
         x, y,
         im,
         flight.ship,
         flight.faction,
         Color.GREEN,
-        Conversions.julianToCalendarDate(curDateJulian),
-        Vec3.length(Vec3.sub(positions.last, positions.head)),
         vel,
         viewerSettings
       )
@@ -362,8 +360,7 @@ object Draw {
       val ticksSubset = ticks.takeWhile(x => x < curDateJulian).toList :+ curDateJulian
       val flightStates = ticksSubset.map(tick => flightFn(tick))
 
-      val factionColor = factions.getOrElse(fp.faction, Color.GREEN)
-
+      // val factionColor = factions.getOrElse(fp.faction, Color.GREEN)
       // RenderFlight.highlightFlight(
       //   view, im, fp, factions,
       //   origStates, destStates, flightStates, flightColor)
@@ -493,7 +490,7 @@ object Draw {
   def findHalfPerCvt(fst: Vec3, snd: Vec3, im: BufferedImage, view: Viewer): (Int, Int) = {
     val half = Vec3.mul(Vec3.add(fst, snd), 0.5)
     val halfPer = View.perspective(half, view.camTrans, view.viewPos)
-    view.cvtPos(im, halfPer.x.toInt, halfPer.y.toInt)
+    Viewer.cvtPos(im, halfPer.x.toInt, halfPer.y.toInt)
   }
 
 
