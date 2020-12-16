@@ -24,7 +24,7 @@ case class ConstAccelCraft (
     mass:  Double,       // metric tons
     accel: Double        // AU / day^2
   ) extends Spacecraft {
-  val thrust = mass * accel   // F = ma
+  val thrust: Double = mass * accel   // F = ma
 }
 
 
@@ -34,14 +34,20 @@ case class ConstVelCraft (
 ) extends Spacecraft
 
 
+
 object Conversions {
 
-  val DegToRad = math.Pi / 180
-  val AuToMeters = 1.49597870700e11
-  val DayToSec = 86400.0
-  val LightToMetersPerSec = 299792458.0
-  val GToMetersPerSecond = 9.80665
-  val YearToDay = 365.2425
+  val DegToRad: Double   = math.Pi / 180
+
+  val AuToMeters: Double = 1.49597870700e11
+  val MetersToKm: Double = 1 / 1000.0
+
+  val LightToMetersPerSec: Double = 299792458.0
+  val GToMetersPerSecond: Double  = 9.80665
+
+  val DayToSec: Double = 86400.0
+  val SecToDay: Double = 1.0 / DayToSec
+  val YearToDay: Double = 365.2425
 
   // TODO: proper conversion from ICRF to ecliptic coordinate system
 
@@ -115,6 +121,9 @@ object Conversions {
 
 
 object Orbits {
+
+  // epsilon for velocity estimation in days
+  val EpsVel: Double = 0.0001
 
   // estimate the true anomaly using Equation of the Center
   // TODO: solve iteratively using Newton's method
@@ -241,7 +250,7 @@ object Orbits {
   }
 
 
-  def planetState(oee: OrbitalElementsEstimator, t: Double, dt: Double = 0.0001): OrbitalState = {
+  def planetState(oee: OrbitalElementsEstimator, t: Double, dt: Double = EpsVel): OrbitalState = {
     val oeT1 = oee(t)
     val posOrbT1 = positionOrbital(oeT1)
 

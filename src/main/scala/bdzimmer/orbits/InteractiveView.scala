@@ -53,6 +53,7 @@ class InteractiveView(
     getPlanets: () => Seq[(String, Planet)],
     getFlights: () => MutableBuffer[FlightParams], // because reasons
     getFlight: () => FlightParams,
+    getMeasurements: () => Seq[Measurement],
     getFactions: () => Map[String, Color],
     getFpsEnabled: () => Boolean,
     getCameraControlsEnabled: () => Boolean,
@@ -231,6 +232,7 @@ class InteractiveView(
     val viewInfo = getViewInfo()
     val planets = getPlanets()
     val flights = getFlights().toList  // ugh
+    val measurements = getMeasurements()
     val factions = getFactions()
 
     // extra layer of abstraction; while this grabs uses all of the UI options,
@@ -245,6 +247,7 @@ class InteractiveView(
       curDateJulian,
       planets,
       flights,
+      measurements,
       factions,
       showSettings.asteroidBelt,
       showSettings.lagrangePoints,

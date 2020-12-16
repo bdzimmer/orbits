@@ -133,6 +133,7 @@ object Animation {
         tick,
         planets,
         flights,
+        scala.collection.immutable.Seq(),
         factions,
         showSettings.asteroidBelt,
         showSettings.lagrangePoints,

@@ -23,6 +23,22 @@ abstract class FlightFn {
 }
 
 
+object ConvertFlight {
+
+  // epsilon for velocity estimation in days
+  val EpsVel: Double = 0.0001
+
+  def flightState(flightFn: FlightFn, t: Double, dt: Double = EpsVel): OrbitalState = {
+    val pos1 = flightFn(t)
+    val pos2 = flightFn(t + dt)
+
+    val vel = Vec3.mul(Vec3.sub(pos2, pos1), 1.0 / dt)
+    OrbitalState(pos1, vel)
+  }
+
+}
+
+
 class DummyFlightFn extends FlightFn {
   val startTime = 0.0d
   def apply(t: Double) = Transformations.Vec3Zero

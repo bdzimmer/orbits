@@ -18,13 +18,15 @@ object Draw {
   val BeltR0 = 2.06
   val BeltR1 = 3.27
 
-  val EpsVel = 1.0e-4  // for velocity calculation
-
-  // val DisplaySettings = Style.ViewerSettingsArtsy
-
   val MoonsExperiment = true
-
   val DetailMin =  12.0
+
+  // constant colors - eventually these could become configurable
+  val MeasurementColor = Color.GRAY
+  val GridColor = new Color(0, 0, 128)
+
+  val EpsVel: Double = 0.0001
+
 
   def redraw(
 
@@ -33,6 +35,8 @@ object Draw {
 
       planets: Seq[(String, Planet)],
       flights: Seq[FlightParams],
+      measurements: Seq[Measurement],
+
       factions: Map[String, Color],
 
       asteroidBelt: Boolean,
@@ -42,7 +46,6 @@ object Draw {
       statusOption: Int,
       viewerSettings: ViewerSettings,
 
-      // camTrans: Mat44,
       camInfo: (Mat33, Vec3),
 
       viewPos: Vec3,
@@ -75,7 +78,7 @@ object Draw {
     // ~~~~
 
     // draw the grid and the sun
-    view.drawGrid(im, GridLim, GridLim, None, new Color(0, 0, 128))
+    view.drawGrid(im, GridLim, GridLim, None, GridColor)
     val sun = Vec3(0.0, 0.0, 0.0)
     view.drawPosition(im, sun, "Sun", "", Color.YELLOW) // for now
 
@@ -233,6 +236,11 @@ object Draw {
 
     // ~~~~ ~~~~ ~~~~ ~~~~
 
+    // draw measurements
+    val flightFn = fpOption.map(x => FlightParams.paramsToFun(x)._1)
+    measurements.foreach(x => drawMeasurement(im, view, x, flightFn, curDateJulian))
+
+
     // draw orbit info
     if (orbitInfo) {
       planets.foreach(x => {
@@ -321,7 +329,7 @@ object Draw {
 
       }
 
-      // draw status
+      // draw status next to ship arrow
       // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong
       // TODO: make this optional in ShowSettings
       val pos2d = View.perspective(flightFn(curDateJulian), camTrans, viewPos)
@@ -409,6 +417,86 @@ object Draw {
   }
 
 
+  def drawMeasurement(
+      im: BufferedImage,
+      view: Viewer,
+      measurement: Measurement,
+      flightFn: Option[FlightFn],
+      julian: Double): Unit = {
+
+    def get(x: String): Double => OrbitalState = {
+      if (x.equals("Flight")) {
+        // potentially get other flights
+        flightFn.map(fn => {t: Double => ConvertFlight.flightState(fn, t)}).getOrElse(Locations.DefaultFun)
+      } else {
+        Locations(x)
+      }
+    }
+
+    measurement match {
+      case m: LookupDistance => {
+        val funcFst = get(m.fst)
+        val funcSnd = get(m.snd)
+        val fst = funcFst(julian)
+        val snd = funcSnd(julian)
+
+        val distAU = Vec3.length(Vec3.sub(snd.position, fst.position))
+        val distKm = distAU * Conversions.AuToMeters * Conversions.MetersToKm
+
+        val halfPerCvt = findHalfPerCvt(fst.position, snd.position, im, view)
+
+        // render the measurement
+        view.drawLine(im, fst.position, snd.position, MeasurementColor)
+        simpleTable(
+          (halfPerCvt._1 + measurement.dispOffset._1, halfPerCvt._2 + measurement.dispOffset._2),
+          im,
+          Seq(
+            // (s"${m.fst} - ${m.snd}", false),
+            (f"$distAU%.4f AU", false),
+            (f"$distKm%.4f km", false)),
+          MeasurementColor,
+          view.settings)
+      }
+
+      case m: LookupRelativeVelocity => {
+        val funcFst = get(m.fst)
+        val funcSnd = get(m.snd)
+        val fst = funcFst(julian)
+        val snd = funcSnd(julian)
+
+        val velAUPerDay = Vec3.length(Vec3.sub(snd.velocity, fst.velocity))
+        val velKmPerSec = (velAUPerDay
+          * Conversions.AuToMeters
+          * Conversions.MetersToKm
+          / Conversions.DayToSec)
+
+        val halfPerCvt = findHalfPerCvt(fst.position, snd.position, im, view)
+
+        // render the measurement
+        view.drawLine(im, fst.position, snd.position, MeasurementColor)
+        simpleTable(
+          (halfPerCvt._1 + measurement.dispOffset._1, halfPerCvt._2 + measurement.dispOffset._2),
+          im,
+          Seq(
+            // (s"${m.fst} - ${m.snd}", false),
+            (f"$velAUPerDay%.4f AU/day", false),
+            (f"$velKmPerSec%.4f km/s", false)),
+          MeasurementColor,
+          view.settings)
+
+      }
+    }
+
+  }
+
+
+  def findHalfPerCvt(fst: Vec3, snd: Vec3, im: BufferedImage, view: Viewer): (Int, Int) = {
+    val half = Vec3.mul(Vec3.add(fst, snd), 0.5)
+    val halfPer = View.perspective(half, view.camTrans, view.viewPos)
+    view.cvtPos(im, halfPer.x.toInt, halfPer.y.toInt)
+  }
+
+
   // get info used for rendering spheres
   def sphereInfo(
       radiusZ: Double,
@@ -454,6 +542,46 @@ object Draw {
     } else {
       0.0
     }
+  }
+
+
+  def simpleTable(
+    tableStart: (Int, Int),
+    im: BufferedImage,
+    texts: Seq[(String, Boolean)],
+    color: Color,
+    viewerSettings: ViewerSettings
+  ): Unit = {
+
+    val (tableStartX, tableStartY) = tableStart
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
+
+    // someday I'm going to figure out how to properly generalize this code
+    def table(desc: String, values: Seq[(String, Boolean)], row: Int, color: Color): Unit = {
+
+      // draw header (not using for now)
+      // gr.setColor(Color.GREEN)
+      // gr.setFont(viewerSettings.displayFontSmall)
+      // gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeightSmall)
+
+      gr.setColor(color)
+
+      values.zipWithIndex.foreach({case ((text, italic), idx) => {
+        if (italic) {
+          gr.setFont(viewerSettings.displayFontItalicSmall)
+        } else {
+          gr.setFont(viewerSettings.displayFontSmall)
+        }
+        gr.drawString(
+          text,
+          tableStartX, // + viewerSettings.columnWidthSmall,
+          tableStartY + (row + idx) * viewerSettings.lineHeightSmall)
+      }})
+    }
+
+    table("whatever:", texts, 0, color)
+
   }
 
 

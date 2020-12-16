@@ -3,6 +3,8 @@
 package bdzimmer.orbits
 
 import scala.collection.mutable.{Buffer => MutableBuffer}
+import scala.collection.immutable.Seq
+
 import java.io.File
 import java.awt.{Color, Dimension, BorderLayout}
 import java.awt.event.{ActionEvent, ActionListener}
@@ -64,8 +66,13 @@ object Simulation {
     val startPosition = Vec3.add(earthPos, Vec3(radius, 0.0, 0.0))
     val startVelocity = Vec3.add(earthVel, Vec3(0.0, velocityScalar * 1.0, 0.0))
 
-    println(radius * Conversions.AuToMeters / 1000)
-    println(velocityScalar * Conversions.AuToMeters / 1000 / Conversions.DayToSec)
+    println(radius * Conversions.AuToMeters * Conversions.MetersToKm)
+    println(
+      velocityScalar
+      * Conversions.AuToMeters
+      * Conversions.MetersToKm
+      * Conversions.DayToSec)
+
     println(earthVel)
     println(startVelocity)
 
@@ -128,9 +135,18 @@ object Simulation {
       statesFiltered
     )
 
-    println(flight.path.length)
+    // set up flights and measurements
 
     val flights: MutableBuffer[FlightParams] = MutableBuffer(flight)
+
+    val viewerSettings = Style.ViewerSettingsDefault
+
+    val measurements: Seq[Measurement] = Seq(
+      LookupDistance("Flight", "Earth", (0, viewerSettings.lineHeightSmall * 2)),
+      LookupRelativeVelocity("Flight", "Earth", (0, viewerSettings.lineHeightSmall * 5)),
+      LookupDistance("Flight", "Luna", (0, viewerSettings.lineHeightSmall * 2)),
+      LookupRelativeVelocity("Flight", "Luna", (0, viewerSettings.lineHeightSmall * 5))
+    )
 
     // OK, next step is a new flight type created from a list of states, I think!
     // FlightParams will have subtypes, including a "custom" type with basically a trivial
@@ -141,7 +157,7 @@ object Simulation {
     val showSettings: ShowSettings = Editor.ShowSettingsDefault.copy(flightStatus = 0)
     val planets = showSettings.planets.filter(_._2).flatMap(
       x => MeeusPlanets.Planets.get(x._1).map(y => (x._1, y))).toList
-    val viewerSettings = Style.ViewerSettingsDefault
+
 
     // make a little JFrame with some controls
     val controlsWindow = new JFrame("Simulation Controls")
@@ -168,6 +184,7 @@ object Simulation {
       () => planets,
       () => flights,
       () => flight,
+      () => measurements,
       () => factions,
       () => false,
       () => true,
