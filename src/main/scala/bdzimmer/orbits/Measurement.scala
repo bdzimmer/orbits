@@ -8,18 +8,25 @@ sealed abstract class Measurement {
 }
 
 // the dumbest way to do this
-case class LookupDistance(
+case class MeasurementLookupDistance(
   val fst: String,
   val snd: String,
   val dispOffset: (Int, Int)
 ) extends Measurement
 
-case class LookupRelativeVelocity(
+
+case class MeasurementLookupRelativeVelocity(
   val fst: String,
   val snd: String,
   val dispOffset: (Int, Int)
 ) extends Measurement
 
+
+case class MeasurementFuncDistance(
+  val name: String,
+  val func: Double => (Vec3, Vec3),
+  val dispOffset: (Int, Int)
+) extends Measurement
 
 
 object Measurement {

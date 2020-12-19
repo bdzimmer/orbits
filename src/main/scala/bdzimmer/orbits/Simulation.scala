@@ -49,24 +49,27 @@ object Simulation {
     val lunaKg = 7.35e22d
 
     val lunaStateFunc = Orbits.buildMoonState(Moons.Luna)
+    val earthStateFunc = {t: Double => Orbits.planetState(MeeusPlanets.Earth.planet, t)}
 
     val bodyPositionsAuAndMassesKg: List[(String, Double => Vec3, Double)] = List(
-      ("Earth", t => Orbits.planetState(MeeusPlanets.Earth.planet, t).position, earthKg),
+      ("Earth", t => earthStateFunc(t).position, earthKg),
       ("Mars", t => Orbits.planetState(MeeusPlanets.Mars.planet, t).position, marsKg),
       ("Luna", t => lunaStateFunc(t).position, lunaKg),
       ("Sun", _ => SunPosition, SunKg)
     )
 
+    val earthOrbitRadius = 0.0009
+    val moonOrbitRadius = 0.0001
+
     // set up starting position and velocity for an orbit of the Earth
-    val radius = 0.0009
-    val velocityScalar = orbitalVelocity(earthKg, radius)
-    val earthPos = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).position
-    val earthVel = Orbits.planetState(MeeusPlanets.Earth.planet, startDate.julian).velocity
+    val velocityScalar = orbitalVelocity(earthKg, earthOrbitRadius)
+    val earthPos = earthStateFunc(startDate.julian).position
+    val earthVel = earthStateFunc(startDate.julian).velocity
 
-    val startPosition = Vec3.add(earthPos, Vec3(radius, 0.0, 0.0))
-    val startVelocity = Vec3.add(earthVel, Vec3(0.0, velocityScalar * 1.0, 0.0))
+    val startPosition = Vec3.add(earthPos, Vec3(earthOrbitRadius, 0.0, 0.0))
+    val startVelocity = Vec3.add(earthVel, Vec3(0.0, velocityScalar, 0.0))
 
-    println(radius * Conversions.AuToMeters * Conversions.MetersToKm)
+    println(earthOrbitRadius * Conversions.AuToMeters * Conversions.MetersToKm)
     println(
       velocityScalar
       * Conversions.AuToMeters
@@ -142,10 +145,34 @@ object Simulation {
     val viewerSettings = Style.ViewerSettingsDefault
 
     val measurements: Seq[Measurement] = Seq(
-      LookupDistance("Flight", "Earth", (0, viewerSettings.lineHeightSmall * 2)),
-      LookupRelativeVelocity("Flight", "Earth", (0, viewerSettings.lineHeightSmall * 5)),
-      LookupDistance("Flight", "Luna", (0, viewerSettings.lineHeightSmall * 2)),
-      LookupRelativeVelocity("Flight", "Luna", (0, viewerSettings.lineHeightSmall * 5))
+      MeasurementFuncDistance(
+        "Outer tangent",
+        t => {
+          val posEarth = earthStateFunc(t).position
+          val posMoon = lunaStateFunc(t).position
+
+          val (tan1, tan2) = outerTangent2D(
+            Vec2(posEarth.x, posEarth.y),
+            earthOrbitRadius,
+            Vec2(posMoon.x, posMoon.y),
+            moonOrbitRadius)
+
+//          val tan1 = Vec2(posEarth.x + earthOrbitRadius, posEarth.y)
+//          val tan2 = Vec2(posMoon.x + moonOrbitRadius, posMoon.y)
+
+          println(tan1 + " " + tan2)
+
+          (
+            Vec3(tan1.x, tan1.y, posEarth.z),
+            Vec3(tan2.x, tan2.y, posMoon.z)
+          )
+        },
+        (0, viewerSettings.lineHeightSmall * 2)
+      ),
+      MeasurementLookupDistance("Flight", "Earth", (0, viewerSettings.lineHeightSmall * 2)),
+      MeasurementLookupRelativeVelocity("Flight", "Earth", (0, viewerSettings.lineHeightSmall * 5)),
+      MeasurementLookupDistance("Flight", "Luna", (0, viewerSettings.lineHeightSmall * 2)),
+      MeasurementLookupRelativeVelocity("Flight", "Luna", (0, viewerSettings.lineHeightSmall * 5))
     )
 
     // OK, next step is a new flight type created from a list of states, I think!
@@ -170,7 +197,7 @@ object Simulation {
       val diff = endDateJulian - startDateJulian
       val frac = idx / slider.getMaximum.toDouble
       val res = startDateJulian + frac * diff
-      println(s"$startDateJulian $res $endDateJulian")
+      // println(s"$startDateJulian $res $endDateJulian")
       res
     }
 
@@ -260,6 +287,31 @@ object Simulation {
 
     total
 
+  }
+
+
+  // find outer tangent between two circles
+  def outerTangent2D(
+      p1: Vec2, r1: Double,
+      p2: Vec2, r2: Double): (Vec2, Vec2) = {
+
+    val gamma = -math.atan2(p2.y - p1.y, p2.x - p1.x)
+    val beta = math.asin(
+      (r2 - r1) / Vec2.length(Vec2.sub(p2, p1)))
+
+    val alpha = gamma - beta
+
+    val p3 = Vec2(
+      p1.x + r1 * math.sin(alpha),
+      p1.y + r1 * math.cos(alpha))
+
+    val p4 = Vec2(
+      p2.x + r2 * math.sin(alpha),
+      p2.y + r2 * math.cos(alpha))
+
+    println(p1 +  " -> " + p3 + " " + p2 + " -> " + p4)
+
+    (p3, p4)
   }
 
 

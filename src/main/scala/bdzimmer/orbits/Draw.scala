@@ -301,8 +301,8 @@ object Draw {
           }
 
           // draw motion relative to origin at each position
-          println("draw motion")
-          println(s"${origCur.position} ${origStates.last.position}")
+          // println("draw motion")
+          // println(s"${origCur.position} ${origStates.last.position}")
           val relPositions = positions.zip(origStates).map({case (pos, orig) =>
             Vec3.add(origCur.position, Vec3.sub(pos, orig.position))})
           view.drawMotion(im, relPositions, factionColor, true, verticals = motionVerticals)
@@ -431,7 +431,7 @@ object Draw {
     }
 
     measurement match {
-      case m: LookupDistance => {
+      case m: MeasurementLookupDistance => {
         val funcFst = get(m.fst)
         val funcSnd = get(m.snd)
         val fst = funcFst(julian)
@@ -455,7 +455,7 @@ object Draw {
           view.settings)
       }
 
-      case m: LookupRelativeVelocity => {
+      case m: MeasurementLookupRelativeVelocity => {
         val funcFst = get(m.fst)
         val funcSnd = get(m.snd)
         val fst = funcFst(julian)
@@ -482,6 +482,30 @@ object Draw {
           view.settings)
 
       }
+
+      case m: MeasurementFuncDistance => {
+        val (fst, snd) = m.func(julian)
+
+        val distAU = Vec3.length(Vec3.sub(snd, fst))
+        val distKm = distAU * Conversions.AuToMeters * Conversions.MetersToKm
+
+        val halfPerCvt = findHalfPerCvt(fst, snd, im, view)
+
+        // render the measurement
+        view.drawLine(im, fst, snd, MeasurementColor)
+        simpleTable(
+          (halfPerCvt._1 + measurement.dispOffset._1, halfPerCvt._2 + measurement.dispOffset._2),
+          im,
+          Seq(
+            // (s"${m.fst} - ${m.snd}", false),
+            (m.name, false),
+            (f"$distAU%.4f AU", false),
+            (f"$distKm%.4f km", false)),
+          MeasurementColor,
+          view.settings)
+
+      }
+
     }
 
   }
