@@ -37,7 +37,9 @@ object Simulation {
     val ship = ConstAccelCraft("Test", 12000.0, 0.45)
 
     val startDate = CalendarDateTime(2018, 5, 7)
-    val endDate = CalendarDateTime(2018, 5, 21)
+    val endDate = CalendarDateTime(2018, 5, 9)
+
+    val startDateJulian = startDate.julian
 
     val startPlanet = MeeusPlanets.Earth.planet
     val endPlanet = MeeusPlanets.Mars.planet
@@ -50,6 +52,13 @@ object Simulation {
 
     val lunaStateFunc = Orbits.buildMoonState(Moons.Luna)
     val earthStateFunc = {t: Double => Orbits.planetState(MeeusPlanets.Earth.planet, t)}
+    val lunaStateRelFunc = {t: Double => {
+        val stateEarth = earthStateFunc(t)
+        val stateMoon = lunaStateFunc(t)
+        OrbitalState(
+          Vec3.sub(stateMoon.position, stateEarth.position),
+          Vec3.sub(stateMoon.velocity, stateEarth.velocity))
+    }}
 
     val bodyPositionsAuAndMassesKg: List[(String, Double => Vec3, Double)] = List(
       ("Earth", t => earthStateFunc(t).position, earthKg),
@@ -59,25 +68,122 @@ object Simulation {
     )
 
     val earthOrbitRadius = 0.0009
-    val moonOrbitRadius = 0.0001
+    val moonOrbitRadius = 0.0002
 
-    // set up starting position and velocity for an orbit of the Earth
-    val velocityScalar = orbitalVelocity(earthKg, earthOrbitRadius)
-    val earthPos = earthStateFunc(startDate.julian).position
-    val earthVel = earthStateFunc(startDate.julian).velocity
+//    // set up starting position and velocity for an orbit of the Earth
+//    val velocityScalar = orbitalVelocity(earthKg, earthOrbitRadius)
+//    val earthPos = earthStateFunc(startDate.julian).position
+//    val earthVel = earthStateFunc(startDate.julian).velocity
+//
+//    val startPosition = Vec3.add(earthPos, Vec3(earthOrbitRadius, 0.0, 0.0))
+//    val startVelocity = Vec3.add(earthVel, Vec3(0.0, velocityScalar, 0.0))
+//
+//    println(earthOrbitRadius * Conversions.AuToMeters * Conversions.MetersToKm)
+//    println(
+//      velocityScalar
+//        * Conversions.AuToMeters
+//        * Conversions.MetersToKm
+//        * Conversions.DayToSec)
+//
+//    println(earthVel)
+//    println(startVelocity)
+//
+//    (startPosition, startVelocity)
 
-    val startPosition = Vec3.add(earthPos, Vec3(earthOrbitRadius, 0.0, 0.0))
-    val startVelocity = Vec3.add(earthVel, Vec3(0.0, velocityScalar, 0.0))
+    // trying to plan a real flight from orbit of the Earth to the Moon
 
-    println(earthOrbitRadius * Conversions.AuToMeters * Conversions.MetersToKm)
-    println(
-      velocityScalar
-      * Conversions.AuToMeters
-      * Conversions.MetersToKm
-      * Conversions.DayToSec)
+    // plan a constant acceleration flight from the Earth to the Moon
+    // ignore movement of Earth and Moon around the Sun
+    // for accuracy here
 
-    println(earthVel)
-    println(startVelocity)
+    val flightEndDateJulian: Double = SolveFlight.constAccelEndDate(
+      ship,
+      Transformations.Vec3Zero,
+      t => lunaStateRelFunc(t).position,
+      startDate.julian).getOrElse(startDate.julian)
+
+    val flightEndDate = Conversions.julianToCalendarDate(flightEndDateJulian)
+
+    print(startDate.julian, flightEndDate.julian)
+
+    val flightEst = SimpleFlightParams(
+      ship,
+      "Earth",
+      "Luna",
+      earthStateFunc,
+      lunaStateFunc,
+      startDate,
+      flightEndDate,
+      List(),
+      "Default",
+      "Nothing")
+
+    // now that we have an estimate of the time, find the outer tangent between
+    // Earth at the start time and the Moon at the end time. This will give us our
+    // true starting and target ending positions.
+
+    val earthStartPos = earthStateFunc(startDate.julian).position
+
+    val (startPosition, endPosition) = outerTangentEstimated3D(
+      earthStartPos,
+      earthOrbitRadius,
+      Vec3.add(
+        earthStartPos,
+        lunaStateRelFunc(flightEndDateJulian).position),
+      moonOrbitRadius,
+      false)
+
+    // calculate starting velocity...orbital velocity at starting position
+    // perpendicular to tangent vector
+    val startVelocityScalar = 1.0 * orbitalVelocity(earthKg, earthOrbitRadius)
+//    val startVelocityDirection = Vec3.cross(
+//        Vec3.sub(earthStartPos, startPosition),
+//        Transformations.UnitZ)
+    val startVelocityDirection = Vec3.sub(endPosition, startPosition)
+    val svu = Vec3.mul(
+      startVelocityDirection,
+      1.0 / Vec3.length(startVelocityDirection))
+    val startVelocity = Vec3.add(
+      earthStateFunc(startDate.julian).velocity,
+      Vec3.mul(svu, startVelocityScalar))
+
+    // define an engine acceleration function:
+    //    - accelerate in starting velocity direction for first half of trip
+    //    - accelerate in opposite direction for second half of trip
+    val svua = Vec3.emul(svu, Vec3(1.0, 1.0, 1.0))
+    val tp = Vec3(0.47, 0.47, 0.47)
+    // 0.491 0.49111125
+
+    def accelEngineFn(t: Double): Vec3 = {
+      val tNorm = (t - startDateJulian) / (flightEndDateJulian - startDateJulian)
+
+      val x = if (tNorm >= 0.0 && tNorm < tp.x) {
+        svua.x * ship.accel
+      } else if (tNorm >= tp.x && tNorm <= 1.0) {
+        svua.x * -ship.accel
+      } else {
+        0.0
+      }
+
+      val y = if (tNorm >= 0.0 && tNorm < tp.y) {
+        svua.y * ship.accel
+      } else if (tNorm >= tp.y && tNorm <= 1.0) {
+        svua.y * -ship.accel
+      } else {
+        0.0
+      }
+
+      val z = if (tNorm >= 0.0 && tNorm < tp.z) {
+        svua.z * ship.accel
+      } else if (tNorm >= tp.z && tNorm <= 1.0) {
+        svua.z * -ship.accel
+      } else {
+        0.0
+      }
+
+      Vec3(x, y, z)
+
+    }
 
     // now update this over a bunch of time steps
     // and we'll interpolate between when sampling the flight's state function
@@ -94,14 +200,17 @@ object Simulation {
 
     ticks.foreach(t => {
 
-      println(t + " " + curPosition + " " + curVelocity)
+      // println(t + " " + curPosition + " " + curVelocity)
 
       val curState = (t, OrbitalState(curPosition, curVelocity))
       states += curState
 
       // calculate acceleration due to gravity in AU / sec^2
       val accelGrav = gravitationalAcceleration(t, curPosition, bodyPositionsAuAndMassesKg)
-      val accelEngine = Vec3(0.0, 0.0, 0.0)
+      // val accelEngine = Vec3(0.0, 0.0, 0.0)
+
+      val accelEngine = accelEngineFn(t)
+
       val accelTotal = Vec3.add(
         accelEngine,
         accelGrav)
@@ -119,7 +228,7 @@ object Simulation {
     })
 
     println(states.length)
-    val statesFiltered = states.grouped(100).map(_.head).toList
+    val statesFiltered = states.grouped(5).map(_.head).toList
     println(statesFiltered.length)
 
     /// ///
@@ -138,34 +247,67 @@ object Simulation {
       statesFiltered
     )
 
+    // ~~~~ evaluate flight function ~~~~
+
+    val pcFlightFunc = FlightParams.paramsToFun(flight)._1
+    val endState = ConvertFlight.flightState(pcFlightFunc, flightEndDateJulian)
+
+    // println(s"position ${Vec3.sub(endState.position, endPosition)}  (actual - target)")
+
+    // desired velocity is orbital velocity of moon (in outer tangent direction)
+    // plus velocity of moon
+    // val rv = Vec3.sub(curPosition, endState.position)
+    // val rvn = Vec3.mul(rv, 1.0 / Vec3.length(rv))
+
+    val rv = Vec3.cross(
+      Vec3.sub(endState.position, lunaStateFunc(flightEndDateJulian).position),
+      Transformations.UnitZ)
+    val radius = Vec3.length(rv)
+    val rvn = Vec3.mul(rv, 1.0 / Vec3.length(rv))
+
+    val desiredVelocity = orbitalVelocity(lunaKg, radius)
+    val dvVec = Vec3.add(
+      Vec3.mul(rvn, desiredVelocity),
+      lunaStateFunc(flightEndDateJulian).velocity)
+
+    println(s"radius: target: ${moonOrbitRadius}  actual: ${radius}")
+    println(s"svu: ${svu}")
+    println(s"velocity  target: ${Vec3.length(dvVec)}  actual: ${Vec3.length(endState.velocity)}")
+    println(s"\t${Vec3.sub(endState.velocity, dvVec)}  (actual - target)")
+
+    // val desiredOrbitalRadius = moonOrbitRadius
+//    val radius = Vec3.length(
+//      Vec3.sub(curPosition, endState.position))
+//    println(s"radius    target: ${desiredOrbitalRadius}  actual: ${radius}")
+
+    // ~~~~ ~~~~ ~~~~ ~~~~
+
     // set up flights and measurements
 
-    val flights: MutableBuffer[FlightParams] = MutableBuffer(flight)
+    val flights: MutableBuffer[FlightParams] = MutableBuffer(flightEst, flight)
 
     val viewerSettings = Style.ViewerSettingsDefault
 
     val measurements: Seq[Measurement] = Seq(
       MeasurementFuncDistance(
+        "initial outer tangent",
+        t => {
+          val earthPos = earthStateFunc(t).position
+//          (
+//            Vec3.add(Vec3.sub(startPosition, earthStartPos), earthPos),
+//            Vec3.add(Vec3.sub(endPosition, earthStartPos), earthPos)
+//          )
+          (startPosition, endPosition)
+        },
+        (0, viewerSettings.lineHeightSmall * 2)
+      ),
+      MeasurementFuncDistance(
         "Outer tangent",
         t => {
-          val posEarth = earthStateFunc(t).position
-          val posMoon = lunaStateFunc(t).position
-
-          val (tan1, tan2) = outerTangent2D(
-            Vec2(posEarth.x, posEarth.y),
-            earthOrbitRadius,
-            Vec2(posMoon.x, posMoon.y),
-            moonOrbitRadius)
-
-//          val tan1 = Vec2(posEarth.x + earthOrbitRadius, posEarth.y)
-//          val tan2 = Vec2(posMoon.x + moonOrbitRadius, posMoon.y)
-
-          println(tan1 + " " + tan2)
-
-          (
-            Vec3(tan1.x, tan1.y, posEarth.z),
-            Vec3(tan2.x, tan2.y, posMoon.z)
-          )
+          outerTangentEstimated3D(
+            earthStateFunc(t).position, earthOrbitRadius,
+            lunaStateFunc(t).position, moonOrbitRadius,
+            false)
         },
         (0, viewerSettings.lineHeightSmall * 2)
       ),
@@ -185,14 +327,12 @@ object Simulation {
     val planets = showSettings.planets.filter(_._2).flatMap(
       x => MeeusPlanets.Planets.get(x._1).map(y => (x._1, y))).toList
 
-
     // make a little JFrame with some controls
     val controlsWindow = new JFrame("Simulation Controls")
     val slider = new JSlider(SwingConstants.HORIZONTAL, 0, statesFiltered.length - 1, 0)
 
     def getCurDateJulian(): Double = {
       val idx = slider.getValue()
-      val startDateJulian = startDate.julian
       val endDateJulian = endDate.julian
       val diff = endDateJulian - startDateJulian
       val frac = idx / slider.getMaximum.toDouble
@@ -255,6 +395,7 @@ object Simulation {
 
   }
 
+
   // calculate orbital velocity in AU / day
   def orbitalVelocity(
     massKg: Double,
@@ -280,7 +421,7 @@ object Simulation {
       val accel = G_AuKgDay * massKg / (r * r)
       val accelVec = Vec3.mul(dir, -accel / r)
 
-      println("\t" + name + " " + Vec3.length(accelVec))
+      // println("\t" + name + " " + Vec3.length(accelVec))
 
       total = Vec3.add(total, accelVec)
     }})
@@ -293,25 +434,45 @@ object Simulation {
   // find outer tangent between two circles
   def outerTangent2D(
       p1: Vec2, r1: Double,
-      p2: Vec2, r2: Double): (Vec2, Vec2) = {
+      p2: Vec2, r2: Double,
+      plusOrMinus: Boolean): (Vec2, Vec2) = {
 
-    val gamma = -math.atan2(p2.y - p1.y, p2.x - p1.x)
-    val beta = math.asin(
-      (r2 - r1) / Vec2.length(Vec2.sub(p2, p1)))
+    val factor = if (plusOrMinus) 1.0 else - 1.0
+    val p1p2 = Vec2.sub(p2, p1)
+
+    val gamma = -math.atan2(p1p2.y, p1p2.x)
+    val beta = factor * math.asin((r2 - r1) / Vec2.length(p1p2))
 
     val alpha = gamma - beta
 
     val p3 = Vec2(
-      p1.x + r1 * math.sin(alpha),
-      p1.y + r1 * math.cos(alpha))
+      p1.x + factor * r1 * math.sin(alpha),
+      p1.y + factor * r1 * math.cos(alpha))
 
     val p4 = Vec2(
-      p2.x + r2 * math.sin(alpha),
-      p2.y + r2 * math.cos(alpha))
-
-    println(p1 +  " -> " + p3 + " " + p2 + " -> " + p4)
+      p2.x + factor * r2 * math.sin(alpha),
+      p2.y + factor * r2 * math.cos(alpha))
 
     (p3, p4)
+  }
+
+
+  def outerTangentEstimated3D(
+      p1: Vec3,
+      r1: Double,
+      p2: Vec3,
+      r2: Double,
+      plusOrMinus: Boolean): (Vec3, Vec3) = {
+
+    val (tan1, tan2) = outerTangent2D(
+      Vec2(p1.x, p1.y), r1,
+      Vec2(p2.x, p2.y), r2,
+      plusOrMinus)
+
+    (
+      Vec3(tan1.x, tan1.y, p1.z),
+      Vec3(tan2.x, tan2.y, p2.z)
+    )
   }
 
 
