@@ -423,7 +423,7 @@ object Moons {
 
 
 object Locations {
-  // General collections of locatios that we should be able to operate on
+  // General collections of locations that we should be able to operate on
 
   // TODO: turn Bodies into a map -> (OrbitalElementsEstimator, type) or something
 
@@ -449,7 +449,7 @@ object Locations {
 
   // TODO: eventually map over tuples rather than re-splitting string
   // TODO: convert to listmap so the keys of this thing can be used
-  val StatesMap = All.map(fullName => {
+  val StatesMap: Map[String, Double => OrbitalState] = All.map(fullName => {
 
     val suffix: String = fullName.takeRight(3)
     val (lagrangePoint, name) = if (suffix(0) == '-' && suffix(1) == 'L') {
@@ -476,17 +476,8 @@ object Locations {
 
     } else if (Moons.Moons.keySet.contains(name)) {
       // is it a moon?
-
       val moon = Moons.Moons.getOrElse(name, Moons.Luna)
-      val laplacePlane = moon.laplacePlane.map(
-        y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
-      ).getOrElse(
-        // Conversions.ICRFToEcliptic
-        Transformations.Identity3
-      )
-
-      curDateJulian => Orbits.moonState(
-        moon.moon, moon.primary, laplacePlane, curDateJulian)
+      Orbits.buildMoonState(moon)
 
     } else {
       // Sun and any unknown bodies
@@ -498,5 +489,10 @@ object Locations {
     (fullName, stateFunc)
 
   }).toMap
+
+  // not the most efficient, but the most convenient
+  def apply(x: String): Double => OrbitalState = {
+    StatesMap.getOrElse(x, DefaultFun)
+  }
 
 }

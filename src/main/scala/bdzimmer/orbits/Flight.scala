@@ -5,6 +5,7 @@
 package bdzimmer.orbits
 
 import scala.collection.immutable.Seq
+
 import scala.sys.process._
 import scala.util.Try
 import java.awt.{Color, Graphics2D}
@@ -19,6 +20,61 @@ import bdzimmer.util.StringUtils._
 abstract class FlightFn {
   val startTime: Double
   def apply(t: Double): Vec3
+}
+
+
+object ConvertFlight {
+
+  // epsilon for velocity estimation in days
+  val EpsVel: Double = 0.0001
+
+  def flightState(flightFn: FlightFn, t: Double, dt: Double = EpsVel): OrbitalState = {
+    val pos1 = flightFn(t)
+    val pos2 = flightFn(t + dt)
+
+    val vel = Vec3.mul(Vec3.sub(pos2, pos1), 1.0 / dt)
+    OrbitalState(pos1, vel)
+  }
+
+}
+
+
+class DummyFlightFn extends FlightFn {
+  val startTime = 0.0d
+  def apply(t: Double) = Transformations.Vec3Zero
+}
+
+
+class LinearInterpFlightFn(
+    val startTime: Double,
+    endTime: Double,
+    path: Seq[(Double, OrbitalState)]) extends FlightFn {
+
+  // val startTime = path.head._1
+  // val endTime = path.last._1
+
+  def apply(t_abs: Double): Vec3 = {
+    if (t_abs < startTime) {
+      path.head._2.position
+    } else {
+      // TODO: if we assume constant intervals, we can index to the spot directly
+      // rather than doing this iteration (or even something more efficient)
+      var idx = 1
+      while (idx < path.length - 1 && path(idx)._1 < t_abs) {
+        idx += 1
+      }
+      val (time0, state0) = path(idx - 1)
+      val (time1, state1) = path(idx - 0)
+      val frac = (t_abs - time0) / (time1 - time0)
+      // println(s"$idx $time0 $t_abs $time1 $frac")
+      Vec3.add(
+        state0.position,
+        Vec3.mul(
+          Vec3.sub(state1.position, state0.position),
+          frac))
+      // path(idx)._2.position
+    }
+  }
 }
 
 
@@ -826,54 +882,26 @@ object RenderFlight {
   }
 
 
-  // TODO: proper indentation
-  def drawFlightStatus(
+  def drawSimpleFlightStatus(
     tableStartX: Int,
     tableStartY: Int,
     im: BufferedImage,
     ship: Spacecraft,
     faction: String,
     factionColor: Color,
-    dateTime: CalendarDateTime,
-    distance: Double,
     vel: Double,
     viewerSettings: ViewerSettings): Unit = {
-
-    // draw a table describing the current flight status
 
     val velMetersPerSec = vel * Conversions.AuToMeters / Conversions.DayToSec
     val velKmPerSec = velMetersPerSec / 1000.0
     // val velC = velMetersPerSec / Conversions.LightToMetersPerSec
 
-    val aud2ToMs2 = Conversions.AuToMeters / (Conversions.DayToSec * Conversions.DayToSec)
-
-    // val massString = ship match {
-    //   case x: ConstAccelCraft => "%.2f".format(x.mass)
-    //   case _ => "undefined"
-    // }
-
-    val shipAccel = ship match {
-      case x: ConstAccelCraft => x.accel
-      case _ => 0.0
-    }
-    // val shipAccelG = shipAccel * aud2ToMs2 / Conversions.GToMetersPerSecond
-
-    // val shipThrustKN = ship match {
-    //   case x: ConstAccelCraft => x.thrust * aud2ToMs2
-    //   case _ => 0.0
-    // }
-
-    // val columnWidth = 100
-    // val tableStartX = viewerSettings.lineHeight
-    // val tableStartY = viewerSettings.lineHeight * 2
-
     val gr = im.getGraphics.asInstanceOf[Graphics2D]
     gr.setRenderingHints(Viewer.RenderHints)
 
-    def table(desc: String, values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
+    def table(values: Seq[String], row: Int, color: Color = Color.GREEN, italic: Boolean = false): Unit = {
       gr.setColor(Color.GREEN)
       gr.setFont(viewerSettings.displayFontSmall)
-      // gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeightSmall)
       gr.setColor(color)
       if (italic) {
         gr.setFont(viewerSettings.displayFontItalicSmall)
@@ -886,20 +914,13 @@ object RenderFlight {
       })
     }
 
-    table("Spacecraft:", Seq(ship.name.replace("*", "")), 0, factionColor, italic = true)
-    table("Faction:",    Seq(faction), 1, factionColor)
-    // table("Mass:",       Seq(massString    + " tonnes"), 2)
-    // table("a max:",      Seq("%.4f".format(shipAccel)   + " AU/day²",
-    //   "%.4f".format(shipAccelG)   + " g" ), 3)
-    // table("f max:",      Seq("%.2f".format(shipThrustKN) + " kN"),   5)
-
-    // table("DateTime:",   Seq(dateTime.dateTimeString), 7)
-    // table("Distance:",   Seq(f"$distance%.4f AU"), 8)
-    table("v:",          Seq(f"$vel%.4f AU/day",
-                                f"$velKmPerSec%.4f km/s"),
-                                // f"$velC%.4f C"),
-                               2,
-                               factionColor)
+    table(Seq(ship.name.replace("*", "")), 0, factionColor, italic = true)
+    table(Seq(faction), 1, factionColor)
+    table(Seq(f"$vel%.4f AU/day",
+              f"$velKmPerSec%.4f km/s"),
+              // f"$velC%.4f C"),
+              2,
+              factionColor)
   }
 
 

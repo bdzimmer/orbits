@@ -18,13 +18,15 @@ object Draw {
   val BeltR0 = 2.06
   val BeltR1 = 3.27
 
-  val EpsVel = 1.0e-4  // for velocity calculation
-
-  // val DisplaySettings = Style.ViewerSettingsArtsy
-
   val MoonsExperiment = true
-
   val DetailMin =  12.0
+
+  // constant colors - eventually these could become configurable
+  val MeasurementColor = Color.GRAY
+  val GridColor = new Color(0, 0, 128)
+
+  val EpsVel: Double = 0.0001
+
 
   def redraw(
 
@@ -33,6 +35,8 @@ object Draw {
 
       planets: Seq[(String, Planet)],
       flights: Seq[FlightParams],
+      measurements: Seq[Measurement],
+
       factions: Map[String, Color],
 
       asteroidBelt: Boolean,
@@ -42,7 +46,6 @@ object Draw {
       statusOption: Int,
       viewerSettings: ViewerSettings,
 
-      // camTrans: Mat44,
       camInfo: (Mat33, Vec3),
 
       viewPos: Vec3,
@@ -63,23 +66,6 @@ object Draw {
 
     val view = new Viewer(camTrans, viewPos, viewerSettings)
 
-    // helper - draw velocity arrow
-    def drawVelocityArrow(flightFn: FlightFn, color: Color): Double = {
-      if (curDateJulian - EpsVel > flightFn.startTime) {
-        val curState = flightFn(curDateJulian)
-        val curVelVec = Vec3.mul(
-          Vec3.sub(curState, flightFn(curDateJulian - EpsVel)),
-          1.0 / EpsVel)
-        val curVel = Vec3.length(curVelVec)
-        if (curVel > ConstVelFlightFn.VelMin) {
-          view.drawArrow(im, OrbitalState(curState, curVelVec), color)
-        }
-        curVel
-      } else {
-        0.0
-      }
-    }
-
     val planetMotions = planets.map(x => {
       (x._1, Orbits.planetMotionPeriod(x._2.planet, curDateJulian))
     })
@@ -92,7 +78,7 @@ object Draw {
     // ~~~~
 
     // draw the grid and the sun
-    view.drawGrid(im, GridLim, GridLim, None, new Color(0, 0, 128))
+    view.drawGrid(im, GridLim, GridLim, None, GridColor)
     val sun = Vec3(0.0, 0.0, 0.0)
     view.drawPosition(im, sun, "Sun", "", Color.YELLOW) // for now
 
@@ -133,9 +119,9 @@ object Draw {
 
           // coordinates in the viewer image
           val pos2d = View.perspective(pos, camTrans, viewPos)
-          val (ptx, pty) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
+          val (ptx, pty) = Viewer.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
 
-          if (view.inView(im, ptx, pty)) {
+          if (Viewer.inView(im, ptx, pty)) {
 
             val scale = Vec3(radiusAu, radiusAu, radiusAu)
 
@@ -202,6 +188,8 @@ object Draw {
             // Conversions.ICRFToEcliptic
             Transformations.Identity3
           ))
+
+        // motion of the moon relative to the primary
         val motion = Orbits.moonMotionPeriod(moon.primary, moon.moon, laplacePlane, curDateJulian)
 
         // TODO: this should be calculated separately
@@ -248,6 +236,11 @@ object Draw {
 
     // ~~~~ ~~~~ ~~~~ ~~~~
 
+    // draw measurements
+    val flightFn = fpOption.map(x => FlightParams.paramsToFun(x)._1)
+    measurements.foreach(x => drawMeasurement(im, view, x, flightFn, curDateJulian))
+
+
     // draw orbit info
     if (orbitInfo) {
       planets.foreach(x => {
@@ -284,37 +277,69 @@ object Draw {
     // otherFlights.zip(otherFlightsColors).toList.foreach(x => view.drawMotion(im, x._1, x._2))
 
     activeFlights.foreach(flight => {
-      val (flightFn, ticks) = Editor.paramsToFun(flight)
-      val positions = ticks.filter(x => x <= curDateJulian).map(tick => flightFn(tick))
+      val (flightFn, ticksPartial) = FlightParams.paramsToFun(flight)
+      val ticks = (ticksPartial.filter(x => x <= curDateJulian).toList :+ curDateJulian)
+      val positions = ticks.map(tick => flightFn(tick))
+      val origStates = ticks.map(tick => flight.orig(tick))
+
       val factionColor = factions.getOrElse(flight.faction, Color.LIGHT_GRAY)
 
-      if (true) {
-        val origStates = ticks.map(tick => flight.orig(tick))
-        val destStates = ticks.map(tick => flight.dest(tick))
-        view.drawMotion(im, origStates.map(_.position), factionColor, true, verticals = motionVerticals)
-        view.drawMotion(im, destStates.map(_.position), factionColor, true, verticals = motionVerticals)
+      val vel = flight match {
+        case _: PreCalculatedFlightParams => {
+          // draw absolute motion and velocity arrow
+          /// view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
+          // val vel = drawVelocityArrow(im, view, curDateJulian, flightFn, factionColor)
+
+          // velocity relative to origin
+          val curState = stateFromFlightFn(curDateJulian, flightFn)
+          val origCur = flight.orig(curDateJulian)
+          val velVecRel = Vec3.sub(curState.velocity, origCur.velocity)
+          // draw the arrow
+          val vel = Vec3.length(velVecRel)
+          if (vel > ConstVelFlightFn.VelMin) {
+            view.drawArrow(im, OrbitalState(curState.position, velVecRel), factionColor)
+          }
+
+          // draw motion relative to origin at each position
+          // println("draw motion")
+          // println(s"${origCur.position} ${origStates.last.position}")
+          val relPositions = positions.zip(origStates).map({case (pos, orig) =>
+            Vec3.add(origCur.position, Vec3.sub(pos, orig.position))})
+          view.drawMotion(im, relPositions, factionColor, true, verticals = motionVerticals)
+
+          vel
+        }
+
+        case _ => {
+          // draw origin and destination states
+          if (true) {
+            val destStates = ticks.map(tick => flight.dest(tick))
+            view.drawMotion(im, origStates.map(_.position), factionColor, true, verticals = motionVerticals)
+            view.drawMotion(im, destStates.map(_.position), factionColor, true, verticals = motionVerticals)
+          }
+
+          // draw motion and velocity arrow
+          view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
+          val vel = drawVelocityArrow(im, view, curDateJulian, flightFn, factionColor)
+
+          // draw flight radii
+          RenderFlight.drawFlightRadii(im, flight, curDateJulian, view)
+          vel
+        }
+
       }
 
-      // draw motion and velocity arrow
-      view.drawMotion(im, positions, factionColor, true, verticals = motionVerticals)
-      val vel = drawVelocityArrow(flightFn, factionColor)
-
-      // draw flight radii
-      RenderFlight.drawFlightRadii(im, flight, curDateJulian, view)
-
-      // draw status
+      // draw status next to ship arrow
       // val pos2d = View.perspective(positions.last, camTrans, viewPos)    // wrong
       // TODO: make this optional in ShowSettings
       val pos2d = View.perspective(flightFn(curDateJulian), camTrans, viewPos)
-      val (x, y) = view.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
-      RenderFlight.drawFlightStatus(
+      val (x, y) = Viewer.cvtPos(im, pos2d.x.toInt, pos2d.y.toInt)
+      RenderFlight.drawSimpleFlightStatus(
         x, y,
         im,
         flight.ship,
         flight.faction,
         Color.GREEN,
-        Conversions.julianToCalendarDate(curDateJulian),
-        Vec3.length(Vec3.sub(positions.last, positions.head)),
         vel,
         viewerSettings
       )
@@ -324,7 +349,7 @@ object Draw {
 
     fpOption.foreach(fp => {
 
-      val (flightFn, ticks) = Editor.paramsToFun(fp)
+      val (flightFn, ticks) = FlightParams.paramsToFun(fp)
 
       if (ticks.length < 1) {
         return scala.collection.mutable.Map()
@@ -332,11 +357,10 @@ object Draw {
 
       val origStates = ticks.map(tick => fp.orig(tick))
       val destStates = ticks.map(tick => fp.dest(tick))
-      val ticksSubset = ticks.takeWhile(x => x < curDateJulian)
+      val ticksSubset = ticks.takeWhile(x => x < curDateJulian).toList :+ curDateJulian
       val flightStates = ticksSubset.map(tick => flightFn(tick))
 
-      val factionColor = factions.getOrElse(fp.faction, Color.GREEN)
-
+      // val factionColor = factions.getOrElse(fp.faction, Color.GREEN)
       // RenderFlight.highlightFlight(
       //   view, im, fp, factions,
       //   origStates, destStates, flightStates, flightColor)
@@ -348,7 +372,9 @@ object Draw {
       // average velocity
       val vel = distance / (fp.endDate.julian - fp.startDate.julian)
 
-      val curVel = drawVelocityArrow(flightFn, factionColor)
+      // val curVel = drawVelocityArrow(im, view, curDateJulian, flightFn, factionColor)
+      // TODO: option for relative velocity here
+      val curVel = Vec3.length(stateFromFlightFn(curDateJulian, flightFn).velocity)
 
       if (statusOption == 0) {
         // draw flight status with current datetime, distance, and velocity
@@ -388,6 +414,110 @@ object Draw {
   }
 
 
+  def drawMeasurement(
+      im: BufferedImage,
+      view: Viewer,
+      measurement: Measurement,
+      flightFn: Option[FlightFn],
+      julian: Double): Unit = {
+
+    def get(x: String): Double => OrbitalState = {
+      if (x.equals("Flight")) {
+        // potentially get other flights
+        flightFn.map(fn => {t: Double => ConvertFlight.flightState(fn, t)}).getOrElse(Locations.DefaultFun)
+      } else {
+        Locations(x)
+      }
+    }
+
+    measurement match {
+      case m: MeasurementLookupDistance => {
+        val funcFst = get(m.fst)
+        val funcSnd = get(m.snd)
+        val fst = funcFst(julian)
+        val snd = funcSnd(julian)
+
+        val distAU = Vec3.length(Vec3.sub(snd.position, fst.position))
+        val distKm = distAU * Conversions.AuToMeters * Conversions.MetersToKm
+
+        val halfPerCvt = findHalfPerCvt(fst.position, snd.position, im, view)
+
+        // render the measurement
+        view.drawLine(im, fst.position, snd.position, MeasurementColor)
+        simpleTable(
+          (halfPerCvt._1 + measurement.dispOffset._1, halfPerCvt._2 + measurement.dispOffset._2),
+          im,
+          Seq(
+            // (s"${m.fst} - ${m.snd}", false),
+            (f"$distAU%.4f AU", false),
+            (f"$distKm%.4f km", false)),
+          MeasurementColor,
+          view.settings)
+      }
+
+      case m: MeasurementLookupRelativeVelocity => {
+        val funcFst = get(m.fst)
+        val funcSnd = get(m.snd)
+        val fst = funcFst(julian)
+        val snd = funcSnd(julian)
+
+        val velAUPerDay = Vec3.length(Vec3.sub(snd.velocity, fst.velocity))
+        val velKmPerSec = (velAUPerDay
+          * Conversions.AuToMeters
+          * Conversions.MetersToKm
+          / Conversions.DayToSec)
+
+        val halfPerCvt = findHalfPerCvt(fst.position, snd.position, im, view)
+
+        // render the measurement
+        view.drawLine(im, fst.position, snd.position, MeasurementColor)
+        simpleTable(
+          (halfPerCvt._1 + measurement.dispOffset._1, halfPerCvt._2 + measurement.dispOffset._2),
+          im,
+          Seq(
+            // (s"${m.fst} - ${m.snd}", false),
+            (f"$velAUPerDay%.4f AU/day", false),
+            (f"$velKmPerSec%.4f km/s", false)),
+          MeasurementColor,
+          view.settings)
+
+      }
+
+      case m: MeasurementFuncDistance => {
+        val (fst, snd) = m.func(julian)
+
+        val distAU = Vec3.length(Vec3.sub(snd, fst))
+        val distKm = distAU * Conversions.AuToMeters * Conversions.MetersToKm
+
+        val halfPerCvt = findHalfPerCvt(fst, snd, im, view)
+
+        // render the measurement
+        view.drawLine(im, fst, snd, MeasurementColor)
+        simpleTable(
+          (halfPerCvt._1 + measurement.dispOffset._1, halfPerCvt._2 + measurement.dispOffset._2),
+          im,
+          Seq(
+            // (s"${m.fst} - ${m.snd}", false),
+            (m.name, false),
+            (f"$distAU%.4f AU", false),
+            (f"$distKm%.4f km", false)),
+          MeasurementColor,
+          view.settings)
+
+      }
+
+    }
+
+  }
+
+
+  def findHalfPerCvt(fst: Vec3, snd: Vec3, im: BufferedImage, view: Viewer): (Int, Int) = {
+    val half = Vec3.mul(Vec3.add(fst, snd), 0.5)
+    val halfPer = View.perspective(half, view.camTrans, view.viewPos)
+    Viewer.cvtPos(im, halfPer.x.toInt, halfPer.y.toInt)
+  }
+
+
   // get info used for rendering spheres
   def sphereInfo(
       radiusZ: Double,
@@ -412,8 +542,79 @@ object Draw {
 
   }
 
+  // helper - draw velocity arrow given only t => position
+  def drawVelocityArrow(
+      im: BufferedImage,
+      view: Viewer,
+      curDateJulian: Double,
+      flightFn: FlightFn,
+      color: Color): Double = {
+
+    if (curDateJulian - EpsVel > flightFn.startTime) {
+      val curState = flightFn(curDateJulian)
+      val curVelVec = Vec3.mul(
+        Vec3.sub(curState, flightFn(curDateJulian - EpsVel)),
+        1.0 / EpsVel)
+      val curVel = Vec3.length(curVelVec)
+      if (curVel > ConstVelFlightFn.VelMin) {
+        view.drawArrow(im, OrbitalState(curState, curVelVec), color)
+      }
+      curVel
+    } else {
+      0.0
+    }
+  }
 
 
+  def simpleTable(
+    tableStart: (Int, Int),
+    im: BufferedImage,
+    texts: Seq[(String, Boolean)],
+    color: Color,
+    viewerSettings: ViewerSettings
+  ): Unit = {
 
+    val (tableStartX, tableStartY) = tableStart
+    val gr = im.getGraphics.asInstanceOf[Graphics2D]
+    gr.setRenderingHints(Viewer.RenderHints)
+
+    // someday I'm going to figure out how to properly generalize this code
+    def table(desc: String, values: Seq[(String, Boolean)], row: Int, color: Color): Unit = {
+
+      // draw header (not using for now)
+      // gr.setColor(Color.GREEN)
+      // gr.setFont(viewerSettings.displayFontSmall)
+      // gr.drawString(desc, tableStartX, tableStartY + row * viewerSettings.lineHeightSmall)
+
+      gr.setColor(color)
+
+      values.zipWithIndex.foreach({case ((text, italic), idx) => {
+        if (italic) {
+          gr.setFont(viewerSettings.displayFontItalicSmall)
+        } else {
+          gr.setFont(viewerSettings.displayFontSmall)
+        }
+        gr.drawString(
+          text,
+          tableStartX, // + viewerSettings.columnWidthSmall,
+          tableStartY + (row + idx) * viewerSettings.lineHeightSmall)
+      }})
+    }
+
+    table("whatever:", texts, 0, color)
+
+  }
+
+
+  def stateFromFlightFn(
+      curDateJulian: Double,
+      flightFn: FlightFn
+  ): OrbitalState = {
+    val curPos = flightFn(curDateJulian)
+    val curVel = Vec3.mul(
+      Vec3.sub(curPos, flightFn(curDateJulian - EpsVel)),
+      1.0 / EpsVel)
+    OrbitalState(curPos, curVel)
+  }
 
 }

@@ -4,69 +4,18 @@
 
 package bdzimmer.orbits
 
-import java.awt.{BorderLayout, Color, Dimension, FlowLayout, GridLayout, Graphics, Image, Font, Toolkit}
+import java.awt.{BorderLayout, Color, FlowLayout, Font, GridLayout}
 import java.awt.event._
-import java.awt.image.BufferedImage
-import java.text.SimpleDateFormat
-import java.util.Calendar
 
+import bdzimmer.orbits.InteractiveView.InitialVisiblePlanets
 import javax.swing._
 import javax.swing.event._
 
 import scala.util.Try
-
-import org.apache.commons.imaging.{ImageFormats, Imaging}
-
 import bdzimmer.util.StringUtils._
 
-
-// this is sort of a parallel version of how flights are represented in Secondary
-case class FlightParams(
-    ship: Spacecraft,
-    origName: String,
-    destName: String,
-    // orig: OrbitalElementsEstimator,
-    // dest: OrbitalElementsEstimator,
-    orig: Double => OrbitalState,
-    dest: Double => OrbitalState,
-    startDate: CalendarDateTime,
-    endDate: CalendarDateTime,
-    passengers: List[String],
-    faction: String,
-    description: String) {
-
-  override def toString: String = {
-    startDate.dateString + " - " +
-    ship.name.replace("*", "") + " - " +
-    origName + " - " + destName  // TODO: use an arrow here
-  }
-
-}
-
-
-case class CameraSettings(
-    var cameraPosType: String,
-    var cameraPointType: String,
-    var xAngle: Double,
-    var yAngle: Double,
-    var zAngle: Double,
-    var isIntrinsic: Boolean,
-    var xPos: Double,   // TODO: make pos a Vec3
-    var yPos: Double,
-    var zPos: Double,
-    var zViewPos: Double
-)
-
-
-case class UpdateCameraControls(
-    setXAngle: Double => Unit,
-    setYAngle: Double => Unit,
-    setZAngle: Double => Unit,
-    setXPos: Double => Unit,
-    setYPos: Double => Unit,
-    setZPos: Double => Unit,
-    setZViewPos: Double => Unit
-)
+import scala.collection.immutable.Seq
+import scala.collection.mutable.{Buffer => MutableBuffer}
 
 
 class Editor(
@@ -75,54 +24,20 @@ class Editor(
     epochs: List[(String, Double, Double)],
     styles: Map[String, ViewerSettings],
     factions: Map[String, Color]
-  ) extends JFrame {
-
-  Toolkit.getDefaultToolkit().setDynamicLayout(false)
+  ) {
 
   val showSettings = Editor.ShowSettingsDefault.copy()
-  val cameraSettings = Editor.CameraSettingsDefault.copy()
   var viewerSettings = Style.ViewerSettingsDefault
 
-  var prevPos = Vec3(0.0, 0.0, 0.0)
-
-  // for clicking on objects
-  // ugh
-  var selectedObjects = scala.collection.mutable.Map[String, (Vec2, Boolean)]()
-
   // make mutable copy of flights list
-  val flights: scala.collection.mutable.Buffer[FlightParams] = flightsList.toBuffer
-
-  /// /// image for view
-
-  var imWidth: Int = Editor.ViewWidth
-  var imHeight: Int = Editor.ViewHeight
-  var im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
-  var imagePanel = new ImagePanel(im)
+  val flights: MutableBuffer[FlightParams] = flightsList.toBuffer
 
   /// /// build toolbars
 
-  val toolbarsPanel = new JPanel(new BorderLayout())
-
-  val toolbarRow0 = new JPanel(new FlowLayout(FlowLayout.LEFT))
   val (
       flightsToolbar, flightsComboBox,
       flightsSlider, getTimelineTime, timelineButton, skipButtons, rebuildFlights) = Editor.buildFlightsToolbar(
       flights, ships, epochs, redraw)
-  toolbarRow0.add(flightsToolbar)
-  toolbarRow0.add(
-    Editor.buildExportToolbar(redrawGeneric))
-  toolbarsPanel.add(toolbarRow0, BorderLayout.NORTH)
-
-  val toolbarRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT))
-
-  val (cameraToolbar, updateCameraControls) = Editor.buildCameraToolbar(
-    cameraSettings, () => if (!timelineButton.isSelected || skipButtons.getSelection() == null) redraw())
-
-  toolbarRow1.add(cameraToolbar)
-  // toolbarRow1.add(Editor.buildUnitConverterToolbar())
-  toolbarsPanel.add(toolbarRow1, BorderLayout.SOUTH)
-
-  add(toolbarsPanel, BorderLayout.NORTH)
 
   /// /// build menu bar
 
@@ -133,143 +48,56 @@ class Editor(
     styles,
     x => {viewerSettings = x}) // TODO: if this works, redo camerasettings like this
 
-  setJMenuBar(mainMenuBar)
+  /// /// Create base InteractiveView to modify
 
-  /// /// build view panel
+  val iv = new InteractiveView(
+    "Orbits Edtior",
+    getCurDateJulian,
+    () => timelineButton.isSelected,
+    getVisiblePlanets,
+    () => flights,
+    () => flights(flightsComboBox.getSelectedIndex),
+    () => Seq(),
+    () => factions,
+    () => fpsCheckBox.isSelected,
+    () => !timelineButton.isSelected || skipButtons.getSelection == null,
+    showSettings,
+    viewerSettings
+  )
 
-  val viewPanel = new JPanel()
-  viewPanel.add(imagePanel)
-  viewPanel.addMouseWheelListener(new MouseWheelListener() {
-    def mouseWheelMoved(event: MouseWheelEvent): Unit = {
-      val notches = event.getWheelRotation
-      val multiplier = if (event.isControlDown) { 100.0 } else {1.0}
-      val zViewPos = cameraSettings.zViewPos - notches * Editor.ZoomSpeed * multiplier
-      updateCameraControls.setZViewPos(math.max(zViewPos, 0.0))
-      // don't need to redraw here, since it seems that the above triggers change listener
-    }
-  })
+  val ivs = MutableBuffer[InteractiveView]()
+  ivs += iv
 
-  val mousePanListener = new MouseInputAdapter() {
-    var x = 0.0
-    var y = 0.0
-    var cx = 0.0
-    var cy = 0.0
+  /// /// add additional toolbars
 
-    override def mousePressed(event: MouseEvent): Unit = {
-      x = event.getX
-      y = event.getY
-      if (event.getButton == MouseEvent.BUTTON1) {
-        cx = cameraSettings.xAngle
-        cy = cameraSettings.yAngle
 
-        // look for stuff to click on
+  val toolbarRow0 = new JPanel(new FlowLayout(FlowLayout.LEFT))
+  toolbarRow0.add(flightsToolbar)
+  toolbarRow0.add(
+    InteractiveView.buildExportToolbar(iv.redrawGeneric))
+  toolbarRow0.add(
+    buildAddViewToolbar(ivs)
+  )
 
-        // look for matches in objects and update
-        val tx = x - im.getWidth / 2
-        val ty = (im.getHeight - y) - im.getHeight / 2
-        var found = false
-        selectedObjects.foreach({case (name, (pos, selected)) => {
-          if ((pos.x - tx).abs < 32 && (pos.y - ty).abs < 32) {
-            selectedObjects(name) = (pos, !selected)
-            println(name + " " + !selected)
-            found = true
-          }
-        }})
-        if (found) {
-          redraw()
-        }
+  iv.toolbarsPanel.removeAll()
 
-      } else {
-        cx = cameraSettings.xPos
-        cy = cameraSettings.yPos
-      }
-    }
+  iv.toolbarsPanel.add(toolbarRow0, BorderLayout.NORTH)
+  iv.toolbarsPanel.add(iv.cameraToolbar, BorderLayout.SOUTH)
 
-    override def mouseDragged(event: MouseEvent): Unit = {
-      val dx = event.getX - x
-      val dy = event.getY - y
-      // println(dx + " " + dy)
-      // TODO: adjust and rotate direction based on camera angle
-      if ((event.getModifiersEx & InputEvent.BUTTON1_DOWN_MASK) != 0) {
-        // println("changing angles")
-        updateCameraControls.setXAngle(cx + dy * Editor.RotateSpeed)
-        updateCameraControls.setYAngle(cy + dx * Editor.RotateSpeed)
-        // println("done")
-      } else {
-        // println("changing pan")
-        updateCameraControls.setXPos(cx - dx * Editor.PanSpeed)
-        updateCameraControls.setYPos(cy + dy * Editor.PanSpeed)
-        // println("done")
-      }
-    }
+  iv.setJMenuBar(mainMenuBar)
 
-  }
-
-  viewPanel.addMouseListener(mousePanListener)
-  viewPanel.addMouseMotionListener(mousePanListener)
-
-  add(viewPanel, BorderLayout.CENTER)
 
   /// ///
 
-  setTitle("Orbits Editor")
-  pack()
-  redraw()
-
-  addComponentListener(new ComponentAdapter {
-    override def componentResized(event: ComponentEvent): Unit = {
-      rebuildImagePanel()
-      redraw()
-    }
-  })
-
-  toFront()
-  setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)
-  setResizable(true)
-  setVisible(true)
-
-  if (Debug.ENABLED) {
-    DebugDisplay.show()
-    DebugInput.setCallback(redraw)
-    DebugInput.show()
-  }
-
-  /// ///
-
-
-  def redraw(): Unit = {
-
-    val startTime = System.nanoTime // System.currentTimeMillis
-    redrawGeneric(im)
-    imagePanel.repaint()
-
-    val endTime = System.nanoTime // System.currentTimeMillis
-
-    if (fpsCheckBox.isSelected) {
-      val fps = 1.0e9 / (endTime - startTime)
-      println(fps)
-      val gr = im.getGraphics
-      gr.setColor(Color.GREEN)
-      gr.drawString(fps.round.toString, im.getWidth - 50, 25)
-    }
-
-    System.out.print(".")
-  }
-
-
-  def redrawGeneric(image: BufferedImage) = {
-    // extra layer of abstraction; while this grabs uses all of the UI options,
-    // it allows rendering to an arbitrary image; ie, an image of known
-    // resolution that will be saved to disk
-
-    // find selected planets
-    val planets = showSettings.planets.filter(_._2).flatMap(
+  def getVisiblePlanets(): Seq[(String, Planet)] = {
+    showSettings.planets.filter(_._2).flatMap(
       x => MeeusPlanets.Planets.get(x._1).map(y => (x._1, y))).toList
+  }
 
-    val timelineMode = timelineButton.isSelected
 
-    // logic for finding the current time that we are displaying
-    val curDateJulian = if (timelineMode) {
+  def getCurDateJulian(): Double = {
+
+    if (timelineButton.isSelected) {
       getTimelineTime()
     } else {
       val idx = flightsComboBox.getSelectedIndex
@@ -278,252 +106,63 @@ class Editor(
       fp.startDate.julian + (fp.endDate.julian - fp.startDate.julian) * flightPercent
     }
 
-    val (camRot, camPos, viewPos, fpOption) = getViewInfo(curDateJulian, timelineMode)
+  }
 
-    val objects = Draw.redraw(
-      fpOption,
-      curDateJulian,
-      planets,
-      flights.toList,
-      factions,
-      showSettings.asteroidBelt,
-      showSettings.lagrangePoints,
-      showSettings.orbitInfo,
-      showSettings.motionVerticals,
-      showSettings.flightStatus,
-      viewerSettings,
-      (camRot, camPos),
-      viewPos,
-      image
-    )
 
-    // update available objects to click on
-    val selectedObjectsNew = scala.collection.mutable.Map[String, (Vec2, Boolean)]()
-    objects.foreach({case (name, pos) => {
-      selectedObjectsNew(name) = (pos, selectedObjects.get(name).exists(_._2))
-    }})
-    selectedObjects = selectedObjectsNew
+  def redraw(): Unit = {
+    ivs.foreach(_.redraw())
+  }
 
-    // ~~~~ draw ephemeral editor stuff
-    // some of this could be before Draw.redraw if it didn't clear the image...food for thought
 
-    val camTrans = View.cameraTransform(camRot, camPos)
-    val view = new Viewer(camTrans, viewPos, viewerSettings)
+  def buildAddViewToolbar(
+     ivs: MutableBuffer[InteractiveView]): JToolBar = {
 
-    selectedObjects.foreach({case (name, (_, selected)) => {
-      if (selected) {
-        // is it a planet?
-        MeeusPlanets.Planets.get(name).foreach(x => {
-          RenderFlight.drawOrbitInfo(image, x.planet(curDateJulian), Transformations.IdentityTransformation, view)
+    val toolbar = new JToolBar()
+    toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
+    toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Views"))
+
+    val addButton = new JButton("New")
+    addButton.addActionListener(new ActionListener {
+      override def actionPerformed(actionEvent: ActionEvent): Unit = {
+
+        val iv = new InteractiveView(
+          "View " + (ivs.length + 1),
+          getCurDateJulian,
+          () => timelineButton.isSelected,
+          getVisiblePlanets,
+          () => flights,
+          () => flights(flightsComboBox.getSelectedIndex),
+          () => Seq(),
+          () => factions,
+          () => fpsCheckBox.isSelected,
+          () => !timelineButton.isSelected || skipButtons.getSelection == null,
+          showSettings,
+          viewerSettings
+        )
+
+        iv.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE)
+        iv.addWindowListener(new WindowAdapter {
+          override def windowClosed(windowEvent: WindowEvent): Unit = {
+            super.windowClosed(windowEvent)
+            val idx = ivs.indexOf(iv)
+            ivs.remove(idx)
+            println("total interactive views: " + ivs.length)
+          }
         })
 
-        // is it a moon?
-        Moons.Moons.get(name).foreach(x => {
-          // val laplacePlane = x.laplacePlane.map(
-          //   y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination))
+        ivs += iv
 
-          // TODO: remove ICRF transformation from calculation
-          val laplacePlane = Some(
-            x.laplacePlane.map(
-              y => Orbits.laplacePlaneICRFTransformation(y.rightAscension, y.declination)
-            ).getOrElse(
-              // Conversions.ICRFToEcliptic
-              Transformations.Identity3
-            ))
-
-          val preTrans = Transformations.transformation(
-            laplacePlane.getOrElse(Transformations.Identity3),
-            Orbits.planetState(x.primary, curDateJulian).position)
-
-          RenderFlight.drawOrbitInfo(
-            image,
-            x.moon(curDateJulian),
-            preTrans,
-            view)
-
-          val pMotion = RenderFlight.precessionPeriod(x.moon, curDateJulian, preTrans)
-          RenderFlight.drawOrbit(
-            image, pMotion, view,
-            RenderFlight.ColorOrbital, showSettings.motionVerticals, true)
-        })
-
-        // TODO: is it a flight?
-      }
-    }})
-
-    // DEBUG CALCULATIONS
-
-    if (Debug.ENABLED) {
-
-      /*
-      DebugDisplay.set(
-        "Earth - Inc to Eclip",
-        MeeusPlanets.Earth.planet(curDateJulian).inclination / Conversions.DegToRad)
-      DebugDisplay.set(
-        "Mars - Inc to Eclip",
-        MeeusPlanets.Mars.planet(curDateJulian).inclination / Conversions.DegToRad)
-      DebugDisplay.set(
-        "Saturn - Inc to Eclip",
-        MeeusPlanets.Saturn.planet(curDateJulian).inclination / Conversions.DegToRad)
-      */
-
-      def angleDegrees(a: Vec3, b: Vec3): Double = {
-        val res = math.acos(Vec3.dot(a, b)) / Conversions.DegToRad
-        math.rint(res * 1000.0) / 1000.0
-      }
-
-      def axisInfo(planet: Planet): String = {
-
-        val zAxis = Transformations.UnitZ
-        val oe = planet.planet(curDateJulian)
-
-        val orbitalToIntertial = Orbits.transformOrbitalInertial(oe)
-
-        val axisOrbital = orbitalToIntertial.mul(zAxis)
-
-        val planetAxis = Orbits.laplacePlaneICRFTransformation(
-          planet.axialTilt.rightAscension, planet.axialTilt.declination).mul(zAxis)
-
-        val orbitEcliptic = angleDegrees(zAxis, axisOrbital)
-        val axialTiltOrbit =  angleDegrees(planetAxis, axisOrbital)
-        val axialTiltEcliptic = angleDegrees(planetAxis, zAxis)
-
-        axialTiltOrbit.toString + " " + axialTiltEcliptic.toString + " " + orbitEcliptic
-        // Vec3.length(zAxis).toString + " " + Vec3.length(axisOrbital).toString + " " + Vec3.length(planetAxis).toString
-      }
-
-      DebugDisplay.set("Mercury", axisInfo(MeeusPlanets.Mercury))
-      DebugDisplay.set("Venus", axisInfo(MeeusPlanets.Venus))
-      DebugDisplay.set("Earth", axisInfo(MeeusPlanets.Earth))
-      DebugDisplay.set("Mars", axisInfo(MeeusPlanets.Mars))
-      DebugDisplay.set("Jupiter", axisInfo(MeeusPlanets.Jupiter))
-      DebugDisplay.set("Saturn", axisInfo(MeeusPlanets.Saturn))
-      DebugDisplay.set("Uranus", axisInfo(MeeusPlanets.Uranus))
-      DebugDisplay.set("Neptune", axisInfo(MeeusPlanets.Neptune))
-
-      DebugDisplay.update()
-
-    }
-
-
-  }
-
-
-  // Get view information (camera position and rotation) at active time given camera settings
-  def getViewInfo(
-      curDateJulian: Double,
-      timelineMode: Boolean): (Mat33, Vec3, Vec3, Option[FlightParams]) = {
-
-    // TODO: separate logic for optional returning active flight...that makes this too complex
-
-    // TODO: combine timeline / non-timeline type logic if possible; it will get more complicated
-    // TODO: separate manual from both modes would be a start
-
-    val camPos = cameraSettings.cameraPosType match {
-      case "Manual" => getManualCamPos
-      case _ => Editor.findPosition(cameraSettings.cameraPosType, curDateJulian)
-    }
-
-    if (timelineMode) {
-
-      val activeFlights = flights.filter(x => curDateJulian > x.startDate.julian && curDateJulian < x.endDate.julian)
-      val fpOption = activeFlights.reduceOption((x, y) => if (x.startDate.julian < y.startDate.julian) x else y)
-
-      val camRot = cameraSettings.cameraPointType match {
-
-        case "Manual"        => getManualCamRot
-
-        case "Follow Active" => {
-
-          // TODO: extract damping logic?
-
-          val initial = Vec3.mul(prevPos, Editor.Damping)
-
-          // average positions of active flights with initial
-          val curState = Vec3.mul(
-            activeFlights.map(fp => {
-              val (flightFn, _) = Editor.paramsToFun(fp)
-              flightFn(curDateJulian)
-            }).foldLeft(initial)(Vec3.add),
-            1.0 / (activeFlights.length + Editor.Damping)
-          )
-
-          // update previous position
-          prevPos = curState
-
-          Editor.pointCamera(curState, camPos)
-        }
-
-        case _ => Editor.pointCamera(Editor.findPosition(cameraSettings.cameraPointType, curDateJulian), camPos)
+        println("total interactive views: " + ivs.length)
 
       }
+    })
 
-      (camRot, camPos, getManualViewPos, fpOption)
-
-    } else {
-
-      // individual flight mode
-
-      val fp = flights(flightsComboBox.getSelectedIndex)
-      val (flightFn, _) = Editor.paramsToFun(fp)
-
-      val camRot = cameraSettings.cameraPointType match {
-        case "Manual"        => getManualCamRot
-        case "Follow Active" => Editor.pointCamera(flightFn(curDateJulian), camPos)
-        case _               => {
-          Editor.pointCamera(Editor.findPosition(cameraSettings.cameraPointType, curDateJulian), camPos)
-        }
-
-      }
-
-      (camRot, camPos, getManualViewPos, Some(fp))
-
-    }
-
-  }
-
-  def rebuildImagePanel(): Unit = {
-    imWidth = viewPanel.getWidth
-    imHeight = viewPanel.getHeight
-    if (imHeight > 0 && imWidth > 0 ) {
-      viewPanel.remove(imagePanel)
-      im = new BufferedImage(imWidth, imHeight, BufferedImage.TYPE_INT_ARGB)
-      imagePanel = new ImagePanel(im)
-      viewPanel.add(imagePanel)
-      viewPanel.revalidate()
-    }
+    toolbar.add(addButton)
+    toolbar
   }
 
 
-//  // get camera matrix from UI
-//  private def getCamera: Mat44 = {
-//    View.cameraTransform(getCamRot, getCamPos)
-//  }
 
-
-  private def getManualCamRot: Mat33 = {
-    val xAngle = cameraSettings.xAngle * math.Pi / 180
-    val yAngle = cameraSettings.yAngle * math.Pi / 180
-    val zAngle = cameraSettings.zAngle * math.Pi / 180
-    val theta = Vec3(xAngle, yAngle, zAngle)
-
-    if (cameraSettings.isIntrinsic) {
-      Transformations.rotationZYX(theta)
-    } else {
-      Transformations.rotationXYZ(theta)
-    }
-  }
-
-
-  private def getManualCamPos: Vec3 = {
-    Vec3(cameraSettings.xPos, cameraSettings.yPos, cameraSettings.zPos)
-  }
-
-
-  // get viewer position from UI
-  private def getManualViewPos: Vec3 = {
-    Vec3(0, 0, cameraSettings.zViewPos)
-  }
 
 
 }
@@ -532,110 +171,26 @@ class Editor(
 
 object Editor {
 
-  // TODO: consider moving some of this to a separate config
-  // so secondary isn't taking the orbits editor as a dep
-
-  val CameraSettingsDefault = CameraSettings(
-    cameraPosType = "Manual",
-    cameraPointType = "Manual",
-    xAngle = 45.0,
-    yAngle = 0.0,
-    zAngle = 180.0,
-    isIntrinsic = true,
-    xPos = 0.0,
-    yPos = -5.0,
-    zPos = 5.0,
-    zViewPos = 800.0
-  )
-
-  // TODO: damping becomes a part of CameraSettings
-  val Damping = 20.0
-
-  // TODO: move to ShowSettingsDefault?
-  val InitialVisiblePlanets = List("Earth", "Mars", "Saturn", "Uranus")
-
-  val ShowSettingsDefault = ShowSettings(
-      planets = MeeusPlanets.Planets.map(x => (x._1, InitialVisiblePlanets.contains(x._1))),
-      lagrangePoints = true,  // TODO: false
-      asteroidBelt = true,
-      orbitInfo = false,
-      motionVerticals = false,
-      flightStatus = 1
-  )
-
-  val ViewWidth = 800
-  val ViewHeight = 600
-
-
-  val ZoomSpeed = 500
-  val PanSpeed = 0.01
-  val RotateSpeed = 0.1
-  val ControlsWidth = 400
 
   val FactionsFilename = "orbits_factions.txt"
   val StylesFilename = "orbits_styles.txt"
 
   val ExportFilename = "flights_export"
 
-  // find position of a celestial body by name at a certain date
-  def findPosition(fullName: String, curDateJulian: Double): Vec3 = {
-    Locations.StatesMap.get(fullName).map(
-      func => func(curDateJulian).position).getOrElse(Transformations.Vec3Zero)
-  }
 
-
-  def paramsToFun(fp: FlightParams): (FlightFn, scala.collection.immutable.Seq[Double]) = {
-
-    val startDateJulian = fp.startDate.julian
-    val endDateJulian = fp.endDate.julian
-
-    val res = if ((endDateJulian - startDateJulian) > 1.0) {
-      // one tick per hour
-      1.0 / 24.0
-    } else {
-      // one tick per minute
-      1.0 / 24.0 / 60.0
-    }
-    val ticks = (startDateJulian until endDateJulian by res).toList.toIndexedSeq // don't ask
-
-    // find positions of origin and destination bodies
-    // val origState = Orbits.planetState(fp.orig, startDateJulian)
-    // val destState = Orbits.planetState(fp.dest, endDateJulian)
-
-    val origState = fp.orig(startDateJulian)
-    val destState = fp.dest(endDateJulian)
-
-    val flightFn = fp.ship match {
-      case _: ConstAccelCraft => ConstAccelFlightFn(
-        origState.position, destState.position,
-        startDateJulian, endDateJulian - startDateJulian)
-      case _: ConstVelCraft => ConstVelFlightFn(
-        origState.position, destState.position,
-        startDateJulian, endDateJulian - startDateJulian
-      )
-    }
-
-    (flightFn, ticks)
-  }
-
-
-  def pointCamera(point: Vec3, camPos: Vec3): Mat33 = {
-    val camToPoint = Vec2(point.x - camPos.x, point.y - camPos.y)
-    val camAngleX = math.atan2(point.z - camPos.z, Vec2.length(camToPoint))
-    val camAngleZ = math.atan2(camToPoint.x, camToPoint.y)
-    val camOrient = Vec3(math.Pi * 0.5 + camAngleX, 0.0, math.Pi + camAngleZ)
-//    println(
-//      camOrient.x / Conversions.DegToRad,
-//      camOrient.y / Conversions.DegToRad,
-//      camOrient.z / Conversions.DegToRad)
-    Transformations.rotationZYX(camOrient)
-  }
-
+  val ShowSettingsDefault = ShowSettings(
+    planets = MeeusPlanets.Planets.map(x => (x._1, InitialVisiblePlanets.contains(x._1))),
+    lagrangePoints = true, // TODO: false
+    asteroidBelt = true,
+    orbitInfo = false,
+    motionVerticals = false,
+    flightStatus = 1
+  )
 
   def buildMenuBar(
       showSettings: ShowSettings,
       redraw: () => Unit,
-      flights: scala.collection.mutable.Buffer[FlightParams],
+      flights: MutableBuffer[FlightParams],
       ships: Map[String, Spacecraft],
       rebuildFlights: () => Unit,
       styles: Map[String, ViewerSettings],
@@ -660,6 +215,7 @@ object Editor {
         // TODO: add date
         val outputPrefix = ExportFilename
 
+        // TODO: filter and save only simple flights for now
         IO.saveFlightsSec(flights, outputPrefix + ".sec")
         IO.saveFlightsTsv(flights, outputPrefix + ".tsv")
       }
@@ -773,7 +329,7 @@ object Editor {
     val styleMenu = new JMenu("Style")
     val styleButtonGroup = new ButtonGroup()
     val stylesList = ("Default", Style.ViewerSettingsDefault) :: styles.toList
-    stylesList.zipWithIndex.foreach({case ((key, value), idx) => {
+    stylesList.zipWithIndex.foreach({ case ((key, value), idx) => {
       val button = new JRadioButtonMenuItem(key)
       button.addActionListener(new ActionListener {
         override def actionPerformed(e: ActionEvent): Unit = {
@@ -786,7 +342,8 @@ object Editor {
       }
       styleButtonGroup.add(button)
       styleMenu.add(button)
-    }})
+    }
+    })
 
     // ~~~~
 
@@ -799,7 +356,7 @@ object Editor {
 
 
   def buildFlightsToolbar(
-      flights: scala.collection.mutable.Buffer[FlightParams],
+      flights: MutableBuffer[FlightParams],
       ships: List[Spacecraft],
       epochs: List[(String, Double, Double)],
       redraw: () => Unit): (JToolBar, JComboBox[String], JSlider, () => Double,
@@ -859,27 +416,37 @@ object Editor {
 
       if (startDate.year > 0 && endDate.year > 0) {
 
-        val fp = flights(idx).copy(
-          ship = ships(shipsComboBox.getSelectedIndex),
-          origName = origName,
-          destName = destName,
-          orig = Locations.StatesMap.getOrElse(origName, Locations.DefaultFun),
-          dest = Locations.StatesMap.getOrElse(destName, Locations.DefaultFun),
-          startDate = startDate,
-          endDate = endDate,
-          passengers = List()
-        )
+        flights(idx) match {
+          case simpleFight: SimpleFlightParams => {
 
-        flights(idx) = fp
-        // println(fp, DateTime.parse(startDateText.getText).julian, DateTime.parse(endDateText.getText).julian)
+            val fp = simpleFight.copy(
+              ship = ships(shipsComboBox.getSelectedIndex),
+              origName = origName,
+              destName = destName,
+              orig = Locations.StatesMap.getOrElse(origName, Locations.DefaultFun),
+              dest = Locations.StatesMap.getOrElse(destName, Locations.DefaultFun),
+              startDate = startDate,
+              endDate = endDate,
+              passengers = List()
+            )
 
-        Disable(flightsComboBox, {
-          flightsComboBox.removeItemAt(idx)
-          flightsComboBox.insertItemAt((idx + 1) + ". " + fp.toString, idx)
-          flightsComboBox.setSelectedIndex(idx)
-          toolbar.revalidate()
-          toolbar.repaint()
-        })
+            flights(idx) = simpleFight
+            // println(fp, DateTime.parse(startDateText.getText).julian, DateTime.parse(endDateText.getText).julian)
+
+            Disable(flightsComboBox, {
+              flightsComboBox.removeItemAt(idx)
+              flightsComboBox.insertItemAt((idx + 1) + ". " + fp.toString, idx)
+              flightsComboBox.setSelectedIndex(idx)
+              toolbar.revalidate()
+              toolbar.repaint()
+            })
+
+          }
+          case _ => {
+            println("Can only edit simple flights.")
+          }
+
+        }
 
       }
     }
@@ -897,6 +464,7 @@ object Editor {
 
     val updateActionListener = new ActionListener {
       var enabled = true
+
       override def actionPerformed(event: ActionEvent): Unit = {
         if (enabled) {
           update()
@@ -907,13 +475,16 @@ object Editor {
 
     val updateDocumentListener = new DocumentListener {
       var enabled = true
+
       override def changedUpdate(event: DocumentEvent): Unit = {}
+
       override def insertUpdate(event: DocumentEvent): Unit = {
         if (enabled) {
           update()
           redraw()
         }
       }
+
       override def removeUpdate(event: DocumentEvent): Unit = {
         if (enabled) {
           update()
@@ -1100,11 +671,12 @@ object Editor {
     delayMsText.setMaximumSize(delayMsText.getPreferredSize)
 
     val epochsComboBox = new JComboBox[String](
-      epochs.zipWithIndex.map({case (x, idx) =>
+      epochs.zipWithIndex.map({ case (x, idx) =>
         (idx + 1) + ". " +
-        x._1 + " - " +
-        Conversions.julianToCalendarDate(x._2).dateTimeString + " - " +
-        Conversions.julianToCalendarDate(x._3).dateTimeString}).toArray)
+          x._1 + " - " +
+          Conversions.julianToCalendarDate(x._2).dateTimeString + " - " +
+          Conversions.julianToCalendarDate(x._3).dateTimeString
+      }).toArray)
 
     epochsComboBox.addActionListener(new ActionListener {
       override def actionPerformed(e: ActionEvent): Unit = {
@@ -1116,13 +688,12 @@ object Editor {
     // TODO: eventually, calculate this whenever flights changes
     // TODO: unsafe if flights empty
     def dateRange(): (Double, Double) = {
-//      val startDate = flights.map(_.startDate.julian).min
-//      val endDate = flights.map(_.endDate.julian).max
-//      (startDate, endDate)
+      //      val startDate = flights.map(_.startDate.julian).min
+      //      val endDate = flights.map(_.endDate.julian).max
+      //      (startDate, endDate)
       val epoch = epochs(epochsComboBox.getSelectedIndex)
       (epoch._2, epoch._3)
     }
-
 
 
     def updateTimelineTime(newTime: Double, startDate: Double, endDate: Double): Unit = {
@@ -1142,13 +713,13 @@ object Editor {
     val skipAmounts = List(-1.0, -1.0 / 24.0, -1.0 / 1440.0, 1.0 / 1440.0, 1.0 / 24.0, 1.0)
     val skipLabels = List("<<<", "<<", "<", ">", ">>", ">>>")
     val skipButtons = new ClearableButtonGroup()
-    skipAmounts.zip(skipLabels).foreach({case (skipAmount, skipLabel) => {
+    skipAmounts.zip(skipLabels).foreach({ case (skipAmount, skipLabel) => {
 
       val skipButton = new JToggleButton(skipLabel)
 
       skipButton.addItemListener(new ItemListener {
         override def itemStateChanged(e: ItemEvent): Unit = {
-          if(e.getStateChange == ItemEvent.SELECTED) {
+          if (e.getStateChange == ItemEvent.SELECTED) {
             runAtIntervalThread = new Thread(new RunAtInterval(() => {
               // println("updating in thread")
               val newTime = timelineTime + skipAmount
@@ -1185,7 +756,8 @@ object Editor {
 
       skipButtons.add(skipButton)
       skipPanel.add(skipButton)
-    }})
+    }
+    })
 
     skipPanel.add(delayMsText)
 
@@ -1221,7 +793,6 @@ object Editor {
   }
 
 
-
   def buildUnitConverterToolbar(): JToolBar = {
 
     val toolbar = new JToolBar()
@@ -1237,8 +808,11 @@ object Editor {
 
     val auPerDaySqListener: DocumentListener = new DocumentListener {
       override def changedUpdate(event: DocumentEvent): Unit = {}
+
       override def insertUpdate(event: DocumentEvent): Unit = update()
+
       override def removeUpdate(event: DocumentEvent): Unit = update()
+
       def update(): Unit = {
         if (converterEnabled) {
           println("editing au")
@@ -1248,7 +822,7 @@ object Editor {
             val accelGRound = math.rint(accelG * 1000.0) / 1000.0
             converterEnabled = false
             gText.setText(accelGRound.toString)
-            converterEnabled= true
+            converterEnabled = true
           })
         }
       }
@@ -1256,8 +830,11 @@ object Editor {
 
     val gListener: DocumentListener = new DocumentListener {
       override def changedUpdate(event: DocumentEvent): Unit = {}
+
       override def insertUpdate(event: DocumentEvent): Unit = update()
+
       override def removeUpdate(event: DocumentEvent): Unit = update()
+
       def update(): Unit = {
         if (converterEnabled) {
           println("editing g")
@@ -1282,222 +859,6 @@ object Editor {
     toolbar.add(new JLabel("g  "))
 
     toolbar
-  }
-
-
-  def buildCameraToolbar(
-      cameraSettings: CameraSettings, redraw: () => Unit): (JToolBar, UpdateCameraControls) = {
-
-    val cameraSettingsOrg = cameraSettings.copy()
-
-    val spinnerWidth = 3
-
-    val toolbar = new JToolBar()
-    toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Camera"))
-
-    // TODO: better programatic creation of camera types
-
-    val cameraPosType = new JComboBox[String]((
-        List("Manual") ++
-        Locations.Bodies ++
-        Locations.LagrangePoints
-    ).toArray)
-
-    cameraPosType.addActionListener(new ActionListener {
-      override def actionPerformed(e: ActionEvent): Unit = {
-        cameraSettings.cameraPosType = cameraPosType.getSelectedItem.asInstanceOf[String]
-        redraw()
-      }
-    })
-
-    val cameraPointType = new JComboBox[String]((
-        List("Manual", "Follow Active") ++
-        Locations.Bodies ++
-        Locations.LagrangePoints
-    ).toArray)
-
-    cameraPointType.addActionListener(new ActionListener {
-      override def actionPerformed(e: ActionEvent): Unit = {
-          cameraSettings.cameraPointType = cameraPointType.getSelectedItem.asInstanceOf[String]
-          redraw()
-      }
-    })
-
-    val xAngleField = new JSpinner(new SpinnerNumberModel(cameraSettings.xAngle, -360.0, 360.0, 0.25))
-    val yAngleField = new JSpinner(new SpinnerNumberModel(cameraSettings.yAngle, -360.0, 360.0, 0.25))
-    val zAngleField = new JSpinner(new SpinnerNumberModel(cameraSettings.zAngle, -360.0, 360.0, 0.25))
-    xAngleField.addChangeListener(new ChangeListener {
-      override def stateChanged(e: ChangeEvent): Unit = {
-        cameraSettings.xAngle = xAngleField.getValue.asInstanceOf[Double]
-        redraw()
-      }
-    })
-    yAngleField.addChangeListener(new ChangeListener {
-      override def stateChanged(e: ChangeEvent): Unit = {
-        cameraSettings.yAngle = yAngleField.getValue.asInstanceOf[Double]
-        redraw()
-      }
-    })
-    zAngleField.addChangeListener(new ChangeListener {
-      override def stateChanged(e: ChangeEvent): Unit = {
-        cameraSettings.zAngle = zAngleField.getValue.asInstanceOf[Double]
-        redraw()
-      }
-    })
-    xAngleField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
-    yAngleField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
-    zAngleField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
-    val isIntrinsic = new JCheckBox("Int")
-    isIntrinsic.setSelected(cameraSettings.isIntrinsic)
-    isIntrinsic.addChangeListener(new ChangeListener {
-      override def stateChanged(e: ChangeEvent): Unit = {
-        cameraSettings.isIntrinsic = isIntrinsic.isSelected
-        redraw()
-      }
-    })
-
-    val xPosField = new JSpinner(new SpinnerNumberModel(cameraSettings.xPos, -100.0, 100.0, 0.2))
-    val yPosField = new JSpinner(new SpinnerNumberModel(cameraSettings.yPos, -100.0, 100.0, 0.2))
-    val zPosField = new JSpinner(new SpinnerNumberModel(cameraSettings.zPos, -100.0, 100.0, 0.2))
-    val zViewPosField = new JSpinner(new SpinnerNumberModel(cameraSettings.zViewPos, 0.0, 100000.0, 100.0))
-
-    xPosField.addChangeListener(new ChangeListener {
-      override def stateChanged(e: ChangeEvent): Unit = {
-        cameraSettings.xPos = xPosField.getValue.asInstanceOf[Double]
-        redraw()
-      }
-    })
-    yPosField.addChangeListener(new ChangeListener {
-      override def stateChanged(e: ChangeEvent): Unit = {
-        cameraSettings.yPos = yPosField.getValue.asInstanceOf[Double]
-        redraw()
-      }
-    })
-    zPosField.addChangeListener(new ChangeListener {
-      override def stateChanged(e: ChangeEvent): Unit = {
-        cameraSettings.zPos = zPosField.getValue.asInstanceOf[Double]
-        redraw()
-      }
-    })
-    zViewPosField.addChangeListener(new ChangeListener {
-      override def stateChanged(e: ChangeEvent): Unit = {
-        cameraSettings.zViewPos = zViewPosField.getValue.asInstanceOf[Double]
-        redraw()
-      }
-    })
-    zViewPosField.setValue(cameraSettings.zViewPos)
-    xPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
-    yPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
-    zPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
-    zViewPosField.getEditor.asInstanceOf[JSpinner.DefaultEditor].getTextField.setColumns(spinnerWidth)
-
-    val zoomSlider = new JSlider(
-      SwingConstants.HORIZONTAL, 0, 100, 0)
-    zoomSlider.addChangeListener(new ChangeListener {
-      def stateChanged(event: ChangeEvent): Unit = {
-        val scale = zoomSlider.getValue / 100.0
-        zViewPosField.setValue(
-          cameraSettingsOrg.zViewPos + math.pow(scale * 7000.0, 2))
-      }
-    })
-
-    val resetButton = new JButton("Reset")
-    resetButton.addActionListener(new ActionListener {
-      override def actionPerformed(e: ActionEvent): Unit = {
-        // update stuff
-        // println("resetting camera")
-        xAngleField.setValue(cameraSettingsOrg.xAngle)
-        yAngleField.setValue(cameraSettingsOrg.yAngle)
-        zAngleField.setValue(cameraSettingsOrg.zAngle)
-        xPosField.setValue(cameraSettingsOrg.xPos)
-        yPosField.setValue(cameraSettingsOrg.yPos)
-        zPosField.setValue(cameraSettingsOrg.zPos)
-        zViewPosField.setValue(cameraSettingsOrg.zViewPos)
-        // println("done")
-      }
-    })
-
-    toolbar.add(cameraPosType)
-    toolbar.add(cameraPointType)
-    toolbar.add(new JSeparator(SwingConstants.VERTICAL))
-    toolbar.add(xPosField)
-    toolbar.add(yPosField)
-    toolbar.add(zPosField)
-    toolbar.add(new JSeparator(SwingConstants.VERTICAL))
-    toolbar.add(xAngleField)
-    toolbar.add(yAngleField)
-    toolbar.add(zAngleField)
-    toolbar.add(isIntrinsic)
-    toolbar.add(zViewPosField)
-    toolbar.add(new JSeparator(SwingConstants.VERTICAL))
-    toolbar.add(zoomSlider)
-    toolbar.add(resetButton)
-
-    val updateCameraControls = UpdateCameraControls(
-      setXAngle = x => xAngleField.setValue(x),
-      setYAngle = x => yAngleField.setValue(x),
-      setZAngle = x => zAngleField.setValue(x),
-      setXPos = x => xPosField.setValue(x),
-      setYPos = x => yPosField.setValue(x),
-      setZPos = x => zPosField.setValue(x),
-      setZViewPos = x => zViewPosField.setValue(x)
-    )
-
-    (toolbar, updateCameraControls)
-
-  }
-
-
-
-  def buildExportToolbar(
-      drawImage: BufferedImage => Unit): JToolBar = {
-
-    // TODO: make image width and height parameters
-
-    val toolbar = new JToolBar()
-    toolbar.setLayout(new FlowLayout(FlowLayout.LEFT))
-    toolbar.setBorder(BorderFactory.createTitledBorder(toolbar.getBorder, "Export"))
-
-    val exportButton = new JButton("Export")
-
-    exportButton.addActionListener(new ActionListener {
-      override def actionPerformed(e: ActionEvent): Unit = {
-
-        val writeTimeStart = System.currentTimeMillis
-
-        val sdf = new SimpleDateFormat("YYYYMMdd_HHmmss")
-        val formatted = sdf.format(Calendar.getInstance().getTime)
-
-        val outputFile = new java.io.File("orbits_" + formatted + ".png")
-
-        val image = new BufferedImage(1280, 720, BufferedImage.TYPE_INT_ARGB)
-        drawImage(image)
-        Imaging.writeImage(
-          image, outputFile, ImageFormats.PNG, new java.util.HashMap[String, Object]())
-
-        val writeTime = System.currentTimeMillis - writeTimeStart
-
-        print("exported " + outputFile.getName + " in " + writeTime + " ms")
-      }
-    })
-
-    toolbar.add(exportButton)
-    toolbar
-  }
-
-
-}
-
-
-
-class ImagePanel(val image: Image) extends JPanel {
-  setPreferredSize(
-    new Dimension(image.getWidth(null), image.getHeight(null)))
-  setVisible(true)
-
-  override def paintComponent(gr: Graphics): Unit = {
-    super.paintComponent(gr)
-    gr.drawImage(image, 0, 0, null)
   }
 
 }

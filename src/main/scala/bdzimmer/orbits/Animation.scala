@@ -104,13 +104,13 @@ object Animation {
 
       val curState = if (animationSettings.camType.equals("follow")) {
 
-        val dampedComponent = Vec3.mul(prevState, Editor.Damping)
+        val dampedComponent = Vec3.mul(prevState, InteractiveView.Damping)
         val sumComponent = sumStates(activeFlights, tick)
 
         // weighted average of active flights and previous position
         Vec3.mul(
           Vec3.add(dampedComponent, sumComponent),
-          1.0 / (activeFlights.length + Editor.Damping))
+          1.0 / (activeFlights.length + InteractiveView.Damping))
 
       } else {
         val planet = MeeusPlanets.Planets.getOrElse(animationSettings.camType, MeeusPlanets.Earth).planet
@@ -119,7 +119,7 @@ object Animation {
 
       // update previous position
       prevState = curState
-      val camRot = Editor.pointCamera(curState, initCamPos)
+      val camRot = InteractiveView.pointCamera(curState, initCamPos)
       // val camTrans = View.cameraTransform(camRot, initCamPos)
 
       val initTime = System.currentTimeMillis - initTimeStart
@@ -133,6 +133,7 @@ object Animation {
         tick,
         planets,
         flights,
+        scala.collection.immutable.Seq(),
         factions,
         showSettings.asteroidBelt,
         showSettings.lagrangePoints,
@@ -184,7 +185,7 @@ object Animation {
   // sum of flight states; used for damping
   def sumStates(flights: List[FlightParams], date: Double): Vec3 = {
     flights.map(fp => {
-      val (flightFn, _) = Editor.paramsToFun(fp)
+      val (flightFn, _) = FlightParams.paramsToFun(fp)
       flightFn(date)
     }).foldLeft(Vec3(0.0, 0.0, 0.0))(Vec3.add)
   }

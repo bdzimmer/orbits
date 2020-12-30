@@ -49,12 +49,12 @@ object IO {
 
 
   // load flights from a tab-separated file
-  def loadFlightsTsv(inputFilename: String, ships: Map[String, Spacecraft]): List[FlightParams] = {
+  def loadFlightsTsv(inputFilename: String, ships: Map[String, Spacecraft]): List[SimpleFlightParams] = {
     val lines = FileUtils.readLines(new File(inputFilename))
     val defaultShip = ships.values.head
     lines.asScala.map(line => {
       val lineSplit = line.split("\\t")
-      FlightParams(
+      SimpleFlightParams(
         ships.getOrElse(lineSplit(0), defaultShip),
         lineSplit(1), // TODO: handle more complex location names, including lagrange points
         lineSplit(2),
