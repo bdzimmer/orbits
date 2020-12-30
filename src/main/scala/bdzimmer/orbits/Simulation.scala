@@ -151,8 +151,8 @@ object Simulation {
     //    - accelerate in starting velocity direction for first half of trip
     //    - accelerate in opposite direction for second half of trip
     val svua = Vec3.emul(svu, Vec3(1.0, 1.0, 1.0))
-    val tp = Vec3(0.47, 0.47, 0.47)
-    // 0.491 0.49111125
+    // val tp = Vec3(0.47, 0.47, 0.47)
+    val tp = Vec3(0.5, 0.5, 0.5)
 
     def accelEngineFn(t: Double): Vec3 = {
       val tNorm = (t - startDateJulian) / (flightEndDateJulian - startDateJulian)
