@@ -47,7 +47,7 @@ class TextSuite extends FunSuite {
     val width = 1920
     val height = 1080
     val paragraphs = List(  // each of these will be one paragraph
-      "  {b}Lorem {b}ipsum {i}dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+      "  {b}Lorem{b} {i}ipsu{i}m {i}{b}dolor{b}{i} sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
       " ",
       "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
       "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
@@ -63,8 +63,7 @@ class TextSuite extends FunSuite {
       true
     )
 
-    val (metrics, _, _) = Text.findMetrics(
-      config.font, config.paragraphs.lift(0).getOrElse("test"))
+    val (metrics, _, _) = Text.findMetrics(config.font, " ")
     val im = Text.drawMulti(config, metrics)
 
     assert(im.getWidth == width + borderSize * 2)

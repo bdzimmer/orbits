@@ -4,7 +4,8 @@
 
 package bdzimmer.orbits
 
-import scala.collection.mutable.Buffer
+import scala.util.regexp
+import scala.collection.mutable.{Buffer => MutableBuffer}
 import scala.collection.JavaConverters._
 
 import java.io.{File, FileWriter, PrintWriter}
@@ -170,7 +171,8 @@ object Text {
       // for a simple, uniform font style
       // val styledText = new AttributedString(paragraph)
       // styledText.addAttribute(TextAttribute.FONT, config.font)
-      val styledText = parseStyles(paragraph, config.font)
+      // val styledText = parseStyles(paragraph, config.font)
+      val styledText = parseStylesNew(paragraph, config.font)
 
       val count = breakCount(styledText, frc, config.width)
 
@@ -324,10 +326,11 @@ object Text {
     Imaging.writeImage(im, new File(outputFilename), ImageFormats.PNG, new util.HashMap[String, Object]())
   }
 
+
   def parseStyles(paragraph: String, font: Font): AttributedString = {
     // split by SINGLE SPACE, check beginnings of words for instructions
     var resultString = ""
-    var attribs: Buffer[(Font, Int, Int)] = Buffer()
+    var attribs: MutableBuffer[(Font, Int, Int)] = MutableBuffer()
     var pos = 0
 
     paragraph.split(" ").foreach(word => {
@@ -365,6 +368,75 @@ object Text {
 
     resultString = resultString.dropRight(1)
     attribs = attribs.dropRight(1)
+
+    if (resultString.length > 0) {
+      val result = new AttributedString(resultString)
+      attribs.foreach(attrib => {
+        result.addAttribute(TextAttribute.FONT, attrib._1, attrib._2, attrib._3)
+      })
+      result
+    } else {
+      val result = new AttributedString(" ")
+      result.addAttribute(TextAttribute.FONT, font)
+      result
+    }
+
+  }
+
+
+  def parseStylesNew(paragraph: String, font: Font): AttributedString = {
+
+    // in this new version, the tokens {b} and {i} enable or disable bold and italic
+    // so we split by those tokens instead and have a loop that builds up the final
+    // string by the chunks in between
+
+    // split by SINGLE SPACE, check beginnings of words for instructions
+    var resultString = ""
+    val attribs: MutableBuffer[(Font, Int, Int)] = MutableBuffer()
+
+    var isItalic = false
+    var isBold = false
+
+    val matcher = "\\{.*?\\}".r
+    val toggles = matcher.findAllIn(paragraph).toList
+    val chunksAll = matcher.split(paragraph).toList
+
+    if (chunksAll.length > 1) {
+      // section before first toggle
+      resultString = chunksAll.headOption.getOrElse("")
+      toggles.zip(chunksAll.tail).foreach({case (toggle, chunk) => {
+
+        // update state using toggle
+        if (toggle.startsWith("{i}")) {
+          // toggle italic
+          isItalic = !isItalic
+        } else if (toggle.startsWith("{b}")) {
+          // toggle bold
+          isBold = !isBold
+        }
+
+        if (chunk.length > 0) {
+
+          // append attribs and text
+          var styledFont = font
+          if (isItalic && !isBold) {
+            styledFont = font.deriveFont(Font.ITALIC)
+          } else if (isBold && !isItalic) {
+            styledFont = font.deriveFont(Font.BOLD)
+          } else if (isBold && isItalic) {
+            styledFont = font.deriveFont(Font.ITALIC | Font.BOLD)
+          }
+          val pos = resultString.length
+          attribs.append((styledFont, pos, pos + chunk.length))
+          resultString = resultString + chunk
+          // println(chunk + " " + pos + " " + pos + chunk.length)
+        }
+
+      }})
+    } else {
+      resultString = paragraph
+      attribs.append((font, 0, paragraph.length))
+    }
 
     if (resultString.length > 0) {
       val result = new AttributedString(resultString)
