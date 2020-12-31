@@ -47,7 +47,7 @@ class TextSuite extends FunSuite {
     val width = 1920
     val height = 1080
     val paragraphs = List(  // each of these will be one paragraph
-      "  {b}Lorem{b} {i}ipsu{i}m {i}{b}dolor{b}{i} sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+      "  Lorem {b}ipsum{b} {i}{b}dolo{b}{i}r {i}sit{i} amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
       " ",
       "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
       "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",

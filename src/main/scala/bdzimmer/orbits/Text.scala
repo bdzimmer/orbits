@@ -402,8 +402,13 @@ object Text {
     val chunksAll = matcher.split(paragraph).toList
 
     if (chunksAll.length > 1) {
+
       // section before first toggle
       resultString = chunksAll.headOption.getOrElse("")
+      if (resultString.length > 0) {
+        attribs.append((font, 0, resultString.length))
+      }
+
       toggles.zip(chunksAll.tail).foreach({case (toggle, chunk) => {
 
         // update state using toggle
